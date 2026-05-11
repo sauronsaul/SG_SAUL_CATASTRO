@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/tests/">
+    <Project Path="tests/SG.Api.IntegrationTests/SG.Api.IntegrationTests.csproj" />
+    <Project Path="tests/SG.Application.Tests/SG.Application.Tests.csproj" />
+    <Project Path="tests/SG.Domain.Tests/SG.Domain.Tests.csproj" />
+  </Folder>
+  <Project Path="SG.Api/SG.Api.csproj" />
+  <Project Path="SG.Application/SG.Application.csproj" />
+  <Project Path="SG.Contracts/SG.Contracts.csproj" />
+  <Project Path="SG.Domain/SG.Domain.csproj" />
+  <Project Path="SG.Infrastructure/SG.Infrastructure.csproj" />
+</Solution>

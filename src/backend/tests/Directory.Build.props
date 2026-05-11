@@ -1,0 +1,21 @@
+<Project>
+  <!--
+    MSBuild detiene la búsqueda de Directory.Build.props en el primer archivo
+    que encuentra (el más cercano al proyecto). Para seguir heredando la
+    configuración del padre (src/backend/Directory.Build.props), debemos
+    importarlo explícitamente aquí.
+  -->
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
+
+  <PropertyGroup>
+    <!--
+      CA1707: identificadores no deben contener guiones bajos.
+              Los métodos de test usan convención Should_ReturnX_When_Y.
+      CA1822: marcar miembros como estáticos.
+              Los métodos [Fact]/[Theory] deben ser de instancia para xUnit.
+    -->
+    <NoWarn>$(NoWarn);CA1707;CA1822</NoWarn>
+    <!-- Los tests no necesitan documentación XML pública -->
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+</Project>
