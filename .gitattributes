@@ -1,0 +1,74 @@
+# ============================================================
+# SG_SAUL_CATASTRO — .gitattributes
+# Controla line endings y marcado binario por tipo de archivo.
+# ============================================================
+
+# Normalización automática para archivos texto no listados explícitamente
+* text=auto
+
+# ------------------------------------------------------------
+# Backend — C# / .NET
+# .sln usa CRLF porque Visual Studio en Windows lo exige.
+# ------------------------------------------------------------
+*.cs            text eol=lf
+*.csproj        text eol=lf
+*.sln           text eol=crlf
+*.props         text eol=lf
+*.targets       text eol=lf
+*.config        text eol=lf
+*.xml           text eol=lf
+
+# ------------------------------------------------------------
+# Frontend — TypeScript / JavaScript
+# ------------------------------------------------------------
+*.ts            text eol=lf
+*.tsx           text eol=lf
+*.js            text eol=lf
+*.jsx           text eol=lf
+*.mjs           text eol=lf
+*.cjs           text eol=lf
+*.html          text eol=lf
+*.css           text eol=lf
+*.scss          text eol=lf
+
+# ------------------------------------------------------------
+# Datos e infraestructura
+# ------------------------------------------------------------
+*.json          text eol=lf
+*.yml           text eol=lf
+*.yaml          text eol=lf
+*.sql           text eol=lf
+*.sh            text eol=lf
+
+# ------------------------------------------------------------
+# Windows — requieren CRLF para ejecutarse correctamente
+# ------------------------------------------------------------
+*.ps1           text eol=crlf
+*.bat           text eol=crlf
+*.cmd           text eol=crlf
+
+# ------------------------------------------------------------
+# Documentación
+# ------------------------------------------------------------
+*.md            text eol=lf
+*.txt           text eol=lf
+
+# ------------------------------------------------------------
+# Binarios — no tocar line endings ni diff
+# ------------------------------------------------------------
+*.png           binary
+*.jpg           binary
+*.jpeg          binary
+*.gif           binary
+*.ico           binary
+*.svg           text eol=lf
+*.pdf           binary
+*.zip           binary
+*.tar.gz        binary
+*.gz            binary
+*.7z            binary
+*.pfx           binary
+*.p12           binary
+*.ttf           binary
+*.woff          binary
+*.woff2         binary
