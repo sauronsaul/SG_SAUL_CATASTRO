@@ -1,0 +1,25 @@
+# ============================================================
+# SG_SAUL_CATASTRO — Caddyfile modo LOCAL
+# ============================================================
+# Sprint 0: configuración mínima de reverse proxy.
+# Los servicios api y web aún no existen — se agregarán en Sprint 1 y 4.
+
+{
+  # Deshabilitar telemetría de Caddy
+  admin off
+  # No intentar TLS automático en local
+  auto_https off
+}
+
+# Puerto HTTP local
+:80 {
+  # --- API Backend (Sprint 1) ---
+  handle /api/* {
+    reverse_proxy api:8080
+  }
+
+  # --- Frontend Web (Sprint 4) ---
+  handle {
+    reverse_proxy web:3000
+  }
+}

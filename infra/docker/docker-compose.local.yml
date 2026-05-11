@@ -1,0 +1,17 @@
+name: sg-catastro
+
+# ============================================================
+# SG_SAUL_CATASTRO — Overrides para modo LOCAL
+# Uso: docker compose --env-file .env \
+#        -f infra/docker/docker-compose.yml \
+#        -f infra/docker/docker-compose.local.yml up -d
+# ============================================================
+
+# Sprint 0 — placeholder.
+# En sprints posteriores este archivo agregará:
+#   - api: con ASPNETCORE_ENVIRONMENT=Development y hot reload
+#   - web: con Vite dev server (npm run dev)
+#   - Exposición directa de puertos para debugging
+#   - Volúmenes de código fuente montados para hot reload
+
+services: {}

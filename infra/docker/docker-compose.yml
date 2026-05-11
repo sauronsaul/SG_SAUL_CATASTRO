@@ -1,0 +1,104 @@
+name: sg-catastro
+
+# ============================================================
+# SG_SAUL_CATASTRO — Docker Compose base
+# Uso: docker compose --env-file .env -f infra/docker/docker-compose.yml up -d
+# Para modo local combinar con docker-compose.local.yml
+# Para producción combinar con docker-compose.prod.yml
+# ============================================================
+
+services:
+
+  # ----------------------------------------------------------
+  # PostgreSQL 16 + PostGIS 3.4
+  # ----------------------------------------------------------
+  postgres:
+    image: postgis/postgis:16-3.4-alpine
+    container_name: sg_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - sg_postgres_data:/var/lib/postgresql/data
+      - ../../database/init:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    networks:
+      - sg_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # ----------------------------------------------------------
+  # MinIO — almacenamiento S3-compatible para documentos
+  # ----------------------------------------------------------
+  minio:
+    image: minio/minio:latest
+    container_name: sg_minio
+    restart: unless-stopped
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    volumes:
+      - sg_minio_data:/data
+    ports:
+      - "${MINIO_API_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    networks:
+      - sg_network
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  # ----------------------------------------------------------
+  # Caddy — reverse proxy (TLS automático en modo servidor)
+  # ----------------------------------------------------------
+  caddy:
+    image: caddy:2-alpine
+    container_name: sg_caddy
+    restart: unless-stopped
+    volumes:
+      - ./caddy/Caddyfile.local:/etc/caddy/Caddyfile:ro
+      - sg_caddy_data:/data
+      - sg_caddy_config:/config
+    ports:
+      - "${CADDY_HTTP_PORT:-80}:80"
+      - "${CADDY_HTTPS_PORT:-443}:443"
+    networks:
+      - sg_network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+
+# ------------------------------------------------------------
+# Volúmenes nombrados — persisten entre reinicios
+# ------------------------------------------------------------
+volumes:
+  sg_postgres_data:
+    name: sg_postgres_data
+  sg_minio_data:
+    name: sg_minio_data
+  sg_caddy_data:
+    name: sg_caddy_data
+  sg_caddy_config:
+    name: sg_caddy_config
+
+# ------------------------------------------------------------
+# Red interna
+# ------------------------------------------------------------
+networks:
+  sg_network:
+    name: sg_network
+    driver: bridge

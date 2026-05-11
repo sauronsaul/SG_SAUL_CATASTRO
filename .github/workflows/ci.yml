@@ -1,0 +1,80 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+    branches:
+      - main
+      - develop
+
+jobs:
+  # ------------------------------------------------------------
+  # Job 1: Validar sintaxis de archivos YAML
+  # ------------------------------------------------------------
+  lint-yaml:
+    name: Lint YAML
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Instalar yamllint
+        run: pip install yamllint
+
+      - name: Validar archivos YAML
+        run: |
+          yamllint \
+            --config-data "{extends: default, rules: {line-length: {max: 120}, truthy: {allowed-values: ['true', 'false', 'on', 'off']}}}" \
+            .github/workflows/ \
+            infra/docker/docker-compose.yml \
+            infra/docker/docker-compose.local.yml \
+            infra/docker/docker-compose.prod.yml
+
+  # ------------------------------------------------------------
+  # Job 2: Validar que docker-compose es sintácticamente correcto
+  # ------------------------------------------------------------
+  docker-compose-validate:
+    name: Validar Docker Compose
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Crear .env desde .env.example
+        run: cp .env.example .env
+
+      - name: Reemplazar placeholders con valores de prueba
+        run: |
+          sed -i 's/<CAMBIAR_PASSWORD_SEGURO>/TestPassword123!/g' .env
+          sed -i 's/<CAMBIAR_CLAVE_SECRETA_MINIMO_32_CARACTERES>/TestSecretKey1234567890123456789012/g' .env
+
+      - name: Validar docker-compose base
+        run: |
+          docker compose \
+            --env-file .env \
+            -f infra/docker/docker-compose.yml \
+            config --quiet
+
+      - name: Validar docker-compose base + local
+        run: |
+          docker compose \
+            --env-file .env \
+            -f infra/docker/docker-compose.yml \
+            -f infra/docker/docker-compose.local.yml \
+            config --quiet
+
+  # ------------------------------------------------------------
+  # Job 3: Placeholder — tests reales desde Sprint 1+
+  # ------------------------------------------------------------
+  placeholder-test:
+    name: Tests (placeholder)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Tests pendientes
+        run: echo "Tests pendientes — se implementan desde Sprint 1 (backend) y Sprint 4 (frontend)"

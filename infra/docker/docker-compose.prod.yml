@@ -1,0 +1,19 @@
+name: sg-catastro
+
+# ============================================================
+# SG_SAUL_CATASTRO — Overrides para modo PRODUCCIÓN/SERVIDOR
+# Uso: docker compose --env-file .env \
+#        -f infra/docker/docker-compose.yml \
+#        -f infra/docker/docker-compose.prod.yml up -d
+# ============================================================
+
+# Sprint 0 — placeholder.
+# En fases posteriores este archivo agregará:
+#   - api: imagen publicada desde ghcr.io, sin puertos expuestos directamente
+#   - web: imagen publicada desde ghcr.io, servida por Caddy
+#   - Caddy con Caddyfile.prod (TLS automático con ACME)
+#   - Logging a volumen externo
+#   - Límites de recursos (deploy.resources)
+#   - Política de reinicio más agresiva
+
+services: {}

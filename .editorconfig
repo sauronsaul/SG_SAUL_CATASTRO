@@ -1,0 +1,83 @@
+root = true
+
+# ============================================================
+# SG_SAUL_CATASTRO — .editorconfig
+# ============================================================
+
+# Valores base para todos los archivos
+[*]
+charset = utf-8
+end_of_line = crlf
+indent_style = space
+indent_size = 4
+trim_trailing_whitespace = true
+insert_final_newline = true
+
+# ------------------------------------------------------------
+# C# — 4 espacios, CRLF
+# ------------------------------------------------------------
+[*.cs]
+indent_size = 4
+end_of_line = crlf
+
+# dotnet / csharp style (usado por Roslyn analyzers)
+dotnet_sort_system_directives_first = true
+csharp_new_line_before_open_brace = all
+csharp_indent_case_contents = true
+csharp_space_after_cast = false
+
+# ------------------------------------------------------------
+# TypeScript / JavaScript / JSX / TSX — 2 espacios, CRLF
+# ------------------------------------------------------------
+[*.{ts,tsx,js,jsx,mjs,cjs}]
+indent_size = 2
+end_of_line = crlf
+
+# ------------------------------------------------------------
+# JSON — 2 espacios
+# ------------------------------------------------------------
+[*.json]
+indent_size = 2
+end_of_line = crlf
+
+# ------------------------------------------------------------
+# YAML — 2 espacios, LF (requerido por parsers YAML)
+# ------------------------------------------------------------
+[*.{yml,yaml}]
+indent_size = 2
+end_of_line = lf
+
+# ------------------------------------------------------------
+# Shell scripts — 2 espacios, LF (Git Bash en Windows)
+# ------------------------------------------------------------
+[*.sh]
+indent_size = 2
+end_of_line = lf
+
+# ------------------------------------------------------------
+# Markdown — no recortar espacios al final (2 espacios = <br>)
+# ------------------------------------------------------------
+[*.md]
+trim_trailing_whitespace = false
+end_of_line = crlf
+
+# ------------------------------------------------------------
+# Dockerfile — 4 espacios
+# ------------------------------------------------------------
+[Dockerfile*]
+indent_size = 4
+end_of_line = lf
+
+# ------------------------------------------------------------
+# SQL — 2 espacios
+# ------------------------------------------------------------
+[*.sql]
+indent_size = 2
+end_of_line = lf
+
+# ------------------------------------------------------------
+# XML / csproj / props — 2 espacios
+# ------------------------------------------------------------
+[*.{xml,csproj,props,targets,config}]
+indent_size = 2
+end_of_line = crlf
