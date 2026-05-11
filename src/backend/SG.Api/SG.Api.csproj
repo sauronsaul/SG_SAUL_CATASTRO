@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <ItemGroup>
+    <!-- Versión centralizada en Directory.Packages.props -->
+    <PackageReference Include="DotNetEnv" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+    <PackageReference Include="Serilog.AspNetCore" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\SG.Application\SG.Application.csproj" />
+    <ProjectReference Include="..\SG.Infrastructure\SG.Infrastructure.csproj" />
+    <ProjectReference Include="..\SG.Contracts\SG.Contracts.csproj" />
+  </ItemGroup>
+
+</Project>

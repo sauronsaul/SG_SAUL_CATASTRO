@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Sin dependencias externas — regla central de Clean Architecture (sección 4 CLAUDE.md) -->
+
+</Project>
