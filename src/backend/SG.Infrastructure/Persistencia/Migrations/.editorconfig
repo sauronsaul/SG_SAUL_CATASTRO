@@ -1,0 +1,6 @@
+# Los archivos en esta carpeta son generados automáticamente por EF Core.
+# Las reglas de análisis estático no aplican a código generado.
+[*.cs]
+generated_code = true
+dotnet_diagnostic.CA1707.severity = none
+dotnet_diagnostic.CA1861.severity = none
