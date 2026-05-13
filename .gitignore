@@ -82,6 +82,8 @@ pnpm-debug.log*
 *.aps
 *.ncb
 *.opendb
+# VS Code C# Dev Kit — caché del language server (generado automáticamente)
+*.lscache
 
 # ------------------------------------------------------------
 # Docker — overrides locales de usuario (NO los variantes oficiales local/prod)
