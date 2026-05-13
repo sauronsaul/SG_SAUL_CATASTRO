@@ -21,11 +21,19 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
       PGDATA: /var/lib/postgresql/data/pgdata
+      # Fuerza scram-sha-256 durante initdb (primera inicialización).
+      # Ver ADR 0015.
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256 --auth-local=scram-sha-256"
+      POSTGRES_HOST_AUTH_METHOD: scram-sha-256
     volumes:
       - sg_postgres_data:/var/lib/postgresql/data
       - ../../database/init:/docker-entrypoint-initdb.d:ro
+      # pg_hba.conf personalizado: scram-sha-256 para todas las conexiones.
+      - ./postgres/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
+    # Apunta a nuestro pg_hba.conf en lugar del generado por initdb.
+    command: postgres -c hba_file=/etc/postgresql/pg_hba.conf
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "${POSTGRES_PORT:-5434}:5432"
     networks:
       - sg_network
     healthcheck:
