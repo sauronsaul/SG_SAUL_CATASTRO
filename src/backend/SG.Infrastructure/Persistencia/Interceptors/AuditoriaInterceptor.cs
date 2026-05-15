@@ -19,7 +19,8 @@ public sealed class AuditoriaInterceptor : SaveChangesInterceptor
     private static readonly HashSet<string> PropiedadesExcluidas =
     [
         "PasswordHash", "SecurityStamp", "ConcurrencyStamp",
-        "RowVersion", "xmin"
+        "RowVersion", "xmin",
+        "Token"  // refresh tokens nunca se loggean (ADR 0018)
     ];
 
     public AuditoriaInterceptor(ICurrentUserService currentUser)

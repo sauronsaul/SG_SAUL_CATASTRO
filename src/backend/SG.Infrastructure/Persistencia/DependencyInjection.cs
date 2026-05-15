@@ -5,6 +5,8 @@ using Microsoft.Extensions.DependencyInjection;
 using SG.Application.Abstractions;
 using SG.Infrastructure.Identidad;
 using SG.Infrastructure.Persistencia.Interceptors;
+using SG.Application.Abstractions.Autenticacion;
+using SG.Infrastructure.Seguridad;
 
 namespace SG.Infrastructure.Persistencia;
 
@@ -28,6 +30,10 @@ public static class DependencyInjection
         services.AddScoped<AuditableEntitiesInterceptor>();
         services.AddScoped<AuditoriaInterceptor>();
         services.AddScoped<ICurrentUserService, CurrentUserService>();
+        services.AddScoped<ITokenService, JwtTokenService>();
+        services.AddScoped<IUsuarioServicio, UsuarioServicio>();
+        services.AddScoped<IRefreshTokenRepositorio, RefreshTokenRepositorio>();
+        services.AddScoped<IAuditoriaService, AuditoriaService>();
 
         services.AddDbContext<ApplicationDbContext>((sp, options) =>
         {
@@ -44,6 +50,9 @@ public static class DependencyInjection
                 sp.GetRequiredService<AuditableEntitiesInterceptor>(),
                 sp.GetRequiredService<AuditoriaInterceptor>());
         });
+
+        // Registrar ANTES de AddIdentityCore para que el contenedor DI tome el custom.
+        services.AddScoped<IPasswordHasher<UsuarioIdentidad>, BcryptPasswordHasher>();
 
         services
             .AddIdentityCore<UsuarioIdentidad>(opts =>
