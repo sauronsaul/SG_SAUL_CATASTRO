@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\SG.Domain\SG.Domain.csproj" />
+    <ProjectReference Include="..\SG.Contracts\SG.Contracts.csproj" />
   </ItemGroup>
 
   <ItemGroup>
