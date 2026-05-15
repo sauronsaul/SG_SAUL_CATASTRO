@@ -4,6 +4,11 @@ using SG.Infrastructure.Identidad;
 
 namespace SG.Infrastructure.Persistencia.Configurations;
 
+/// <summary>
+/// NOTA: No se define query filter espejo sobre el filtro de soft-delete de UsuarioIdentidad.
+/// La revocación de refresh tokens al eliminar un usuario debe ser explícita en el handler.
+/// Ver ADR 0025.
+/// </summary>
 public class RefreshTokenConfiguration : IEntityTypeConfiguration<RefreshToken>
 {
     public void Configure(EntityTypeBuilder<RefreshToken> builder)
@@ -25,6 +30,9 @@ public class RefreshTokenConfiguration : IEntityTypeConfiguration<RefreshToken>
 
         builder.Property(x => x.RevokedByIp)
             .HasMaxLength(45);
+
+        builder.Property(x => x.RevokedReason)
+            .HasMaxLength(50);
 
         builder.Property(x => x.ExpiresAt)
             .IsRequired()

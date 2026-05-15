@@ -9,6 +9,7 @@ public enum AccionAuditoria
     LoginFallido,
     Logout,
     RefreshToken,
+    ReutilizacionDetectada,
     Export,
     CambioPassword
 }
