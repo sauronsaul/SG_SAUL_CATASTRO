@@ -1,4 +1,9 @@
+using System.Text;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
 using Serilog;
+using SG.Application;
+using SG.Infrastructure.DataSeed;
 using SG.Infrastructure.Persistencia;
 
 // Cargar .env en Development buscando desde el directorio actual hacia arriba.
@@ -18,6 +23,26 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Configuration.AddEnvironmentVariables();
 
+// Mapear vars de entorno a secciones de IConfiguration.
+// ASP.NET Core no resuelve ${placeholders} en appsettings.json automáticamente.
+builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
+{
+    ["Jwt:Secret"]           = Environment.GetEnvironmentVariable("JWT_SECRET"),
+    ["Jwt:Issuer"]           = Environment.GetEnvironmentVariable("JWT_ISSUER"),
+    ["Jwt:Audience"]         = Environment.GetEnvironmentVariable("JWT_AUDIENCE"),
+    ["Jwt:ExpiryMinutes"]    = Environment.GetEnvironmentVariable("JWT_EXPIRY_MINUTES"),
+    ["Jwt:RefreshExpiryDays"]= Environment.GetEnvironmentVariable("REFRESH_TOKEN_EXPIRY_DAYS"),
+    ["Admin:Email"]          = Environment.GetEnvironmentVariable("ADMIN_INITIAL_EMAIL"),
+    ["Admin:Password"]       = Environment.GetEnvironmentVariable("ADMIN_INITIAL_PASSWORD"),
+});
+
+// Fail-fast: JWT_SECRET es obligatorio (ADR 0018).
+var jwtSecret = builder.Configuration["Jwt:Secret"];
+if (string.IsNullOrWhiteSpace(jwtSecret))
+    throw new InvalidOperationException(
+        "JWT_SECRET no configurado. " +
+        "Ejecute scripts/generate-jwt-secret.ps1 y agréguelo al archivo .env.");
+
 builder.Host.UseSerilog((ctx, services, cfg) =>
 {
     cfg
@@ -35,11 +60,35 @@ builder.Host.UseSerilog((ctx, services, cfg) =>
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
+builder.Services.AddAuthorization();
 builder.Services.AddPersistencia(builder.Configuration);
+builder.Services.AddAplicacion();
+
+builder.Services
+    .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(opts =>
+    {
+        opts.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer           = true,
+            ValidIssuer              = builder.Configuration["Jwt:Issuer"],
+            ValidateAudience         = true,
+            ValidAudience            = builder.Configuration["Jwt:Audience"],
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey         = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret)),
+            ValidateLifetime         = true,
+            ClockSkew                = TimeSpan.Zero,  // ADR 0018: sin tolerancia
+        };
+        opts.RequireHttpsMetadata = !builder.Environment.IsDevelopment();
+    });
+
 builder.Services.AddHealthChecks()
     .AddDbContextCheck<ApplicationDbContext>();
 
 var app = builder.Build();
+
+// Seed: roles + usuario admin (fail-fast si ADMIN_INITIAL_* no están configurados)
+await IdentitySeeder.SeedAsync(app.Services, app.Logger);
 
 if (app.Environment.IsDevelopment())
 {
@@ -47,6 +96,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 app.MapHealthChecks("/health");
