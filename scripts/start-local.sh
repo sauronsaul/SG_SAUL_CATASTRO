@@ -40,16 +40,21 @@ echo "Servicios levantados. URLs disponibles:"
 echo ""
 
 # Leer puertos del .env (con defaults)
-POSTGRES_PORT=$(grep -E '^POSTGRES_PORT=' "${ENV_FILE}" | cut -d= -f2 | tr -d ' ' || echo "5432")
+POSTGRES_PORT=$(grep -E '^POSTGRES_PORT=' "${ENV_FILE}" | cut -d= -f2 | tr -d ' ' || echo "5434")
 MINIO_API_PORT=$(grep -E '^MINIO_API_PORT=' "${ENV_FILE}" | cut -d= -f2 | tr -d ' ' || echo "9000")
 MINIO_CONSOLE_PORT=$(grep -E '^MINIO_CONSOLE_PORT=' "${ENV_FILE}" | cut -d= -f2 | tr -d ' ' || echo "9001")
 CADDY_HTTP_PORT=$(grep -E '^CADDY_HTTP_PORT=' "${ENV_FILE}" | cut -d= -f2 | tr -d ' ' || echo "80")
+BACKEND_PORT=$(grep -E '^BACKEND_PORT=' "${ENV_FILE}" | cut -d= -f2 | tr -d ' ' || echo "8080")
 
 echo "  PostgreSQL   → localhost:${POSTGRES_PORT}"
 echo "  MinIO API    → http://localhost:${MINIO_API_PORT}"
 echo "  MinIO Consola→ http://localhost:${MINIO_CONSOLE_PORT}"
+echo "  API Backend  → http://localhost:${BACKEND_PORT}"
+echo "  API Health   → http://localhost:${BACKEND_PORT}/health"
+echo "  API Swagger  → http://localhost:${BACKEND_PORT}/openapi/v1.json"
 echo "  App (Caddy)  → http://localhost:${CADDY_HTTP_PORT}"
+echo "  API via Caddy→ http://localhost:${CADDY_HTTP_PORT}/api/auth/login"
 echo ""
-echo "Para ver logs:  docker compose -f infra/docker/docker-compose.yml logs -f"
+echo "Para ver logs:  docker compose -f infra/docker/docker-compose.yml logs -f api"
 echo "Para detener:   bash scripts/stop-local.sh"
 echo ""
