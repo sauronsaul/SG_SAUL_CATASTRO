@@ -1,5 +1,6 @@
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Serilog;
 using SG.Application;
@@ -87,6 +88,14 @@ builder.Services.AddHealthChecks()
 
 var app = builder.Build();
 
+// Aplicar migraciones pendientes al arrancar — necesario en el primer deploy con Docker.
+// En desarrollo (dotnet run) la base ya existe y MigrateAsync no hace nada si está al día.
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+    await db.Database.MigrateAsync();
+}
+
 // Seed: roles + usuario admin (fail-fast si ADMIN_INITIAL_* no están configurados)
 await IdentitySeeder.SeedAsync(app.Services, app.Logger);
 
@@ -102,3 +111,6 @@ app.MapControllers();
 app.MapHealthChecks("/health");
 
 app.Run();
+
+// Necesario para WebApplicationFactory<Program> en tests de integración.
+public partial class Program { }
