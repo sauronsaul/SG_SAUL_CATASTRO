@@ -1,0 +1,27 @@
+# Artefactos de compilación local — contienen paths de Windows que rompen el build en Linux
+**/obj/
+**/bin/
+**/.vs/
+**/*.user
+
+# Node / frontend
+src/frontend/**/node_modules/
+src/frontend/**/.cache/
+src/frontend/**/dist/
+
+# Datos y volúmenes locales
+data-migration/
+infra/tiles/
+infra/backup/
+
+# Git y herramientas de dev
+.git/
+.github/
+.vscode/
+**/*.md
+docs/
+
+# Secrets — nunca al contexto de build
+.env
+.env.*
+!.env.example

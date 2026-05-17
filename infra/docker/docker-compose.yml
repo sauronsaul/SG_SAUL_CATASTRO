@@ -69,6 +69,41 @@ services:
       start_period: 20s
 
   # ----------------------------------------------------------
+  # API Backend (ASP.NET Core 10)
+  # ----------------------------------------------------------
+  api:
+    build:
+      context: ../..
+      dockerfile: infra/docker/api.Dockerfile
+    container_name: sg_api
+    restart: unless-stopped
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}
+      ConnectionStrings__Default: "Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD};Pooling=true"
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_ISSUER: ${JWT_ISSUER}
+      JWT_AUDIENCE: ${JWT_AUDIENCE}
+      JWT_EXPIRY_MINUTES: ${JWT_EXPIRY_MINUTES:-15}
+      REFRESH_TOKEN_EXPIRY_DAYS: ${REFRESH_TOKEN_EXPIRY_DAYS:-7}
+      ADMIN_INITIAL_EMAIL: ${ADMIN_INITIAL_EMAIL}
+      ADMIN_INITIAL_PASSWORD: ${ADMIN_INITIAL_PASSWORD}
+    volumes:
+      - sg_api_logs:/app/logs
+    ports:
+      - "${BACKEND_PORT:-8080}:8080"
+    networks:
+      - sg_network
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8080/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  # ----------------------------------------------------------
   # Caddy — reverse proxy (TLS automático en modo servidor)
   # ----------------------------------------------------------
   caddy:
@@ -89,6 +124,8 @@ services:
         condition: service_healthy
       minio:
         condition: service_healthy
+      api:
+        condition: service_healthy
 
 # ------------------------------------------------------------
 # Volúmenes nombrados — persisten entre reinicios
@@ -102,6 +139,8 @@ volumes:
     name: sg_caddy_data
   sg_caddy_config:
     name: sg_caddy_config
+  sg_api_logs:
+    name: sg_api_logs
 
 # ------------------------------------------------------------
 # Red interna
