@@ -7,11 +7,10 @@ name: sg-catastro
 #        -f infra/docker/docker-compose.local.yml up -d
 # ============================================================
 
-# Sprint 0 — placeholder.
-# En sprints posteriores este archivo agregará:
-#   - api: con ASPNETCORE_ENVIRONMENT=Development y hot reload
-#   - web: con Vite dev server (npm run dev)
-#   - Exposición directa de puertos para debugging
-#   - Volúmenes de código fuente montados para hot reload
+services:
 
-services: {}
+  # En local la API corre en modo Development: Swagger habilitado,
+  # HTTPS no requerido para JWT y logs más verbosos.
+  api:
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
