@@ -39,13 +39,17 @@ public sealed class PostgreSqlFixture : IAsyncLifetime
         // Aplicar migraciones con un contexto standalone (sin interceptores de auditoría).
         // Debe ejecutarse ANTES de que SgApiFactory arranque el app (que corre el Seeder).
         await AplicarMigracionesAsync();
+
+        // Limpiar datos de dominio para garantizar aislamiento entre ejecuciones.
+        // Necesario porque en Windows Docker Desktop, Ryuk no destruye contenedores
+        // detenidos; StartAsync() reutiliza el contenedor con datos previos.
+        await LimpiarDatosDominioAsync();
     }
 
-    public Task DisposeAsync() => _container.StopAsync();
+    public async Task DisposeAsync() => await _container.DisposeAsync();
 
-    private async Task AplicarMigracionesAsync()
-    {
-        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+    private DbContextOptions<ApplicationDbContext> BuildOptions() =>
+        new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseNpgsql(ConnectionString, npgsql =>
             {
                 npgsql.UseNetTopologySuite();
@@ -54,7 +58,24 @@ public sealed class PostgreSqlFixture : IAsyncLifetime
             .UseSnakeCaseNamingConvention()
             .Options;
 
-        await using var ctx = new ApplicationDbContext(options);
+    private async Task AplicarMigracionesAsync()
+    {
+        await using var ctx = new ApplicationDbContext(BuildOptions());
         await ctx.Database.MigrateAsync();
+    }
+
+    private async Task LimpiarDatosDominioAsync()
+    {
+        await using var ctx = new ApplicationDbContext(BuildOptions());
+        // CASCADE elimina documentos, historial_estados y relaciones_predio_propietario.
+        // La tabla identidad.usuarios (admin seed) no se toca.
+        await ctx.Database.ExecuteSqlRawAsync(
+            "TRUNCATE dominio.predios, dominio.propietarios RESTART IDENTITY CASCADE");
+
+        // Verificación post-truncate: garantiza aislamiento entre ejecuciones de test.
+        var prediosRestantes = await ctx.Predios.IgnoreQueryFilters().CountAsync();
+        if (prediosRestantes > 0)
+            throw new InvalidOperationException(
+                $"TRUNCATE falló: {prediosRestantes} predio(s) siguen en la BD tras limpiar.");
     }
 }

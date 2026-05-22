@@ -2,9 +2,14 @@ using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.IdentityModel.Tokens;
+using SG.Application.Abstractions;
+using SG.Infrastructure.Persistencia;
+using SG.Infrastructure.Persistencia.Interceptors;
 
 namespace SG.Api.IntegrationTests.Infrastructure;
 
@@ -54,6 +59,29 @@ public sealed class SgApiFactory : WebApplicationFactory<Program>
                     opts.TokenValidationParameters.ValidIssuer = "sg-api-test";
                     opts.TokenValidationParameters.ValidAudience = "sg-api-test";
                 });
+
+            // Reemplazar MinIO con stub de no-op: los tests de auth no usan MinIO
+            // y no hay contenedor MinIO disponible en el entorno de integración.
+            services.AddScoped<IMinioService, NoOpMinioService>();
+
+            // AddPersistencia en Program.cs captura la connectionString en una variable local
+            // ANTES de que ConfigureAppConfiguration pueda aplicar el override del InMemoryCollection.
+            // Si DotNetEnv sobreescribió ConnectionStrings__Default con el valor del .env local,
+            // el DbContext quedaría apuntando a la BD local en vez del contenedor de Testcontainers.
+            // Re-registrar aquí garantiza que el DbContext use SIEMPRE _connectionString (Testcontainers).
+            services.RemoveAll<DbContextOptions<ApplicationDbContext>>();
+            services.AddDbContext<ApplicationDbContext>((sp, options) =>
+            {
+                options.UseNpgsql(_connectionString, npgsql =>
+                {
+                    npgsql.UseNetTopologySuite();
+                    npgsql.MigrationsHistoryTable("__ef_migrations_history", schema: "identidad");
+                });
+                options.UseSnakeCaseNamingConvention();
+                options.AddInterceptors(
+                    sp.GetRequiredService<AuditableEntitiesInterceptor>(),
+                    sp.GetRequiredService<AuditoriaInterceptor>());
+            });
         });
     }
 }
