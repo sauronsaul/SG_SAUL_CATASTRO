@@ -8,6 +8,9 @@
     solo declaran <PackageReference Include="Nombre" /> sin Version.
     Nuevos paquetes se agregan con: dotnet add package <nombre>
   -->
+  <ItemGroup Label="MinIO — almacenamiento S3-compatible">
+    <PackageVersion Include="Minio" Version="7.0.0" />
+  </ItemGroup>
   <ItemGroup Label="ASP.NET Core / OpenAPI — plantilla dotnet new webapi">
     <PackageVersion Include="BCrypt.Net-Next" Version="4.2.0" />
     <PackageVersion Include="DotNetEnv" Version="3.2.0" />
@@ -31,6 +34,7 @@
       <PrivateAssets>all</PrivateAssets>
     </PackageVersion>
     <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.7" />
+    <PackageVersion Include="Microsoft.Extensions.Options" Version="10.0.7" />
     <PackageVersion Include="Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore" Version="10.0.7" />
     <PackageVersion Include="Microsoft.Extensions.Http" Version="10.0.7" />
     <PackageVersion Include="NetTopologySuite" Version="2.6.0" />

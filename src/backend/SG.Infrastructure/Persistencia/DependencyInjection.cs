@@ -2,10 +2,16 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
+using Minio;
 using SG.Application.Abstractions;
+using SG.Application.Abstractions.Catastro;
+using SG.Application.Abstractions.Autenticacion;
+using SG.Infrastructure.Almacenamiento;
+using SG.Infrastructure.Catastro;
+using SG.Infrastructure.GIS;
 using SG.Infrastructure.Identidad;
 using SG.Infrastructure.Persistencia.Interceptors;
-using SG.Application.Abstractions.Autenticacion;
 using SG.Infrastructure.Seguridad;
 
 namespace SG.Infrastructure.Persistencia;
@@ -34,6 +40,27 @@ public static class DependencyInjection
         services.AddScoped<IUsuarioServicio, UsuarioServicio>();
         services.AddScoped<IRefreshTokenRepositorio, RefreshTokenRepositorio>();
         services.AddScoped<IAuditoriaService, AuditoriaService>();
+
+        // Repositorios catastro
+        services.AddScoped<IUsoSueloRepositorio, UsoSueloRepositorio>();
+        services.AddScoped<IPropietarioRepositorio, PropietarioRepositorio>();
+        services.AddScoped<IPredioRepositorio, PredioRepositorio>();
+
+        // Servicios GIS
+        services.AddScoped<ICoordenadasService, CoordenadasService>();
+        services.AddScoped<IGeometriaService, GeometriaService>();
+
+        // MinIO: IMinioClient como singleton (thread-safe, costoso de construir)
+        services.AddSingleton<IMinioClient>(sp =>
+        {
+            var cfg = sp.GetRequiredService<IOptions<MinioSettings>>().Value;
+            return new MinioClient()
+                .WithEndpoint(cfg.Endpoint)
+                .WithCredentials(cfg.AccessKey, cfg.SecretKey)
+                .WithSSL(cfg.UseSsl)
+                .Build();
+        });
+        services.AddScoped<IMinioService, MinioService>();
 
         services.AddDbContext<ApplicationDbContext>((sp, options) =>
         {

@@ -1,5 +1,13 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <!-- Sin dependencias externas — regla central de Clean Architecture (sección 4 CLAUDE.md) -->
+  <!--
+    NetTopologySuite es la única dependencia externa del dominio.
+    Justificación: es una biblioteca de geometría matemática pura (sin IO ni infraestructura),
+    equivalente a usar System.Numerics. La entidad GeometriaPredial requiere Polygon como
+    tipo de valor en el dominio catastral. Ver ADR 0030.
+  -->
+  <ItemGroup>
+    <PackageReference Include="NetTopologySuite" />
+  </ItemGroup>
 
 </Project>

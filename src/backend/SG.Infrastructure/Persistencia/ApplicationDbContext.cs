@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using SG.Domain.Catalogos;
+using SG.Domain.Catastro;
 using SG.Infrastructure.Auditoria;
 using SG.Infrastructure.Identidad;
 
@@ -10,6 +12,16 @@ public class ApplicationDbContext
 {
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<AuditoriaEntidad> Auditorias => Set<AuditoriaEntidad>();
+
+    // Catálogos
+    public DbSet<UsoSuelo> UsosSuelo => Set<UsoSuelo>();
+
+    // Dominio catastral
+    public DbSet<Propietario> Propietarios => Set<Propietario>();
+    public DbSet<Predio> Predios => Set<Predio>();
+    public DbSet<RelacionPredioPropietario> RelacionesPredioPropietario => Set<RelacionPredioPropietario>();
+    public DbSet<Documento> Documentos => Set<Documento>();
+    public DbSet<HistorialEstado> HistorialEstados => Set<HistorialEstado>();
 
     public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options)
         : base(options) { }

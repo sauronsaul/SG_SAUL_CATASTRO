@@ -1,11 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
-    <ProjectReference Include="..\SG.Domain\SG.Domain.csproj" />
     <ProjectReference Include="..\SG.Application\SG.Application.csproj" />
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="Minio" />
     <PackageReference Include="BCrypt.Net-Next" />
     <PackageReference Include="Microsoft.IdentityModel.Tokens" />
     <PackageReference Include="System.IdentityModel.Tokens.Jwt" />

@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
+using NetTopologySuite.Geometries;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using SG.Infrastructure.Persistencia;
 
@@ -152,6 +153,416 @@ namespace SG.Infrastructure.Persistencia.Migrations
                         .HasName("pk_usuario_tokens");
 
                     b.ToTable("usuario_tokens", "identidad");
+                });
+
+            modelBuilder.Entity("SG.Domain.Catalogos.UsoSuelo", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<bool>("Activo")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true)
+                        .HasColumnName("activo");
+
+                    b.Property<string>("Codigo")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("codigo");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamptz")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by");
+
+                    b.Property<string>("Descripcion")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("descripcion");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_deleted");
+
+                    b.Property<string>("Nombre")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("nombre");
+
+                    b.Property<int>("Orden")
+                        .HasColumnType("integer")
+                        .HasColumnName("orden");
+
+                    b.Property<uint>("RowVersion")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamptz")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by");
+
+                    b.HasKey("Id")
+                        .HasName("pk_catalogo_uso_suelo");
+
+                    b.HasIndex("Codigo")
+                        .IsUnique()
+                        .HasDatabaseName("uix_usos_suelo_codigo");
+
+                    b.ToTable("catalogo_uso_suelo", "dominio");
+                });
+
+            modelBuilder.Entity("SG.Domain.Catastro.Documento", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("content_type");
+
+                    b.Property<DateTime?>("EliminadoAt")
+                        .HasColumnType("timestamptz")
+                        .HasColumnName("eliminado_at");
+
+                    b.Property<Guid?>("EliminadoPor")
+                        .HasColumnType("uuid")
+                        .HasColumnName("eliminado_por");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_deleted");
+
+                    b.Property<string>("MinioKey")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("minio_key");
+
+                    b.Property<string>("MotivoEliminacion")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("motivo_eliminacion");
+
+                    b.Property<string>("NombreArchivo")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("nombre_archivo");
+
+                    b.Property<Guid>("PredioId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("predio_id");
+
+                    b.Property<long>("SizeBytes")
+                        .HasColumnType("bigint")
+                        .HasColumnName("size_bytes");
+
+                    b.Property<DateTime>("SubidoAt")
+                        .HasColumnType("timestamptz")
+                        .HasColumnName("subido_at");
+
+                    b.Property<Guid>("SubidoPor")
+                        .HasColumnType("uuid")
+                        .HasColumnName("subido_por");
+
+                    b.Property<string>("TipoDocumento")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("tipo_documento");
+
+                    b.HasKey("Id")
+                        .HasName("pk_documentos");
+
+                    b.HasIndex("PredioId")
+                        .HasDatabaseName("ix_documentos_predio_id");
+
+                    b.ToTable("documentos", "dominio");
+                });
+
+            modelBuilder.Entity("SG.Domain.Catastro.HistorialEstado", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime>("CambiadoAt")
+                        .HasColumnType("timestamptz")
+                        .HasColumnName("cambiado_at");
+
+                    b.Property<Guid>("CambiadoPor")
+                        .HasColumnType("uuid")
+                        .HasColumnName("cambiado_por");
+
+                    b.Property<string>("EstadoAnterior")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("estado_anterior");
+
+                    b.Property<string>("EstadoNuevo")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("estado_nuevo");
+
+                    b.Property<string>("Observaciones")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("observaciones");
+
+                    b.Property<Guid>("PredioId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("predio_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_historial_estados");
+
+                    b.HasIndex("PredioId")
+                        .HasDatabaseName("ix_historial_estados_predio_id");
+
+                    b.ToTable("historial_estados", "dominio");
+                });
+
+            modelBuilder.Entity("SG.Domain.Catastro.Predio", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("CodigoCatastral")
+                        .HasMaxLength(24)
+                        .HasColumnType("character varying(24)")
+                        .HasColumnName("codigo_catastral");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamptz")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by");
+
+                    b.Property<string>("Estado")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("estado");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_deleted");
+
+                    b.Property<uint>("RowVersion")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.Property<decimal>("SuperficieDeclarada")
+                        .HasColumnType("numeric(14,4)")
+                        .HasColumnName("superficie_declarada");
+
+                    b.Property<decimal?>("SuperficieOficial")
+                        .HasColumnType("numeric(14,4)")
+                        .HasColumnName("superficie_oficial");
+
+                    b.Property<decimal?>("SuperficieSig")
+                        .HasColumnType("numeric(14,4)")
+                        .HasColumnName("superficie_sig");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamptz")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by");
+
+                    b.Property<Guid>("UsoSueloId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("uso_suelo_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_predios");
+
+                    b.HasIndex("CodigoCatastral")
+                        .IsUnique()
+                        .HasDatabaseName("uix_predios_codigo_catastral");
+
+                    b.HasIndex("UsoSueloId")
+                        .HasDatabaseName("ix_predios_uso_suelo_id");
+
+                    b.ToTable("predios", "dominio");
+                });
+
+            modelBuilder.Entity("SG.Domain.Catastro.Propietario", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Apellidos")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("apellidos");
+
+                    b.Property<string>("Cedula")
+                        .HasMaxLength(15)
+                        .HasColumnType("character varying(15)")
+                        .HasColumnName("cedula");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamptz")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by");
+
+                    b.Property<string>("Direccion")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("direccion");
+
+                    b.Property<string>("Email")
+                        .HasMaxLength(320)
+                        .HasColumnType("character varying(320)")
+                        .HasColumnName("email");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_deleted");
+
+                    b.Property<string>("Nit")
+                        .HasMaxLength(13)
+                        .HasColumnType("character varying(13)")
+                        .HasColumnName("nit");
+
+                    b.Property<string>("Nombre")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("nombre");
+
+                    b.Property<string>("RazonSocial")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("razon_social");
+
+                    b.Property<string>("RepresentanteLegal")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("representante_legal");
+
+                    b.Property<uint>("RowVersion")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.Property<string>("Telefono")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("telefono");
+
+                    b.Property<string>("Tipo")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("tipo");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamptz")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by");
+
+                    b.HasKey("Id")
+                        .HasName("pk_propietarios");
+
+                    b.HasIndex("Cedula")
+                        .HasDatabaseName("ix_propietarios_cedula");
+
+                    b.HasIndex("Nit")
+                        .HasDatabaseName("ix_propietarios_nit");
+
+                    b.ToTable("propietarios", "dominio");
+                });
+
+            modelBuilder.Entity("SG.Domain.Catastro.RelacionPredioPropietario", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime>("CreadoAt")
+                        .HasColumnType("timestamptz")
+                        .HasColumnName("creado_at");
+
+                    b.Property<Guid>("CreadoPor")
+                        .HasColumnType("uuid")
+                        .HasColumnName("creado_por");
+
+                    b.Property<decimal>("Porcentaje")
+                        .HasColumnType("numeric(5,2)")
+                        .HasColumnName("porcentaje");
+
+                    b.Property<Guid>("PredioId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("predio_id");
+
+                    b.Property<Guid>("PropietarioId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("propietario_id");
+
+                    b.Property<string>("TipoDerecho")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("tipo_derecho");
+
+                    b.Property<DateOnly>("VigenteDesde")
+                        .HasColumnType("date")
+                        .HasColumnName("vigente_desde");
+
+                    b.Property<DateOnly?>("VigenteHasta")
+                        .HasColumnType("date")
+                        .HasColumnName("vigente_hasta");
+
+                    b.HasKey("Id")
+                        .HasName("pk_relaciones_predio_propietario");
+
+                    b.HasIndex("PropietarioId")
+                        .HasDatabaseName("ix_relaciones_predio_propietario_propietario_id");
+
+                    b.HasIndex("PredioId", "PropietarioId", "VigenteDesde")
+                        .HasDatabaseName("ix_relaciones_predio_propietario_predio_prop_desde");
+
+                    b.ToTable("relaciones_predio_propietario", "dominio");
                 });
 
             modelBuilder.Entity("SG.Infrastructure.Auditoria.AuditoriaEntidad", b =>
@@ -503,6 +914,126 @@ namespace SG.Infrastructure.Persistencia.Migrations
                         .HasConstraintName("fk_usuario_tokens_asp_net_users_user_id");
                 });
 
+            modelBuilder.Entity("SG.Domain.Catastro.Documento", b =>
+                {
+                    b.HasOne("SG.Domain.Catastro.Predio", null)
+                        .WithMany("Documentos")
+                        .HasForeignKey("PredioId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_documentos_predios_predio_id");
+                });
+
+            modelBuilder.Entity("SG.Domain.Catastro.HistorialEstado", b =>
+                {
+                    b.HasOne("SG.Domain.Catastro.Predio", null)
+                        .WithMany("Historial")
+                        .HasForeignKey("PredioId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_historial_estados_predios_predio_id");
+                });
+
+            modelBuilder.Entity("SG.Domain.Catastro.Predio", b =>
+                {
+                    b.HasOne("SG.Domain.Catalogos.UsoSuelo", null)
+                        .WithMany()
+                        .HasForeignKey("UsoSueloId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_predios_catalogo_uso_suelo_uso_suelo_id");
+
+                    b.OwnsOne("SG.Domain.Catastro.ValueObjects.GeometriaPredial", "Geometria", b1 =>
+                        {
+                            b1.Property<Guid>("PredioId")
+                                .HasColumnType("uuid")
+                                .HasColumnName("id");
+
+                            b1.Property<Polygon>("Poligono")
+                                .IsRequired()
+                                .HasColumnType("geometry(Polygon, 32719)")
+                                .HasColumnName("geometria");
+
+                            b1.HasKey("PredioId");
+
+                            b1.ToTable("predios", "dominio");
+
+                            b1.WithOwner()
+                                .HasForeignKey("PredioId")
+                                .HasConstraintName("fk_predios_predios_id");
+                        });
+
+                    b.OwnsOne("SG.Domain.Catastro.ValueObjects.UbicacionCatastral", "Ubicacion", b1 =>
+                        {
+                            b1.Property<Guid>("PredioId")
+                                .HasColumnType("uuid")
+                                .HasColumnName("id");
+
+                            b1.Property<string>("Barrio")
+                                .HasMaxLength(100)
+                                .HasColumnType("character varying(100)")
+                                .HasColumnName("ubic_barrio");
+
+                            b1.Property<string>("Direccion")
+                                .HasMaxLength(300)
+                                .HasColumnType("character varying(300)")
+                                .HasColumnName("ubic_direccion");
+
+                            b1.Property<string>("Lote")
+                                .IsRequired()
+                                .HasMaxLength(20)
+                                .HasColumnType("character varying(20)")
+                                .HasColumnName("ubic_lote");
+
+                            b1.Property<string>("Manzana")
+                                .IsRequired()
+                                .HasMaxLength(20)
+                                .HasColumnType("character varying(20)")
+                                .HasColumnName("ubic_manzana");
+
+                            b1.Property<string>("Referencia")
+                                .HasMaxLength(300)
+                                .HasColumnType("character varying(300)")
+                                .HasColumnName("ubic_referencia");
+
+                            b1.Property<string>("Zona")
+                                .IsRequired()
+                                .HasMaxLength(50)
+                                .HasColumnType("character varying(50)")
+                                .HasColumnName("ubic_zona");
+
+                            b1.HasKey("PredioId");
+
+                            b1.ToTable("predios", "dominio");
+
+                            b1.WithOwner()
+                                .HasForeignKey("PredioId")
+                                .HasConstraintName("fk_predios_predios_id");
+                        });
+
+                    b.Navigation("Geometria");
+
+                    b.Navigation("Ubicacion")
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("SG.Domain.Catastro.RelacionPredioPropietario", b =>
+                {
+                    b.HasOne("SG.Domain.Catastro.Predio", null)
+                        .WithMany("Relaciones")
+                        .HasForeignKey("PredioId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_relaciones_predio_propietario_predios_predio_id");
+
+                    b.HasOne("SG.Domain.Catastro.Propietario", null)
+                        .WithMany()
+                        .HasForeignKey("PropietarioId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_relaciones_predio_propietario_propietarios_propietario_id");
+                });
+
             modelBuilder.Entity("SG.Infrastructure.Identidad.RefreshToken", b =>
                 {
                     b.HasOne("SG.Infrastructure.Identidad.UsuarioIdentidad", "Usuario")
@@ -513,6 +1044,15 @@ namespace SG.Infrastructure.Persistencia.Migrations
                         .HasConstraintName("fk_refresh_tokens_users_usuario_id");
 
                     b.Navigation("Usuario");
+                });
+
+            modelBuilder.Entity("SG.Domain.Catastro.Predio", b =>
+                {
+                    b.Navigation("Documentos");
+
+                    b.Navigation("Historial");
+
+                    b.Navigation("Relaciones");
                 });
 #pragma warning restore 612, 618
         }
