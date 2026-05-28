@@ -20,7 +20,8 @@ public sealed class AuditoriaInterceptor : SaveChangesInterceptor
     [
         "PasswordHash", "SecurityStamp", "ConcurrencyStamp",
         "RowVersion", "xmin",
-        "Token"  // refresh tokens nunca se loggean (ADR 0018)
+        "Token",   // refresh tokens nunca se loggean (ADR 0018)
+        "Poligono" // NTS Polygon — excluido para evitar blobs GeoJSON en auditoría (ADR 0036)
     ];
 
     public AuditoriaInterceptor(ICurrentUserService currentUser)
@@ -43,12 +44,30 @@ public sealed class AuditoriaInterceptor : SaveChangesInterceptor
         {
             if (entry.Entity is AuditoriaEntidad) continue;
 
+            // OwnsOne entities se auditan como parte de su raíz agregada, nunca como
+            // entradas independientes. El valor se fusiona en el registro del padre.
+            if (entry.Metadata.IsOwned()) continue;
+
+            // Un OwnsOne puede cambiar sin que cambien las columnas escalares del padre
+            // (ej: técnico modifica solo la zona de UbicacionCatastral). En ese caso el
+            // EntityEntry del padre queda Unchanged pero debe auditarse igual.
+            bool ownedCambio = entry.References
+                .Where(r => r.Metadata.TargetEntityType.IsOwned() && r.TargetEntry is not null)
+                .Any(r => r.TargetEntry!.State
+                    is EntityState.Modified or EntityState.Added or EntityState.Deleted);
+
             if (entry.State is not (EntityState.Added
                                  or EntityState.Modified
-                                 or EntityState.Deleted))
+                                 or EntityState.Deleted)
+                && !ownedCambio)
                 continue;
 
-            var accion = entry.State switch
+            // Cuando solo cambió un owned, el padre tiene estado Unchanged → tratar como Update.
+            var estadoEfectivo = entry.State == EntityState.Unchanged
+                ? EntityState.Modified
+                : entry.State;
+
+            var accion = estadoEfectivo switch
             {
                 EntityState.Added    => AccionAuditoria.Insert.ToString(),
                 EntityState.Modified => AccionAuditoria.Update.ToString(),
@@ -60,22 +79,31 @@ public sealed class AuditoriaInterceptor : SaveChangesInterceptor
                 .FirstOrDefault(p => p.Metadata.IsPrimaryKey())
                 ?.CurrentValue?.ToString() ?? string.Empty;
 
+            // Fusionar propiedades de los OwnsOne en el conjunto del padre.
+            // Se excluye la PK del owned (shadow FK al padre) para evitar duplicar el Id.
+            var propiedadesOwned = entry.References
+                .Where(r => r.Metadata.TargetEntityType.IsOwned() && r.TargetEntry is not null)
+                .SelectMany(r => r.TargetEntry!.Properties
+                    .Where(p => !PropiedadesExcluidas.Contains(p.Metadata.Name)
+                             && !p.Metadata.IsPrimaryKey()));
+
+            var propsTodas = entry.Properties
+                .Where(p => !PropiedadesExcluidas.Contains(p.Metadata.Name))
+                .Concat(propiedadesOwned)
+                .ToList();
+
             string? valorAnterior = null;
             string? valorNuevo = null;
 
-            if (entry.State == EntityState.Modified || entry.State == EntityState.Deleted)
+            if (estadoEfectivo is EntityState.Modified or EntityState.Deleted)
             {
-                var anterior = entry.Properties
-                    .Where(p => !PropiedadesExcluidas.Contains(p.Metadata.Name))
-                    .ToDictionary(p => p.Metadata.Name, p => p.OriginalValue);
+                var anterior = propsTodas.ToDictionary(p => p.Metadata.Name, p => p.OriginalValue);
                 valorAnterior = JsonSerializer.Serialize(anterior, JsonOptions);
             }
 
-            if (entry.State == EntityState.Added || entry.State == EntityState.Modified)
+            if (estadoEfectivo is EntityState.Added or EntityState.Modified)
             {
-                var nuevo = entry.Properties
-                    .Where(p => !PropiedadesExcluidas.Contains(p.Metadata.Name))
-                    .ToDictionary(p => p.Metadata.Name, p => p.CurrentValue);
+                var nuevo = propsTodas.ToDictionary(p => p.Metadata.Name, p => p.CurrentValue);
                 valorNuevo = JsonSerializer.Serialize(nuevo, JsonOptions);
             }
 
@@ -85,16 +113,16 @@ public sealed class AuditoriaInterceptor : SaveChangesInterceptor
 
             registros.Add(new AuditoriaEntidad
             {
-                Timestamp    = now,
-                UsuarioId    = _currentUser.UserId,
-                Modulo       = schema,
-                Accion       = accion,
-                EntidadTipo  = entry.Entity.GetType().Name,
-                EntidadId    = entidadId,
+                Timestamp     = now,
+                UsuarioId     = _currentUser.UserId,
+                Modulo        = schema,
+                Accion        = accion,
+                EntidadTipo   = entry.Entity.GetType().Name,
+                EntidadId     = entidadId,
                 ValorAnterior = valorAnterior,
-                ValorNuevo   = valorNuevo,
-                IpOrigen     = _currentUser.IpOrigen,
-                Resultado    = "OK"
+                ValorNuevo    = valorNuevo,
+                IpOrigen      = _currentUser.IpOrigen,
+                Resultado     = "OK"
             });
         }
 
