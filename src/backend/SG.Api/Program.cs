@@ -39,6 +39,8 @@ var envMappings = new Dictionary<string, string?>
     ["Jwt:RefreshExpiryDays"] = Environment.GetEnvironmentVariable("REFRESH_TOKEN_EXPIRY_DAYS"),
     ["Admin:Email"]           = Environment.GetEnvironmentVariable("ADMIN_INITIAL_EMAIL"),
     ["Admin:Password"]        = Environment.GetEnvironmentVariable("ADMIN_INITIAL_PASSWORD"),
+    ["Tecnico:Email"]         = Environment.GetEnvironmentVariable("TECNICO_INITIAL_EMAIL"),
+    ["Tecnico:Password"]      = Environment.GetEnvironmentVariable("TECNICO_INITIAL_PASSWORD"),
     ["Minio:Endpoint"]        = Environment.GetEnvironmentVariable("MINIO_ENDPOINT"),
     ["Minio:AccessKey"]       = Environment.GetEnvironmentVariable("MINIO_ROOT_USER"),
     ["Minio:SecretKey"]       = Environment.GetEnvironmentVariable("MINIO_ROOT_PASSWORD"),
@@ -112,12 +114,13 @@ using (var scope = app.Services.CreateScope())
 // Seed: roles + usuario admin (fail-fast si ADMIN_INITIAL_* no están configurados)
 await IdentitySeeder.SeedAsync(app.Services, app.Logger);
 
-// Seed: catálogos del dominio catastral (usos de suelo, etc.)
+// Seed: catálogos del dominio catastral (usos de suelo, perfiles de importación, etc.)
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
     var logger = scope.ServiceProvider.GetRequiredService<ILogger<ApplicationDbContext>>();
     await DomainSeeder.SeedAsync(db, logger);
+    await DomainSeeder.SeedPerfilesImportacionAsync(db, logger);
 }
 
 // Inicializar bucket de MinIO al arrancar (crea si no existe)
