@@ -69,4 +69,4 @@ nomenclatura ambigua que invitó al error de lectura.
 
 ## Referencias
 
-- Commit que aplica la decisión parcial: <será completado tras el commit>
+- Commit que aplica la decisión parcial: 1c40545
