@@ -61,6 +61,11 @@ public sealed class PostgreSqlFixture : IAsyncLifetime
     private async Task AplicarMigracionesAsync()
     {
         await using var ctx = new ApplicationDbContext(BuildOptions());
+        // EnsureDeletedAsync garantiza esquema limpio en contenedores reutilizados por
+        // Windows Docker Desktop (Ryuk no destruye contenedores detenidos). Sin esto,
+        // una migración regenerada con distinto timestamp falla al intentar CREATE TABLE
+        // sobre tablas que ya existen de la ejecución anterior.
+        await ctx.Database.EnsureDeletedAsync();
         await ctx.Database.MigrateAsync();
     }
 

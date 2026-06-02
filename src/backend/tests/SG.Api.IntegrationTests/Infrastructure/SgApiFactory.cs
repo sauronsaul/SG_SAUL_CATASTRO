@@ -76,6 +76,7 @@ public sealed class SgApiFactory : WebApplicationFactory<Program>
                 {
                     npgsql.UseNetTopologySuite();
                     npgsql.MigrationsHistoryTable("__ef_migrations_history", schema: "identidad");
+                    npgsql.CommandTimeout(300);
                 });
                 options.UseSnakeCaseNamingConvention();
                 options.AddInterceptors(
