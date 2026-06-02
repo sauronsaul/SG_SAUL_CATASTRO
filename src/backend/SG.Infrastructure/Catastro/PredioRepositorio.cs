@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using SG.Application.Abstractions.Catastro;
 using SG.Application.Common;
 using SG.Domain.Catastro;
+using SG.Domain.Catastro.Enums;
 using SG.Domain.Catastro.ValueObjects;
 using SG.Infrastructure.Persistencia;
 
@@ -51,4 +52,66 @@ internal sealed class PredioRepositorio(ApplicationDbContext db) : IPredioReposi
 
     public async Task GuardarCambiosAsync(CancellationToken ct = default) =>
         await db.SaveChangesAsync(ct);
+
+    public async Task<IReadOnlyDictionary<(string Zona, string Manzana, string Lote), EstadoPredio>>
+        ObtenerEstadosPorTripletasAsync(
+            IReadOnlyCollection<(string Zona, string Manzana, string Lote)> tripletas,
+            CancellationToken ct = default)
+    {
+        if (tripletas.Count == 0)
+            return new Dictionary<(string, string, string), EstadoPredio>();
+
+        // Consulta con IN sobre cada componente; el filtro exacto por tripleta completa
+        // se aplica en memoria para evitar generar SQL con predicados de tupla no portables.
+        var zonas = tripletas.Select(t => t.Zona).Distinct().ToList();
+        var manzanas = tripletas.Select(t => t.Manzana).Distinct().ToList();
+        var lotes = tripletas.Select(t => t.Lote).Distinct().ToList();
+        var tripletaSet = tripletas.ToHashSet();
+
+        var filas = await db.Predios
+            .AsNoTracking()
+            .Where(p => zonas.Contains(p.Ubicacion.Zona)
+                     && manzanas.Contains(p.Ubicacion.Manzana)
+                     && lotes.Contains(p.Ubicacion.Lote))
+            .Select(p => new
+            {
+                p.Ubicacion.Zona,
+                p.Ubicacion.Manzana,
+                p.Ubicacion.Lote,
+                p.Estado,
+            })
+            .ToListAsync(ct);
+
+        return filas
+            .Where(f => tripletaSet.Contains((f.Zona, f.Manzana, f.Lote)))
+            .ToDictionary(
+                f => (f.Zona, f.Manzana, f.Lote),
+                f => f.Estado);
+    }
+
+    public async Task<Dictionary<(string Zona, string Manzana, string Lote), Predio>>
+        ObtenerParaActualizarPorTripletasAsync(
+            IReadOnlyCollection<(string Zona, string Manzana, string Lote)> tripletas,
+            CancellationToken ct = default)
+    {
+        if (tripletas.Count == 0)
+            return new Dictionary<(string, string, string), Predio>();
+
+        var zonas = tripletas.Select(t => t.Zona).Distinct().ToList();
+        var manzanas = tripletas.Select(t => t.Manzana).Distinct().ToList();
+        var lotes = tripletas.Select(t => t.Lote).Distinct().ToList();
+        var tripletaSet = tripletas.ToHashSet();
+
+        // Sin AsNoTracking: EF Core trackea las entidades para que
+        // ActualizarDesdeImportacion y AgregarConstruccion se persistan en SaveChangesAsync.
+        var prediosList = await db.Predios
+            .Where(p => zonas.Contains(p.Ubicacion.Zona)
+                     && manzanas.Contains(p.Ubicacion.Manzana)
+                     && lotes.Contains(p.Ubicacion.Lote))
+            .ToListAsync(ct);
+
+        return prediosList
+            .Where(p => tripletaSet.Contains((p.Ubicacion.Zona, p.Ubicacion.Manzana, p.Ubicacion.Lote)))
+            .ToDictionary(p => (p.Ubicacion.Zona, p.Ubicacion.Manzana, p.Ubicacion.Lote));
+    }
 }
