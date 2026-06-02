@@ -156,3 +156,22 @@ secrets/
 *.bak
 *.swp
 *.orig
+
+# Shapefiles de prueba — datos locales, nunca al repo
+*.shp
+*.dbf
+*.shx
+*.prj
+*.cpg
+*.qmd
+
+# Shapefiles empaquetados — datos locales del piloto, nunca al repo
+dat_*.zip
+*.backup
+*.dump
+
+# Scripts de diagnostico ad-hoc — herramientas locales, no parte del producto
+diagnostico_*.csx
+
+# Areas de trabajo no integradas al sprint actual
+proyectos-futuros/
