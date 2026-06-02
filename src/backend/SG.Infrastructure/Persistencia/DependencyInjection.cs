@@ -7,9 +7,11 @@ using Minio;
 using SG.Application.Abstractions;
 using SG.Application.Abstractions.Catastro;
 using SG.Application.Abstractions.Autenticacion;
+using SG.Application.Abstractions.Importacion;
 using SG.Infrastructure.Almacenamiento;
 using SG.Infrastructure.Catastro;
 using SG.Infrastructure.GIS;
+using SG.Infrastructure.Importacion;
 using SG.Infrastructure.Identidad;
 using SG.Infrastructure.Persistencia.Interceptors;
 using SG.Infrastructure.Seguridad;
@@ -50,6 +52,14 @@ public static class DependencyInjection
         services.AddScoped<ICoordenadasService, CoordenadasService>();
         services.AddScoped<IGeometriaService, GeometriaService>();
 
+        // Repositorios de importación
+        services.AddScoped<IPerfilImportacionRepositorio, PerfilImportacionRepositorio>();
+        services.AddScoped<IImportacionRepositorio, ImportacionRepositorio>();
+
+        // Servicios de importación
+        services.AddSingleton<IShapefileReader, ShapefileReader>();
+        services.AddSingleton<IZipExtractor, ZipExtractor>();
+
         // MinIO: IMinioClient como singleton (thread-safe, costoso de construir)
         services.AddSingleton<IMinioClient>(sp =>
         {
@@ -69,6 +79,9 @@ public static class DependencyInjection
                 npgsql.UseNetTopologySuite();
                 npgsql.MigrationsHistoryTable(
                     "__ef_migrations_history", schema: "identidad");
+                // 300s por batch SQL: importaciones masivas (~84.000 INSERTs) pueden
+                // exceder el default de 30s en hardware lento (ADR 0036).
+                npgsql.CommandTimeout(300);
             });
 
             options.UseSnakeCaseNamingConvention();
