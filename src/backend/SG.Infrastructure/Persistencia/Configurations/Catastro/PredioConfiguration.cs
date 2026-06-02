@@ -44,8 +44,24 @@ public class PredioConfiguration : IEntityTypeConfiguration<Predio>
         builder.Property(x => x.SuperficieOficial)
             .HasColumnType("numeric(14,4)");
 
-        builder.Property(x => x.UsoSueloId)
-            .IsRequired();
+        // Nullable: predios importados no tienen uso de suelo hasta que el técnico lo asigne.
+        builder.Property(x => x.UsoSueloId);
+
+        builder.Property(x => x.PropietarioReferencia)
+            .HasMaxLength(300);
+
+        builder.Property(x => x.RequiereRevision)
+            .IsRequired()
+            .HasDefaultValue(false);
+
+        builder.Property(x => x.DetalleRevision)
+            .HasMaxLength(1000);
+
+        builder.Property(x => x.TipoInmuebleOrigen)
+            .HasMaxLength(10);
+
+        builder.Property(x => x.CodigoOrigen)
+            .HasMaxLength(20);
 
         builder.Property(x => x.Estado)
             .IsRequired()
@@ -78,10 +94,11 @@ public class PredioConfiguration : IEntityTypeConfiguration<Predio>
             .IsUnique()
             .HasDatabaseName("uix_predios_codigo_catastral");
 
-        // UsoSuelo FK — sin cascade delete (catálogo estable).
+        // UsoSuelo FK — nullable (predios importados), sin cascade delete (catálogo estable).
         builder.HasOne<Domain.Catalogos.UsoSuelo>()
             .WithMany()
             .HasForeignKey(x => x.UsoSueloId)
+            .IsRequired(false)
             .OnDelete(DeleteBehavior.Restrict);
 
         // Colecciones navegadas.
@@ -98,6 +115,11 @@ public class PredioConfiguration : IEntityTypeConfiguration<Predio>
         builder.HasMany(x => x.Historial)
             .WithOne()
             .HasForeignKey(h => h.PredioId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasMany(x => x.Construcciones)
+            .WithOne()
+            .HasForeignKey(c => c.PredioId)
             .OnDelete(DeleteBehavior.Cascade);
 
         builder.HasQueryFilter(x => !x.IsDeleted);
