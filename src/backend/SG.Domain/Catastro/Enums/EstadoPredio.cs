@@ -6,4 +6,5 @@ public enum EstadoPredio
     EnRevision = 2,
     Validado = 3,
     Observado = 4,
+    Importado = 5,
 }

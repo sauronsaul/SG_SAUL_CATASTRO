@@ -9,19 +9,28 @@ public sealed class Predio : AggregateRoot
     private readonly List<RelacionPredioPropietario> _relaciones = [];
     private readonly List<Documento> _documentos = [];
     private readonly List<HistorialEstado> _historial = [];
+    private readonly List<Construccion> _construcciones = [];
 
     public CodigoCatastral? CodigoCatastral { get; private set; }
     public UbicacionCatastral Ubicacion { get; private set; } = null!;
     public decimal SuperficieDeclarada { get; private set; }
     public decimal? SuperficieSig { get; private set; }
     public decimal? SuperficieOficial { get; private set; }
-    public Guid UsoSueloId { get; private set; }
+    // Nullable: la importación crea predios sin uso de suelo asignado. El técnico lo asigna al revisar.
+    public Guid? UsoSueloId { get; private set; }
     public EstadoPredio Estado { get; private set; }
     public GeometriaPredial? Geometria { get; private set; }
+    public string? PropietarioReferencia { get; private set; }
+    public bool RequiereRevision { get; private set; }
+    public string? DetalleRevision { get; private set; }
+    // Solo seteados por la importación — guardan valores crudos del .dbf como referencia.
+    public string? TipoInmuebleOrigen { get; private set; }
+    public string? CodigoOrigen { get; private set; }
 
     public IReadOnlyCollection<RelacionPredioPropietario> Relaciones => _relaciones.AsReadOnly();
     public IReadOnlyCollection<Documento> Documentos => _documentos.AsReadOnly();
     public IReadOnlyCollection<HistorialEstado> Historial => _historial.AsReadOnly();
+    public IReadOnlyCollection<Construccion> Construcciones => _construcciones.AsReadOnly();
 
     private Predio() { }
 
@@ -47,6 +56,41 @@ public sealed class Predio : AggregateRoot
             UsoSueloId = usoSueloId,
             Estado = EstadoPredio.Borrador,
         };
+
+        return Result.Success(predio);
+    }
+
+    public static Result<Predio> CrearImportado(
+        UbicacionCatastral ubicacion,
+        decimal superficieDeclarada,
+        Guid importadoPor,
+        string? propietarioReferencia = null,
+        string? tipoInmuebleOrigen = null,
+        string? codigoOrigen = null,
+        bool requiereRevision = false,
+        string? detalleRevision = null)
+    {
+        if (ubicacion is null)
+            return Result.Failure<Predio>(PredioErrores.UbicacionRequerida);
+
+        if (superficieDeclarada <= 0)
+            return Result.Failure<Predio>(PredioErrores.SuperficieInvalida);
+
+        var predio = new Predio
+        {
+            Ubicacion = ubicacion,
+            SuperficieDeclarada = superficieDeclarada,
+            UsoSueloId = null,
+            Estado = EstadoPredio.Importado,
+            PropietarioReferencia = propietarioReferencia?.Trim(),
+            TipoInmuebleOrigen = tipoInmuebleOrigen?.Trim(),
+            CodigoOrigen = codigoOrigen?.Trim(),
+            RequiereRevision = requiereRevision,
+            DetalleRevision = detalleRevision?.Trim(),
+        };
+
+        predio._historial.Add(HistorialEstado.Registrar(
+            predio.Id, EstadoPredio.Importado, EstadoPredio.Importado, importadoPor, "Creado por importación."));
 
         return Result.Success(predio);
     }
@@ -102,6 +146,52 @@ public sealed class Predio : AggregateRoot
             return Result.Failure(PredioErrores.TransicionInvalida(Estado, EstadoPredio.Borrador));
 
         CambiarEstado(EstadoPredio.Borrador, usuarioId, null);
+        return Result.Success();
+    }
+
+    public Result ActualizarDesdeImportacion(
+        decimal superficieDeclarada,
+        Guid importadoPor,
+        string? propietarioReferencia = null,
+        string? tipoInmuebleOrigen = null,
+        string? codigoOrigen = null,
+        bool requiereRevision = false,
+        string? detalleRevision = null)
+    {
+        if (Estado is not (EstadoPredio.Importado or EstadoPredio.Borrador))
+            return Result.Failure(PredioErrores.EstadoNoPermiteReimportacion);
+
+        if (superficieDeclarada <= 0)
+            return Result.Failure(PredioErrores.SuperficieInvalida);
+
+        SuperficieDeclarada = superficieDeclarada;
+        PropietarioReferencia = propietarioReferencia?.Trim();
+        TipoInmuebleOrigen = tipoInmuebleOrigen?.Trim();
+        CodigoOrigen = codigoOrigen?.Trim();
+        RequiereRevision = requiereRevision;
+        DetalleRevision = detalleRevision?.Trim();
+
+        _historial.Add(HistorialEstado.Registrar(
+            Id, Estado, Estado, importadoPor, "Actualizado por re-importación."));
+
+        return Result.Success();
+    }
+
+    public Result TomarParaTrabajo(Guid usuarioId)
+    {
+        if (Estado != EstadoPredio.Importado)
+            return Result.Failure(PredioErrores.TransicionInvalida(Estado, EstadoPredio.Borrador));
+
+        CambiarEstado(EstadoPredio.Borrador, usuarioId, null);
+        return Result.Success();
+    }
+
+    public Result EnviarARevisionDesdeImportado(Guid usuarioId)
+    {
+        if (Estado != EstadoPredio.Importado)
+            return Result.Failure(PredioErrores.TransicionInvalida(Estado, EstadoPredio.EnRevision));
+
+        CambiarEstado(EstadoPredio.EnRevision, usuarioId, null);
         return Result.Success();
     }
 
@@ -171,6 +261,23 @@ public sealed class Predio : AggregateRoot
         return relacion.Cerrar(fechaCierre);
     }
 
+    // --- Construcciones ---
+
+    public Result<Construccion> AgregarConstruccion(
+        int numero,
+        int pisos,
+        string? bloque,
+        decimal areaConstruida,
+        string? tipoConstruccion)
+    {
+        var result = Construccion.Crear(Id, numero, pisos, bloque, areaConstruida, tipoConstruccion);
+        if (result.IsFailure)
+            return Result.Failure<Construccion>(result.Error);
+
+        _construcciones.Add(result.Value);
+        return Result.Success(result.Value);
+    }
+
     // --- Documentos ---
 
     public Result<Documento> AgregarDocumento(
@@ -214,6 +321,10 @@ public static class PredioErrores
     public static readonly DomainError ObservacionesRequeridas = new("Predio.ObservacionesRequeridas", "Las observaciones son requeridas para observar un predio.");
     public static readonly DomainError NoEncontrado = new("Predio.NoEncontrado", "El predio no fue encontrado.");
     public static readonly DomainError CodigoCatastralDuplicado = new("Predio.CodigoCatastralDuplicado", "Ya existe un predio con ese código catastral.");
+
+    public static readonly DomainError EstadoNoPermiteReimportacion =
+        new("Predio.EstadoNoPermiteReimportacion",
+            "El predio no está en estado Importado ni Borrador — no puede ser actualizado por importación.");
 
     public static DomainError TransicionInvalida(EstadoPredio actual, EstadoPredio destino) =>
         new("Predio.TransicionInvalida",
