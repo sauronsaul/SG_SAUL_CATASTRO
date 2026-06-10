@@ -8,7 +8,15 @@ public record ImportacionResumenDto(
     Guid ImportadoPorId,
     Guid PerfilId,
     int TotalFilas,
-    int FilasImportadas,
-    int FilasConAdvertencia,
+    // Conteos de preview (proyectados)
+    int FilasEstimadasACrear,
+    int FilasEstimadasAActualizar,
+    int FilasEstimadasAOmitir,
+    int FilasEstimadasRechazadas,
+    int FilasEstimadasConAdvertencia,
+    // Conteos de confirmación (reales)
+    int FilasCreadas,
+    int FilasActualizadas,
+    int FilasOmitidas,
     int FilasRechazadas,
-    int FilasOmitidas);
+    int FilasConAdvertencia);

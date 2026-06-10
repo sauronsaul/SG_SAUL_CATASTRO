@@ -41,8 +41,14 @@ public sealed class ListarImportacionesHandler(IImportacionRepositorio importaci
             i.ImportadoPorId,
             i.PerfilId,
             i.TotalFilas,
-            i.FilasImportadas,
-            i.FilasConAdvertencia,
+            i.FilasEstimadasACrear,
+            i.FilasEstimadasAActualizar,
+            i.FilasEstimadasAOmitir,
+            i.FilasEstimadasRechazadas,
+            i.FilasEstimadasConAdvertencia,
+            i.FilasCreadas,
+            i.FilasActualizadas,
+            i.FilasOmitidas,
             i.FilasRechazadas,
-            i.FilasOmitidas);
+            i.FilasConAdvertencia);
 }

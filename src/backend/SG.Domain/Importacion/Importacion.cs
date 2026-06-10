@@ -24,10 +24,21 @@ public sealed class Importacion : AggregateRoot
     public DateTime FechaImportacion { get; private set; }
     public Guid ImportadoPorId { get; private set; }
     public int TotalFilas { get; private set; }
-    public int FilasImportadas { get; private set; }
-    public int FilasConAdvertencia { get; private set; }
-    public int FilasRechazadas { get; private set; }
-    public int FilasOmitidas { get; private set; }
+
+    // Conteos de preview — escritos SOLO en RegistrarConteosPreview
+    public int FilasEstimadasACrear         { get; private set; }
+    public int FilasEstimadasAActualizar    { get; private set; }
+    public int FilasEstimadasAOmitir        { get; private set; }
+    public int FilasEstimadasRechazadas     { get; private set; }
+    public int FilasEstimadasConAdvertencia { get; private set; }
+
+    // Conteos de confirmación — escritos SOLO en RegistrarConteosConfirmacion
+    public int FilasCreadas         { get; private set; }
+    public int FilasActualizadas    { get; private set; }
+    public int FilasOmitidas        { get; private set; }
+    public int FilasRechazadas      { get; private set; }
+    public int FilasConAdvertencia  { get; private set; }
+
     public EstadoImportacion Estado { get; private set; }
 
     private Importacion() { }
@@ -67,10 +78,11 @@ public sealed class Importacion : AggregateRoot
                 $"No se pueden registrar conteos de preview en estado {Estado}. " +
                 $"Solo permitido en PreviewGenerado.");
 
-        FilasImportadas     = filasACrear + filasAActualizar;
-        FilasConAdvertencia = filasConAdvertencia;
-        FilasRechazadas     = filasRechazadas;
-        FilasOmitidas       = filasAOmitir;
+        FilasEstimadasACrear         = filasACrear;
+        FilasEstimadasAActualizar    = filasAActualizar;
+        FilasEstimadasAOmitir        = filasAOmitir;
+        FilasEstimadasRechazadas     = filasRechazadas;
+        FilasEstimadasConAdvertencia = filasConAdvertencia;
     }
 
     /// <summary>
@@ -89,10 +101,11 @@ public sealed class Importacion : AggregateRoot
                 $"No se pueden registrar conteos de confirmación en estado {Estado}. " +
                 $"Solo permitido en PreviewGenerado (antes de transicionar a Confirmada).");
 
-        FilasImportadas     = filasCreadas + filasActualizadas;
-        FilasConAdvertencia = filasConAdvertencia;
-        FilasRechazadas     = filasRechazadas;
-        FilasOmitidas       = filasOmitidas;
+        FilasCreadas         = filasCreadas;
+        FilasActualizadas    = filasActualizadas;
+        FilasOmitidas        = filasOmitidas;
+        FilasRechazadas      = filasRechazadas;
+        FilasConAdvertencia  = filasConAdvertencia;
     }
 
     public void Confirmar()

@@ -1,12 +1,14 @@
 # ADR 0037 — Semántica de los campos de conteos del agregado Importacion
 
-- **Estado:** Propuesto
-- **Fecha:** 2026-06-01
-- **Sprint origen:** Sprint 3 — Punto de Control 3.2, prueba P8
+- **Estado:** Aceptado
+- **Fecha de propuesta:** 2026-06-01 (Sprint 3 — PC 3.2, prueba P8)
+- **Fecha de resolución:** 2026-06-10 (Sprint 4 — item 2)
 
-## Contexto
+---
 
-El agregado `SG.Domain.Importacion.Importacion` persiste cuatro campos de
+## Contexto (Sprint 3)
+
+El agregado `SG.Domain.Importacion.Importacion` persistía cuatro campos de
 conteos: `FilasImportadas`, `FilasConAdvertencia`, `FilasRechazadas`,
 `FilasOmitidas`. Estos campos eran escritos por un único método
 `RegistrarResultados`, invocado desde dos flujos con semántica opuesta:
@@ -17,13 +19,13 @@ conteos: `FilasImportadas`, `FilasConAdvertencia`, `FilasRechazadas`,
    la ejecución contra la base de datos.
 
 Verificado en P8: importaciones en estado `PreviewGenerado` (nunca
-confirmadas) tienen `filas_importadas = 11985` y `= 18423` en BD,
+confirmadas) tenían `filas_importadas = 11985` y `= 18423` en BD,
 cuando semánticamente esos valores son proyecciones, no resultados.
 Una consulta `SELECT SUM(filas_importadas) FROM importaciones` sin
-filtro por estado cuenta como importadas filas que solo se
+filtro por estado contaba como importadas filas que solo se
 previsualizaron.
 
-## Decisión tomada en este commit (parcial — Opción B)
+## Decisión parcial aplicada en Sprint 3 (commit 1c40545)
 
 Se separó el método del dominio en dos:
 `RegistrarConteosPreview` y `RegistrarConteosConfirmacion`, cada uno
@@ -32,41 +34,128 @@ con guarda de estado que solo permite invocación desde
 y `MarcarFallida()`.
 
 El **modelo de datos no se modificó**: los cuatro campos persistidos
-siguen siendo los mismos. La asimetría semántica queda contenida
-dentro del dominio.
+seguían siendo los mismos. La asimetría semántica quedó contenida
+dentro del dominio pero sin resolver en la capa de persistencia.
 
-## Deuda pendiente
+---
 
-1. **Renombrar columnas persistidas** para reflejar la semántica real.
-   Propuesta: separar en `filas_estimadas_*` (escritas en preview) y
-   `filas_importadas_*` (escritas solo en confirmación). Requiere
-   migración EF Core con backfill: importaciones existentes en
-   `PreviewGenerado` deberían tener sus valores movidos de
-   `filas_importadas` a `filas_estimadas` y poner 0 en
-   `filas_importadas`.
+## Resolución completa (Sprint 4 — item 2, 2026-06-10)
 
-2. **Documentar en API**: hasta que (1) se ejecute, los consumidores
-   del endpoint `GET /api/importaciones/{id}` y de la tabla
-   `importaciones` DEBEN filtrar por `estado = 'Confirmada'` para
-   obtener conteos reales. Cualquier reporte que sume
-   `filas_importadas` sin ese filtro reporta cifras infladas.
+Al diagnosticar el renombrado de `FilasImportadas` se descubrió que los 4
+contadores tenían **doble escritura**: tanto `RegistrarConteosPreview`
+como `RegistrarConteosConfirmacion` escribían en las mismas propiedades,
+de modo que la confirmación sobreescribía los conteos proyectados del
+preview sin posibilidad de recuperarlos.
 
-3. **Consecuencia detectada fuera de alcance:** las guardas nuevas
-   tiran `DomainException`, mientras que los handlers de aplicación
-   usan `Result<T>` con `DomainError`. Hay dos mecanismos paralelos
-   para errores de dominio en el proyecto. Verificar que el middleware
-   mapea `DomainException` a HTTP 422 o 409 (no 500 genérico).
-   Decidir política unificada en ADR separado.
+### Opciones evaluadas
 
-## Origen del hallazgo
+**Opción A — Renombrar solo `FilasImportadas`**: dividirla en
+`FilasCreadas` + `FilasActualizadas`, mantener las otras 3 sin cambios.
+Resuelve la ambigüedad del nombre pero no el problema de doble escritura en los
+4 contadores.
 
-Detectado durante P8 del Punto de Control 3.2 del Sprint 3, cuando
-un diagnóstico de código concluyó erróneamente que `filas_importadas`
-sería 0 en estado `PreviewGenerado` — contradicho por la evidencia
-en BD. La causa raíz fue un agregado anémico (`RegistrarResultados`
-sin guardas, llamable en cualquier estado) combinado con una
-nomenclatura ambigua que invitó al error de lectura.
+**Opción B-advertencia-separada (elegida)** — Separar los 9 contadores en
+dos grupos completamente independientes:
+- 5 contadores de **preview** (proyectados): escritos *solo* por
+  `RegistrarConteosPreview`, preservados tras la confirmación.
+- 5 contadores de **confirmación** (reales): escritos *solo* por
+  `RegistrarConteosConfirmacion`.
+
+### Modelo final (10 contadores)
+
+| Columna | Grupo | Escrito por |
+|---|---|---|
+| `filas_estimadas_a_crear` | preview | `RegistrarConteosPreview` |
+| `filas_estimadas_a_actualizar` | preview | `RegistrarConteosPreview` |
+| `filas_estimadas_a_omitir` | preview | `RegistrarConteosPreview` |
+| `filas_estimadas_rechazadas` | preview | `RegistrarConteosPreview` |
+| `filas_estimadas_con_advertencia` | preview | `RegistrarConteosPreview` |
+| `filas_creadas` | confirmación | `RegistrarConteosConfirmacion` |
+| `filas_actualizadas` | confirmación | `RegistrarConteosConfirmacion` |
+| `filas_omitidas` | confirmación | `RegistrarConteosConfirmacion` |
+| `filas_rechazadas` | confirmación | `RegistrarConteosConfirmacion` |
+| `filas_con_advertencia` | confirmación | `RegistrarConteosConfirmacion` |
+
+Columnas preservadas sin renombrar: `filas_omitidas`, `filas_rechazadas`,
+`filas_con_advertencia` (mismos nombres, nuevo grupo semántico asignado
+exclusivamente a confirmación).
+
+### Regla de backfill por estado (migración M008)
+
+La migración `M008_SepararContadoresPreviewConfirmacion` aplica el siguiente
+backfill sobre datos existentes:
+
+| Estado | Acción de backfill |
+|---|---|
+| `Confirmada` | `filas_creadas = filas_importadas` (mejor aproximación: el modelo anterior no distinguía creates de updates). Las 5 columnas `filas_estimadas_*` quedan en 0. |
+| `PreviewGenerado` | Todos los nuevos campos en 0. Las columnas `filas_omitidas`, `filas_rechazadas`, `filas_con_advertencia` ya existían con los mismos nombres — no requieren acción. |
+| `Fallida` | Igual que `PreviewGenerado`: todos los nuevos campos en 0. |
+
+#### Nota de imprecisión histórica para estado `Confirmada`
+
+El valor de `filas_importadas` representaba la suma de creates y updates
+(`filas_creadas + filas_actualizadas` en el nuevo modelo). No es posible
+reconstruir el split desde datos históricos. La asignación
+`filas_creadas = filas_importadas` es la mejor aproximación disponible y es
+aceptable porque el sistema está en fase piloto con datos reproducibles
+(dataset Uyuni de prueba); la primera importación real del piloto de Caranavi
+registrará conteos precisos desde el inicio.
+
+### Justificación
+
+- **Trazabilidad**: un usuario puede ver exactamente qué se proyectó en el
+  preview y qué ocurrió realmente tras la confirmación, en la misma fila.
+  Divergencias TOCTOU son visibles y auditables.
+- **Inmutabilidad de preview**: tras la confirmación los estimados no cambian,
+  lo que permite comparaciones post-facto (¿el proceso salió como se esperaba?).
+- **Alineación con el modelo de dominio**: cada método del aggregate escribe en
+  un conjunto disjunto de propiedades. No hay estado compartido entre fases.
+
+---
+
+## Consecuencias
+
+- La tabla `dominio.importaciones` tiene 10 columnas de conteo vs. 4 anteriores.
+- Los DTOs `ImportacionResumenDto` e `ImportacionDetalleDto` exponen los 10
+  campos para permitir vistas por estado sin llamadas adicionales.
+- Los handlers `ListarImportacionesHandler` y `ObtenerDetalleImportacionHandler`
+  mapean los 10 campos.
+- `ConfirmarImportacionHandler` y `GenerarPreviewImportacionHandler` no
+  requieren cambios (ya llamaban los métodos correctos con parámetros correctos).
+- Tests del aggregate: 13 tests (10 existentes actualizados + 3 nuevos:
+  post-preview confirmación=0, post-confirmación estimados preservados,
+  divergencia TOCTOU).
+
+---
+
+## Deuda resuelta
+
+Las tres deudas registradas en la propuesta original quedan cerradas:
+
+1. ~~Renombrar columnas persistidas~~ — resuelto por M008.
+2. ~~Documentar en API la restricción de filtro por estado~~ — ya no aplica;
+   los 10 campos son semánticamente unívocos por grupo.
+3. Política unificada `DomainException` vs `Result<DomainError>` — sigue
+   pendiente como deuda separada (ver sprint-03-cierre-formal.md).
+
+---
+
+## Archivos modificados (resolución Sprint 4)
+
+| Archivo | Cambio |
+|---|---|
+| `SG.Domain/Importacion/Importacion.cs` | 10 propiedades, métodos con escritura disjunta |
+| `SG.Infrastructure/.../ImportacionConfiguration.cs` | `HasColumnName` explícito para las 10 columnas |
+| `SG.Contracts/Importacion/ImportacionResumenDto.cs` | 10 campos, sin `FilasImportadas` |
+| `SG.Contracts/Importacion/ImportacionDetalleDto.cs` | 10 campos, sin `FilasImportadas` |
+| `SG.Application/Importacion/Listar/ListarImportacionesHandler.cs` | mapeo a 10 campos |
+| `SG.Application/Importacion/ObtenerDetalle/ObtenerDetalleImportacionHandler.cs` | mapeo a 10 campos |
+| `SG.Infrastructure/.../Migrations/20260610231604_M008_...cs` | ADD×7 + backfill + DROP |
+| `tests/SG.Domain.Tests/Importacion/ImportacionAggregateTests.cs` | 13 tests |
+
+---
 
 ## Referencias
 
-- Commit que aplica la decisión parcial: 1c40545
+- Commit decisión parcial Sprint 3: 1c40545
+- Commit resolución completa Sprint 4: 4ea3202

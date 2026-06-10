@@ -58,9 +58,15 @@ public sealed class ObtenerDetalleImportacionHandler(
             i.ImportadoPorId,
             i.PerfilId,
             i.TotalFilas,
-            i.FilasImportadas,
-            i.FilasConAdvertencia,
-            i.FilasRechazadas,
+            i.FilasEstimadasACrear,
+            i.FilasEstimadasAActualizar,
+            i.FilasEstimadasAOmitir,
+            i.FilasEstimadasRechazadas,
+            i.FilasEstimadasConAdvertencia,
+            i.FilasCreadas,
+            i.FilasActualizadas,
             i.FilasOmitidas,
+            i.FilasRechazadas,
+            i.FilasConAdvertencia,
             filas);
 }
