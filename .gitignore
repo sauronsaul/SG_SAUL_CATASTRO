@@ -175,3 +175,6 @@ diagnostico_*.csx
 
 # Areas de trabajo no integradas al sprint actual
 proyectos-futuros/
+
+# Handoffs locales entre conversaciones — no se commitean, son herramientas de trabajo
+PROMPT_SPRINT_*.md
