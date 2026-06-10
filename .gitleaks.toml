@@ -1,0 +1,15 @@
+[extend]
+useDefault = true
+
+[[rules]]
+id = "connection-string-password"
+description = "Password embebido en connection string o variable de entorno"
+regex = '''(?i)(password|pwd|pgpassword)\s*=\s*[^;\s"'$<%][^;\s"']{3,}'''
+keywords = ["password", "pwd", "pgpassword"]
+
+[rules.allowlist]
+regexTarget = "line"
+regexes = [
+  '''(?i)(password|pwd|pgpassword)\s*=\s*(\$\{|\%\(|<|CHANGEME\b)''',
+  '''(?i)(password|pwd|pgpassword)\s*=\s*config\['''
+]

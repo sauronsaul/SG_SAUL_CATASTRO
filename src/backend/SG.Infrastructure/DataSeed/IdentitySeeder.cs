@@ -70,7 +70,7 @@ public static partial class IdentitySeeder
         var tecnicoPassword = config["Tecnico:Password"];
 
         bool tieneEmail    = !string.IsNullOrWhiteSpace(tecnicoEmail);
-        bool tienePassword = !string.IsNullOrWhiteSpace(tecnicoPassword);
+        bool tienePassword = !string.IsNullOrWhiteSpace(tecnicoPassword); // gitleaks:allow
 
         if (!tieneEmail && !tienePassword)
         {

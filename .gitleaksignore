@@ -1,0 +1,8 @@
+# Falsos positivos verificados — ver ADR 0042.
+a0b8a2749410f8d08d3f6e7063f7a422110561e4:src/backend/SG.Infrastructure/DataSeed/IdentitySeeder.cs:connection-string-password:70
+a0b8a2749410f8d08d3f6e7063f7a422110561e4:src/backend/SG.Infrastructure/DataSeed/IdentitySeeder.cs:connection-string-password:73
+000a42f82a45810fee67fba2cf2d5b910f563fda:src/backend/SG.Infrastructure/DataSeed/IdentitySeeder.cs:connection-string-password:70
+000a42f82a45810fee67fba2cf2d5b910f563fda:src/backend/SG.Infrastructure/DataSeed/IdentitySeeder.cs:connection-string-password:73
+008a860860edf53124245aa60d9345c6bc5d52b4:src/backend/SG.Infrastructure/DataSeed/IdentitySeeder.cs:connection-string-password:18
+b0ba2938a179c7f9b08ca4291435c78cb37ef3ac:docs/decisiones/0014-connection-string-caracteres-prohibidos.md:connection-string-password:16
+19c56e5c6b9d2b3ab31b05a9700ad664a9414956:.env.example:connection-string-password:66

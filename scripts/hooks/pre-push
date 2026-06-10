@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Hook pre-push: escanea con gitleaks cada rango de commits que se va a pushear.
+# Instalación: git config core.hooksPath scripts/hooks
+
+ZERO_SHA="0000000000000000000000000000000000000000"
+LEAK_FOUND=0
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+    # Ref eliminada — nada que escanear
+    if [[ "$local_sha" == "$ZERO_SHA" ]]; then
+        continue
+    fi
+
+    if [[ "$remote_sha" == "$ZERO_SHA" ]]; then
+        # Ref nueva: escanear desde merge-base con origin/develop, o el commit
+        # completo si no hay merge-base conocido.
+        MERGE_BASE=$(git merge-base "$local_sha" origin/develop 2>/dev/null || true)
+        if [[ -n "$MERGE_BASE" ]]; then
+            RANGE="${MERGE_BASE}..${local_sha}"
+        else
+            RANGE="$local_sha"
+        fi
+    else
+        RANGE="${remote_sha}..${local_sha}"
+    fi
+
+    echo "→ [pre-push] Escaneando $local_ref ($RANGE) con gitleaks..."
+    LEAK_REPORT="/tmp/gitleaks_push_$(date +%s%N).json"
+
+    if ! gitleaks git --log-opts="$RANGE" --redact \
+            --report-format json --report-path "$LEAK_REPORT" \
+            --no-banner 2>&1; then
+        echo "" >&2
+        echo "╔══════════════════════════════════════════════════════════════╗" >&2
+        echo "║  PUSH BLOQUEADO — gitleaks detectó posibles secretos        ║" >&2
+        echo "║  Ref:    $local_ref" >&2
+        echo "║  Rango:  $RANGE" >&2
+        echo "║  Reporte: $LEAK_REPORT" >&2
+        echo "╚══════════════════════════════════════════════════════════════╝" >&2
+        LEAK_FOUND=1
+    fi
+done
+
+if [[ "$LEAK_FOUND" -ne 0 ]]; then
+    exit 1
+fi
+
+echo "→ [pre-push] Sin secretos detectados."
+exit 0

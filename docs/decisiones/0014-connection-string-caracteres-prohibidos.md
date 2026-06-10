@@ -13,7 +13,7 @@ failure) a pesar de que el password en el contenedor PostgreSQL era correcto.
 
 El diagnóstico reveló que el password contenía `;` (punto y coma). Npgsql
 parsea la connection string usando `;` como separador de clave=valor. Cuando el
-password contiene `;`, el parser lo trata como fin del valor `Password=...` e
+password contiene `;`, el parser lo trata como fin del valor `Password=...` e <!-- gitleaks:allow -->
 intenta interpretar el resto como claves adicionales. El password que llega a
 PostgreSQL es solo el fragmento anterior al primer `;`.
 
