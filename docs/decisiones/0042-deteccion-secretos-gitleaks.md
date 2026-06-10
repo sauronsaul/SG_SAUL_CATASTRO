@@ -17,6 +17,19 @@ que credenciales reales ingresen al historial de git.
 El objetivo es detectar secretos **antes del commit** (pre-commit) y **antes del push**
 (pre-push), con un re-escaneo completo del historial como baseline.
 
+### Postura de exposición del repositorio
+
+El repositorio es **privado** a la fecha (2026-06), con apertura pública futura como
+posibilidad declarada por el propietario.
+
+Hacer público un repositorio publica **todo su historial**, no solo el HEAD. Por tanto
+la política es tolerancia cero a secretos en el historial completo, no solo en archivos
+vigentes. Cualquier secreto que llegue a commitearse requiere:
+
+1. Rotación inmediata de la credencial comprometida.
+2. Evaluación de reescritura de historial (`git filter-repo`) **antes** de cualquier
+   apertura pública del repositorio.
+
 ---
 
 ## Decisión 1 — Herramienta: gitleaks y NO git-secrets
@@ -98,9 +111,24 @@ Tras agregar la regla, la prueba de fuego bloqueó el commit (exit 1, 1 leak fou
 
 ## Decisión 4 — CI con binario directo y NO gitleaks-action
 
-`gitleaks-action` (la GitHub Action oficial) requiere una **license key** para su uso
-en organizaciones o repositorios privados. El proyecto usa una cuenta personal en
-GitHub sin licencia de organización.
+`gitleaks-action` (la GitHub Action oficial) requiere una **license key** para repositorios
+que pertenecen a **cuentas de organización** de GitHub. Los repositorios de cuentas
+personales no requieren license key, independientemente de si son públicos o privados.
+
+Cita textual del README oficial de `gitleaks/gitleaks-action`:
+> "If you are scanning repos that belong to an organization account, you will need to
+> obtain a free license key"
+> "If you are scanning repos that belong to a personal account, then no license key
+> is required."
+
+El proyecto usa una cuenta personal (`sauronsaul`) — sin license key requerida hoy.
+Sin embargo, el destino institucional del sistema (despliegue municipal, posible
+formalización o transferencia a una entidad estatal) hace probable una migración
+futura a cuenta de organización, escenario en el que la Action pasaría a requerir
+licencia. Se elige el binario directo por inmunidad a esa transición, consistente
+con el criterio de licenciamiento ya aplicado en ADR 0026 (MediatR) y ADR 0040
+(FluentAssertions). Costo aceptado: setup de CI levemente más laborioso (step de
+descarga del binario) que las 3 líneas de la Action.
 
 Para la Fase 2 (CI), se ejecutará el binario `gitleaks` directamente en el workflow:
 
