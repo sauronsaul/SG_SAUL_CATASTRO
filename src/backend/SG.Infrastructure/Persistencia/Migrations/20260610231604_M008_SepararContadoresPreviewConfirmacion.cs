@@ -81,22 +81,22 @@ SET filas_creadas = filas_importadas
 WHERE estado = 'Confirmada';
 ");
 
-            // Estado PreviewGenerado y Fallida: RegistrarConteosPreview ya
-            // escribió los 5 estimados en las columnas que se conservan con el
-            // mismo nombre (filas_con_advertencia, filas_rechazadas, filas_omitidas).
-            // Las nuevas columnas filas_estimadas_a_* no existían en el modelo
-            // anterior, así que no hay datos que migrar — quedan en 0. Idem
-            // filas_creadas y filas_actualizadas que también parten en 0.
-            // filas_importadas para estas filas puede ser 0 (si el preview se
-            // generó pero no se confirmó) o un valor remanente; en cualquier
-            // caso no se backfillea porque no hay destino semántico correcto.
+            // Estado PreviewGenerado y Fallida: la única escritura fue el preview.
+            // Las columnas filas_omitidas/rechazadas/con_advertencia cambian de
+            // semántica en esta migración (ahora significan resultado de confirmación),
+            // por lo que los valores de preview DEBEN moverse a las columnas estimadas
+            // y las de confirmación quedar en 0. filas_importadas contenía
+            // crear+actualizar del preview → filas_estimadas_a_crear (misma
+            // aproximación aceptada para Confirmadas; ver ADR 0037).
             migrationBuilder.Sql(@"
 UPDATE dominio.importaciones
-SET filas_estimadas_a_crear      = 0,
-    filas_estimadas_a_actualizar = 0,
-    filas_estimadas_a_omitir     = 0,
-    filas_estimadas_rechazadas   = 0,
-    filas_estimadas_con_advertencia = 0
+SET filas_estimadas_a_crear         = filas_importadas,
+    filas_estimadas_a_omitir        = filas_omitidas,
+    filas_estimadas_rechazadas      = filas_rechazadas,
+    filas_estimadas_con_advertencia = filas_con_advertencia,
+    filas_omitidas        = 0,
+    filas_rechazadas      = 0,
+    filas_con_advertencia = 0
 WHERE estado IN ('PreviewGenerado', 'Fallida');
 ");
 

@@ -87,19 +87,33 @@ backfill sobre datos existentes:
 
 | Estado | Acción de backfill |
 |---|---|
-| `Confirmada` | `filas_creadas = filas_importadas` (mejor aproximación: el modelo anterior no distinguía creates de updates). Las 5 columnas `filas_estimadas_*` quedan en 0. |
-| `PreviewGenerado` | Todos los nuevos campos en 0. Las columnas `filas_omitidas`, `filas_rechazadas`, `filas_con_advertencia` ya existían con los mismos nombres — no requieren acción. |
-| `Fallida` | Igual que `PreviewGenerado`: todos los nuevos campos en 0. |
+| `Confirmada` | `filas_creadas = filas_importadas`. Las 5 columnas `filas_estimadas_*` quedan en 0. |
+| `PreviewGenerado` / `Fallida` | Los valores de preview se mueven a columnas estimadas: `filas_estimadas_a_crear = filas_importadas`, `filas_estimadas_a_omitir = filas_omitidas`, `filas_estimadas_rechazadas = filas_rechazadas`, `filas_estimadas_con_advertencia = filas_con_advertencia`. Las columnas de confirmación (`filas_omitidas`, `filas_rechazadas`, `filas_con_advertencia`) se ponen a 0 porque en el nuevo modelo significan resultado real, no proyección. |
 
-#### Nota de imprecisión histórica para estado `Confirmada`
+Las columnas `filas_omitidas`, `filas_rechazadas` y `filas_con_advertencia`
+**cambian de semántica** en esta migración: antes eran compartidas entre preview
+y confirmación; ahora pertenecen exclusivamente al grupo de confirmación. El
+movimiento explícito para `PreviewGenerado`/`Fallida` es obligatorio para
+preservar la invariante del nuevo modelo.
 
-El valor de `filas_importadas` representaba la suma de creates y updates
-(`filas_creadas + filas_actualizadas` en el nuevo modelo). No es posible
-reconstruir el split desde datos históricos. La asignación
-`filas_creadas = filas_importadas` es la mejor aproximación disponible y es
-aceptable porque el sistema está en fase piloto con datos reproducibles
-(dataset Uyuni de prueba); la primera importación real del piloto de Caranavi
-registrará conteos precisos desde el inicio.
+#### Nota de imprecisión histórica (aplica a ambos grupos)
+
+`filas_importadas` representaba la suma de creates y updates. No es posible
+reconstruir el split. Se asigna el total a `filas_estimadas_a_crear`
+(para `PreviewGenerado`/`Fallida`) y a `filas_creadas` (para `Confirmada`)
+como mejor aproximación disponible. Es aceptable porque el sistema está en
+fase piloto con datos reproducibles (dataset Uyuni de prueba); la primera
+importación real del piloto de Caranavi registrará conteos precisos desde el inicio.
+
+#### Nota sobre la corrección post-aplicación del Up() de M008
+
+El `Up()` de M008 fue corregido después de su primera aplicación local. La
+versión original contenía un UPDATE que ponía las columnas estimadas en 0 para
+`PreviewGenerado`/`Fallida` en lugar de moverles los valores de preview. La
+corrección afecta 0 filas en la única base donde M008 se ejecutó (la única
+importación existente está en estado `Confirmada`), por lo que no existe drift
+entre la migración commiteada y el estado real de la base. Esta excepción está
+documentada; no es un precedente para editar migraciones aplicadas.
 
 ### Justificación
 
@@ -158,4 +172,4 @@ Las tres deudas registradas en la propuesta original quedan cerradas:
 ## Referencias
 
 - Commit decisión parcial Sprint 3: 1c40545
-- Commit resolución completa Sprint 4: 4ea3202
+- Commit resolución completa Sprint 4: ver historial de git (rama develop, item 2 Sprint 4)
