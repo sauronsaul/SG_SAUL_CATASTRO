@@ -29,18 +29,27 @@ public sealed class AuditoriaInterceptor : SaveChangesInterceptor
         _currentUser = currentUser;
     }
 
-    public override ValueTask<InterceptionResult<int>> SavingChangesAsync(
-        DbContextEventData eventData,
-        InterceptionResult<int> result,
-        CancellationToken cancellationToken = default)
+    // ── Capa 1 — Guard append-only (ADR 0044) ──────────────────────────────
+    private static void VerificarInmutabilidadAuditoria(DbContext ctx)
     {
-        if (eventData.Context is null)
-            return base.SavingChangesAsync(eventData, result, cancellationToken);
+        foreach (var entry in ctx.ChangeTracker
+            .Entries<AuditoriaEntidad>()
+            .Where(e => e.State is EntityState.Modified or EntityState.Deleted))
+        {
+            throw new InvalidOperationException(
+                $"Violación del invariante append-only: intento de {entry.State} " +
+                $"sobre AuditoriaEntidad id={entry.Entity.Id}. " +
+                $"Los registros de auditoría son inmutables (ADR 0041/0044).");
+        }
+    }
 
+    // ── Lógica común de generación de registros ────────────────────────────
+    private void GenerarRegistrosAuditoria(DbContext ctx)
+    {
         var registros = new List<AuditoriaEntidad>();
         var now = DateTime.UtcNow;
 
-        foreach (var entry in eventData.Context.ChangeTracker.Entries())
+        foreach (var entry in ctx.ChangeTracker.Entries())
         {
             if (entry.Entity is AuditoriaEntidad) continue;
 
@@ -127,8 +136,35 @@ public sealed class AuditoriaInterceptor : SaveChangesInterceptor
         }
 
         if (registros.Count > 0)
-            eventData.Context.Set<AuditoriaEntidad>().AddRange(registros);
+            ctx.Set<AuditoriaEntidad>().AddRange(registros);
+    }
+
+    // ── Override asíncrono (path normal) ───────────────────────────────────
+    public override ValueTask<InterceptionResult<int>> SavingChangesAsync(
+        DbContextEventData eventData,
+        InterceptionResult<int> result,
+        CancellationToken cancellationToken = default)
+    {
+        if (eventData.Context is null)
+            return base.SavingChangesAsync(eventData, result, cancellationToken);
+
+        VerificarInmutabilidadAuditoria(eventData.Context);
+        GenerarRegistrosAuditoria(eventData.Context);
 
         return base.SavingChangesAsync(eventData, result, cancellationToken);
+    }
+
+    // ── Override síncrono — cierra el gap si alguien llama SaveChanges() ───
+    public override InterceptionResult<int> SavingChanges(
+        DbContextEventData eventData,
+        InterceptionResult<int> result)
+    {
+        if (eventData.Context is null)
+            return base.SavingChanges(eventData, result);
+
+        VerificarInmutabilidadAuditoria(eventData.Context);
+        GenerarRegistrosAuditoria(eventData.Context);
+
+        return base.SavingChanges(eventData, result);
     }
 }
