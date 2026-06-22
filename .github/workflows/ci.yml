@@ -26,8 +26,10 @@ jobs:
 
       - name: Validar archivos YAML
         run: |
+          YAML_TRUTHY="truthy: {allowed-values: ['true', 'false', 'on', 'off']}"
+          YAMLLINT_CFG="{extends: default, rules: {line-length: {max: 120}, ${YAML_TRUTHY}}}"
           yamllint \
-            --config-data "{extends: default, rules: {line-length: {max: 120}, truthy: {allowed-values: ['true', 'false', 'on', 'off']}}}" \
+            --config-data "$YAMLLINT_CFG" \
             .github/workflows/ \
             infra/docker/docker-compose.yml \
             infra/docker/docker-compose.local.yml \
@@ -96,8 +98,9 @@ jobs:
 
       - name: Instalar gitleaks ${{ env.GITLEAKS_VERSION }}
         run: |
-          curl -sSfL \
-            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+          # yamllint disable-line rule:line-length
+          GL_URL="https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          curl -sSfL "$GL_URL" \
             -o /tmp/gitleaks.tar.gz
           tar -xzf /tmp/gitleaks.tar.gz -C /tmp gitleaks
           sudo install /tmp/gitleaks /usr/local/bin/gitleaks
