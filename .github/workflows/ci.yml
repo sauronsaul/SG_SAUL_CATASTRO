@@ -78,3 +78,44 @@ jobs:
 
       - name: Tests pendientes
         run: echo "Tests pendientes — se implementan desde Sprint 1 (backend) y Sprint 4 (frontend)"
+
+  # ------------------------------------------------------------
+  # Job 4: Detección de secretos con gitleaks (ADR 0042 — Capa 3)
+  # Binario directo, versión clavada = misma que el hook local.
+  # ------------------------------------------------------------
+  gitleaks:
+    name: Detección de secretos (gitleaks)
+    runs-on: ubuntu-latest
+    env:
+      GITLEAKS_VERSION: "8.30.1"   # misma versión que el hook local (consistencia local↔CI)
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0           # historial completo: necesario para escanear el rango en PRs
+
+      - name: Instalar gitleaks ${{ env.GITLEAKS_VERSION }}
+        run: |
+          curl -sSfL \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            -o /tmp/gitleaks.tar.gz
+          tar -xzf /tmp/gitleaks.tar.gz -C /tmp gitleaks
+          sudo install /tmp/gitleaks /usr/local/bin/gitleaks
+          gitleaks version
+
+      - name: Escanear secretos (config del repo)
+        run: |
+          gitleaks git . \
+            --config .gitleaks.toml \
+            --redact \
+            --no-banner \
+            --report-format sarif \
+            --report-path gitleaks-report.sarif
+          echo "✓ gitleaks: sin secretos en el historial escaneado."
+
+      - name: Publicar reporte si falla
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gitleaks-report
+          path: gitleaks-report.sarif
