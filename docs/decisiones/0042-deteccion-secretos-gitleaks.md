@@ -134,36 +134,38 @@ Para la Fase 2 (CI), se ejecutará el binario `gitleaks` directamente en el work
 
 ```yaml
 - name: Detectar secretos
-  run: gitleaks detect --source . --redact --no-banner
+  run: gitleaks git . --config .gitleaks.toml --redact --no-banner
 ```
 
 El binario se descarga desde la release oficial (`gitleaks/gitleaks/releases`) en el
 step de setup, o se instala vía package manager en el runner. Sin costo de licencia.
 
-**Estado actual**: Fase 2 (CI) está **pendiente**. El ADR documenta la decisión de
-diseño; la implementación se hará en un sprint posterior.
+**Estado actual**: las tres capas están IMPLEMENTADAS Y VERIFICADAS (2026-06-17).
+Capa 1 probada en vivo; Capa 2 con bloqueo real demostrado; Capa 3 corriendo en
+verde en CI (commit 955bb8b, los 4 jobs en verde).
 
 ---
 
 ## Diseño de tres capas
 
 ```
-Capa 1 — Pre-commit (scripts/commit.sh)        [IMPLEMENTADA]
+Capa 1 — Pre-commit (scripts/commit.sh)        [IMPLEMENTADA Y VERIFICADA]
     └── gitleaks git --staged --redact
     └── Bloquea antes de crear el objeto commit
 
-Capa 2 — Pre-push (scripts/hooks/pre-push)     [IMPLEMENTADA]
+Capa 2 — Pre-push (scripts/hooks/pre-push)     [IMPLEMENTADA Y VERIFICADA]
     └── gitleaks git --log-opts="<rango>" --redact
     └── Bloquea antes de enviar al remoto
     └── Cubre el caso de commits creados fuera del wrapper
+    └── ACTIVACIÓN REQUERIDA por operador: git config core.hooksPath scripts/hooks
 
-Capa 3 — CI (GitHub Actions)                   [PENDIENTE — Fase 2]
-    └── gitleaks detect --source . --redact
-    └── Re-escaneo completo en cada PR a develop/main
+Capa 3 — CI (GitHub Actions)                   [IMPLEMENTADA Y VERIFICADA]
+    └── gitleaks git . --config .gitleaks.toml --redact (binario 8.30.1, linux_x64)
+    └── Re-escaneo del historial en cada push/PR a develop/main
     └── Binario directo, sin gitleaks-action (ver Decisión 4)
 ```
 
-La Capa 2 es una red de seguridad para commits creados por herramientas externas
+La Capa 2 (una vez activada con core.hooksPath) es una red de seguridad para commits creados por herramientas externas
 (IDEs, scripts de migración, etc.) que no pasan por `scripts/commit.sh`.
 
 ---
@@ -262,8 +264,8 @@ cuando gitleaks había retornado exit 1, enmascarando la detección real de leak
 - El historial existente está documentado y auditado: 0 secretos reales, 7 falsos
   positivos clasificados.
 - La Capa 2 (pre-push) protege contra commits creados fuera del wrapper.
-- La Capa 3 (CI) queda pendiente para un sprint posterior; hasta entonces, la
-  protección depende de disciplina en el uso del wrapper.
+- La Capa 3 (CI) está activa y verificada (verde en CI, commit 955bb8b); re-escanea
+  el historial en cada push/PR a develop/main de forma independiente del wrapper.
 - `.gitleaks.toml` y `.gitleaksignore` son parte del repositorio y se mantienen
   junto con el código.
 
