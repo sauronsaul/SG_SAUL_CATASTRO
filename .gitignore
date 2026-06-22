@@ -178,3 +178,4 @@ proyectos-futuros/
 
 # Handoffs locales entre conversaciones — no se commitean, son herramientas de trabajo
 PROMPT_SPRINT_*.md
+dotnet_test_out.txt
