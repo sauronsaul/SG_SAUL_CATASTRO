@@ -69,17 +69,32 @@ jobs:
             config --quiet
 
   # ------------------------------------------------------------
-  # Job 3: Placeholder — tests reales desde Sprint 1+
+  # Job 3: Tests unitarios Domain + Application (sin BD en el runner)
+  # Integration tests (Testcontainers/PostgreSQL) quedan fuera del CI por ahora.
   # ------------------------------------------------------------
-  placeholder-test:
-    name: Tests (placeholder)
+  unit-tests:
+    name: Tests unitarios (Domain + Application)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Tests pendientes
-        run: echo "Tests pendientes — se implementan desde Sprint 1 (backend) y Sprint 4 (frontend)"
+      - name: Configurar .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Tests Domain (sin dependencia de BD)
+        run: |
+          dotnet test \
+            src/backend/tests/SG.Domain.Tests/SG.Domain.Tests.csproj \
+            --verbosity minimal
+
+      - name: Tests Application (sin dependencia de BD)
+        run: |
+          dotnet test \
+            src/backend/tests/SG.Application.Tests/SG.Application.Tests.csproj \
+            --verbosity minimal
 
   # ------------------------------------------------------------
   # Job 4: Detección de secretos con gitleaks (ADR 0042 — Capa 3)
