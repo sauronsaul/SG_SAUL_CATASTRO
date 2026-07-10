@@ -46,3 +46,5 @@
 | [0032](0032-catalogo-uso-suelo-convension-tablas.md) | Convención `catalogo_<tipo>` para tablas de catálogo | 2.1 |
 | [0033](0033-ef-core-insert-vs-update-value-generated-never.md) | EF Core: INSERT vs UPDATE en entidades hijas — `ValueGeneratedNever()` | 2.2 |
 | [0034](0034-testcontainers-connection-string-leak-y-sqlquery-bool.md) | Checkpoint 2.3: dos bugs de infraestructura de tests | 2.3 |
+| [0048](0048-modelo-hibrido-desarrollo-nativo-contenedor-paridad.md) | Modelo híbrido: nativo para iteración y contenedor para paridad | Fase 0 |
+| [0049](0049-importacion-reemplazo-completo-versionado-siete-capas-shp-datasetversion.md) | Importación SHP por reemplazo completo versionado | Fase 0 |
