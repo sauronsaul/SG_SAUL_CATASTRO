@@ -69,7 +69,7 @@ Fallida     Descartada
 ```
 
 - **EnCarga:** filas de capas insertándose (job asíncrono de T-1.1). Escritura permitida solo en este estado.
-- **PreviewListo:** carga completa + validaciones ejecutadas; existe reporte de preview (§5). Inmutable desde aquí: guarda C# + trigger BD (mismo patrón ADR 0044, trigger BEFORE UPDATE/DELETE/TRUNCATE sobre `capa_*` cuando la versión no está EnCarga; statement-level).
+- **PreviewListo:** carga completa + validaciones ejecutadas; existe reporte de preview (§5). Inmutable desde aquí: guarda C# + modelo híbrido de trigger BD sobre `capa_*`. `BEFORE UPDATE OR DELETE FOR EACH ROW` consulta el estado de la versión por su PK: permite `UPDATE` solo en `EnCarga` y `DELETE` en `EnCarga`, `Fallida` o `Descartada`; no aplica a `INSERT` para no penalizar la carga masiva. `BEFORE TRUNCATE FOR EACH STATEMENT` rechaza incondicionalmente la operación; la purga excepcional usa `DELETE` fila a fila.
 - **Activa:** única versión consultable por el sistema. La transición PreviewListo→Activa ejecuta la reconciliación (§6) **dentro de la misma transacción** (12k filas: volumen trivial, sin necesidad de lotes).
 - **Archivada:** versión que fue activa y fue sucedida. Consultable para trazabilidad histórica; jamás se borra.
 - **Fallida / Descartada:** carga con error o preview rechazado por el operador. Sus filas de capas pueden purgarse físicamente (única excepción a la inmutabilidad: datos que nunca fueron oficiales no son historia).
@@ -148,3 +148,9 @@ La reconciliación produce un **resumen persistido**: conteos de altas/actualiza
 ---
 
 *Cambios a este diseño se registran aquí con fecha y motivo, y si alteran una decisión, con ADR nuevo. Punto abierto vigente: PA-1 (esquemas de las 6 capas — se cierra con el Prompt #002).*
+
+---
+
+**Registro de cambios**
+
+- **2026-07-10:** §4 actualizado al modelo híbrido row/statement implementado. Motivo: la autorización T1-T4 precisó que `UPDATE` y `DELETE` requieren inspeccionar `OLD.dataset_version_id` por fila, mientras que `TRUNCATE` se bloquea incondicionalmente por sentencia.
