@@ -68,6 +68,28 @@ public sealed class PredioCrearYMetodosTests
         result.Error.Should().Be(PredioErrores.UsoSueloRequerido);
     }
 
+    [Fact]
+    public void Crear_UbicacionConTripleteNoNumerico_EsFailure()
+    {
+        var ubicacion = UbicacionCatastral.Crear("Distrito", "M1", "L1").Value;
+
+        var result = Predio.Crear(ubicacion, 250m, Guid.NewGuid(), UsuarioId);
+
+        result.IsFailure.Should().BeTrue();
+        result.Error.Should().Be(PredioErrores.TripleteCatastralInvalido);
+    }
+
+    [Fact]
+    public void Crear_UbicacionConTripleteNumerico_ConservaComponentesCanonicos()
+    {
+        var result = Predio.Crear(UbicacionValida(), 250m, Guid.NewGuid(), UsuarioId);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value.CodUv.Should().Be(1);
+        result.Value.CodMan.Should().Be(1);
+        result.Value.CodPred.Should().Be(1);
+    }
+
     // ── Predio.Validar guard ────────────────────────────────────────────────
 
     [Fact]

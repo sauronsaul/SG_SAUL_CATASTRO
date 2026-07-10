@@ -1,0 +1,142 @@
+using FluentAssertions;
+using SG.Domain.Common;
+using SG.Domain.Importacion;
+
+namespace SG.Domain.Tests.Importacion;
+
+public sealed class DatasetVersionTests
+{
+    private static DatasetVersion CrearEnCarga()
+        => DatasetVersion.Crear(1, "UYU", null, "Entrega de prueba");
+
+    [Fact]
+    public void Crear_DatosValidos_IniciaEnCarga()
+    {
+        var version = CrearEnCarga();
+
+        version.Estado.Should().Be(EstadoDatasetVersion.EnCarga);
+        version.NumeroVersion.Should().Be(1);
+        version.MunicipioCodigo.Should().Be("UYU");
+    }
+
+    [Fact]
+    public void Crear_NumeroNoPositivo_LanzaDomainException()
+    {
+        var act = () => DatasetVersion.Crear(0, "UYU", null, "Entrega");
+
+        act.Should().Throw<DomainException>().WithMessage("*mayor o igual a 1*");
+    }
+
+    [Fact]
+    public void MarcarPreviewListo_DesdeEnCarga_Transiciona()
+    {
+        var version = CrearEnCarga();
+
+        version.MarcarPreviewListo();
+
+        version.Estado.Should().Be(EstadoDatasetVersion.PreviewListo);
+    }
+
+    [Fact]
+    public void MarcarPreviewListo_DesdeEstadoInvalido_LanzaDomainException()
+    {
+        var version = CrearEnCarga();
+        version.MarcarFallida();
+
+        var act = () => version.MarcarPreviewListo();
+
+        act.Should().Throw<DomainException>().WithMessage("*Fallida*PreviewListo*");
+    }
+
+    [Fact]
+    public void Activar_DesdePreviewListo_TransicionaYRegistraTrazabilidad()
+    {
+        var version = CrearEnCarga();
+        version.MarcarPreviewListo();
+        var usuario = Guid.NewGuid();
+
+        version.Activar(usuario);
+
+        version.Estado.Should().Be(EstadoDatasetVersion.Activa);
+        version.ActivadoPor.Should().Be(usuario);
+        version.ActivadoAt.Should().NotBeNull();
+    }
+
+    [Fact]
+    public void Activar_DesdeEnCarga_LanzaDomainException()
+    {
+        var version = CrearEnCarga();
+
+        var act = () => version.Activar(Guid.NewGuid());
+
+        act.Should().Throw<DomainException>().WithMessage("*EnCarga*Activa*PreviewListo*");
+    }
+
+    [Fact]
+    public void Archivar_DesdeActiva_TransicionaYRegistraTrazabilidad()
+    {
+        var version = CrearEnCarga();
+        version.MarcarPreviewListo();
+        version.Activar(Guid.NewGuid());
+        var usuario = Guid.NewGuid();
+
+        version.Archivar(usuario);
+
+        version.Estado.Should().Be(EstadoDatasetVersion.Archivada);
+        version.ArchivadoPor.Should().Be(usuario);
+        version.ArchivadoAt.Should().NotBeNull();
+    }
+
+    [Fact]
+    public void Archivar_DesdePreviewListo_LanzaDomainException()
+    {
+        var version = CrearEnCarga();
+        version.MarcarPreviewListo();
+
+        var act = () => version.Archivar(Guid.NewGuid());
+
+        act.Should().Throw<DomainException>().WithMessage("*PreviewListo*Archivada*Activa*");
+    }
+
+    [Fact]
+    public void MarcarFallida_DesdeEnCarga_Transiciona()
+    {
+        var version = CrearEnCarga();
+
+        version.MarcarFallida();
+
+        version.Estado.Should().Be(EstadoDatasetVersion.Fallida);
+    }
+
+    [Fact]
+    public void MarcarFallida_DesdePreviewListo_LanzaDomainException()
+    {
+        var version = CrearEnCarga();
+        version.MarcarPreviewListo();
+
+        var act = () => version.MarcarFallida();
+
+        act.Should().Throw<DomainException>().WithMessage("*PreviewListo*Fallida*EnCarga*");
+    }
+
+    [Fact]
+    public void Descartar_DesdePreviewListo_Transiciona()
+    {
+        var version = CrearEnCarga();
+        version.MarcarPreviewListo();
+
+        version.Descartar();
+
+        version.Estado.Should().Be(EstadoDatasetVersion.Descartada);
+    }
+
+    [Fact]
+    public void Descartar_DesdeEnCarga_LanzaDomainException()
+    {
+        var version = CrearEnCarga();
+
+        var act = () => version.Descartar();
+
+        act.Should().Throw<DomainException>().WithMessage("*EnCarga*Descartada*PreviewListo*");
+    }
+}

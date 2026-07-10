@@ -4,6 +4,7 @@ using NetTopologySuite.Geometries;
 using SG.Domain.Catastro;
 using SG.Domain.Catastro.Enums;
 using SG.Domain.Catastro.ValueObjects;
+using ImportacionDomain = SG.Domain.Importacion;
 
 namespace SG.Infrastructure.Persistencia.Configurations.Catastro;
 
@@ -63,6 +64,16 @@ public class PredioConfiguration : IEntityTypeConfiguration<Predio>
         builder.Property(x => x.CodigoOrigen)
             .HasMaxLength(20);
 
+        builder.Property(x => x.CodUv).IsRequired();
+        builder.Property(x => x.CodMan).IsRequired();
+        builder.Property(x => x.CodPred).IsRequired();
+
+        builder.Property(x => x.PresenteEnVersionActiva)
+            .IsRequired()
+            .HasDefaultValue(true);
+
+        builder.Property(x => x.UltimaVersionVistaId);
+
         builder.Property(x => x.Estado)
             .IsRequired()
             .HasConversion<string>()
@@ -93,6 +104,17 @@ public class PredioConfiguration : IEntityTypeConfiguration<Predio>
         builder.HasIndex(x => x.CodigoCatastral)
             .IsUnique()
             .HasDatabaseName("uix_predios_codigo_catastral");
+
+        builder.HasIndex(x => new { x.CodUv, x.CodMan, x.CodPred })
+            .IsUnique()
+            .HasFilter("NOT is_deleted")
+            .HasDatabaseName("uix_predios_triplete_activo");
+
+        builder.HasOne<ImportacionDomain.DatasetVersion>()
+            .WithMany()
+            .HasForeignKey(x => x.UltimaVersionVistaId)
+            .IsRequired(false)
+            .OnDelete(DeleteBehavior.Restrict);
 
         // UsoSuelo FK — nullable (predios importados), sin cascade delete (catálogo estable).
         builder.HasOne<Domain.Catalogos.UsoSuelo>()

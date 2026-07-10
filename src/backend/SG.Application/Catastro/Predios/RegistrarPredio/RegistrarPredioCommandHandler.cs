@@ -39,6 +39,13 @@ public sealed class RegistrarPredioCommandHandler(
         if (predioResult.IsFailure)
             return Result.Failure<Guid>(predioResult.Error);
 
+        if (await predios.ExisteTripleteCatastralAsync(
+                predioResult.Value.CodUv,
+                predioResult.Value.CodMan,
+                predioResult.Value.CodPred,
+                cancellationToken))
+            return Result.Failure<Guid>(PredioErrores.TripleteCatastralDuplicado);
+
         predios.Agregar(predioResult.Value);
         await predios.GuardarCambiosAsync(cancellationToken);
 

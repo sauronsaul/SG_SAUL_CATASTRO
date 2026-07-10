@@ -30,6 +30,14 @@ public class ApplicationDbContext
     public DbSet<ImportacionDomain.MapeoColumna> MapeosColumna => Set<ImportacionDomain.MapeoColumna>();
     public DbSet<ImportacionDomain.EquivalenciaValor> EquivalenciasValor => Set<ImportacionDomain.EquivalenciaValor>();
     public DbSet<ImportacionDomain.Importacion> Importaciones => Set<ImportacionDomain.Importacion>();
+    public DbSet<ImportacionDomain.DatasetVersion> DatasetVersiones => Set<ImportacionDomain.DatasetVersion>();
+    public DbSet<ImportacionDomain.CapaParcela> CapasParcelas => Set<ImportacionDomain.CapaParcela>();
+    public DbSet<ImportacionDomain.CapaEdificacion> CapasEdificaciones => Set<ImportacionDomain.CapaEdificacion>();
+    public DbSet<ImportacionDomain.CapaPredioNoFotografiado> CapasPrediosNoFotografiados => Set<ImportacionDomain.CapaPredioNoFotografiado>();
+    public DbSet<ImportacionDomain.CapaManzana> CapasManzanas => Set<ImportacionDomain.CapaManzana>();
+    public DbSet<ImportacionDomain.CapaDistrito> CapasDistritos => Set<ImportacionDomain.CapaDistrito>();
+    public DbSet<ImportacionDomain.CapaZona> CapasZonas => Set<ImportacionDomain.CapaZona>();
+    public DbSet<ImportacionDomain.CapaVia> CapasVias => Set<ImportacionDomain.CapaVia>();
 
     public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options)
         : base(options) { }

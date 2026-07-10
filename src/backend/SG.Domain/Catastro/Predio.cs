@@ -26,6 +26,11 @@ public sealed class Predio : AggregateRoot
     // Solo seteados por la importación — guardan valores crudos del .dbf como referencia.
     public string? TipoInmuebleOrigen { get; private set; }
     public string? CodigoOrigen { get; private set; }
+    public int CodUv { get; private set; }
+    public int CodMan { get; private set; }
+    public int CodPred { get; private set; }
+    public bool PresenteEnVersionActiva { get; private set; } = true;
+    public Guid? UltimaVersionVistaId { get; private set; }
 
     public IReadOnlyCollection<RelacionPredioPropietario> Relaciones => _relaciones.AsReadOnly();
     public IReadOnlyCollection<Documento> Documentos => _documentos.AsReadOnly();
@@ -49,12 +54,18 @@ public sealed class Predio : AggregateRoot
         if (usoSueloId == Guid.Empty)
             return Result.Failure<Predio>(PredioErrores.UsoSueloRequerido);
 
+        if (!TryObtenerTriplete(ubicacion, out var codUv, out var codMan, out var codPred))
+            return Result.Failure<Predio>(PredioErrores.TripleteCatastralInvalido);
+
         var predio = new Predio
         {
             Ubicacion = ubicacion,
             SuperficieDeclarada = superficieDeclarada,
             UsoSueloId = usoSueloId,
             Estado = EstadoPredio.Borrador,
+            CodUv = codUv,
+            CodMan = codMan,
+            CodPred = codPred,
         };
 
         return Result.Success(predio);
@@ -76,6 +87,9 @@ public sealed class Predio : AggregateRoot
         if (superficieDeclarada <= 0)
             return Result.Failure<Predio>(PredioErrores.SuperficieInvalida);
 
+        if (!TryObtenerTriplete(ubicacion, out var codUv, out var codMan, out var codPred))
+            return Result.Failure<Predio>(PredioErrores.TripleteCatastralInvalido);
+
         var predio = new Predio
         {
             Ubicacion = ubicacion,
@@ -87,6 +101,9 @@ public sealed class Predio : AggregateRoot
             CodigoOrigen = codigoOrigen?.Trim(),
             RequiereRevision = requiereRevision,
             DetalleRevision = detalleRevision?.Trim(),
+            CodUv = codUv,
+            CodMan = codMan,
+            CodPred = codPred,
         };
 
         predio._historial.Add(HistorialEstado.Registrar(
@@ -310,6 +327,18 @@ public sealed class Predio : AggregateRoot
         Estado = nuevo;
         _historial.Add(HistorialEstado.Registrar(Id, anterior, nuevo, usuarioId, observaciones));
     }
+
+    private static bool TryObtenerTriplete(
+        UbicacionCatastral ubicacion,
+        out int codUv,
+        out int codMan,
+        out int codPred)
+    {
+        var uvValido = int.TryParse(ubicacion.Zona, out codUv);
+        var manValido = int.TryParse(ubicacion.Manzana, out codMan);
+        var predValido = int.TryParse(ubicacion.Lote, out codPred);
+        return uvValido && manValido && predValido;
+    }
 }
 
 public static class PredioErrores
@@ -321,6 +350,11 @@ public static class PredioErrores
     public static readonly DomainError ObservacionesRequeridas = new("Predio.ObservacionesRequeridas", "Las observaciones son requeridas para observar un predio.");
     public static readonly DomainError NoEncontrado = new("Predio.NoEncontrado", "El predio no fue encontrado.");
     public static readonly DomainError CodigoCatastralDuplicado = new("Predio.CodigoCatastralDuplicado", "Ya existe un predio con ese código catastral.");
+    public static readonly DomainError TripleteCatastralDuplicado =
+        new("Predio.TripleteCatastralDuplicado", "Ya existe un predio con ese triplete catastral.");
+    public static readonly DomainError TripleteCatastralInvalido =
+        new("Predio.TripleteCatastralInvalido",
+            "Zona, manzana y lote deben contener el triplete catastral numérico.");
 
     public static readonly DomainError EstadoNoPermiteReimportacion =
         new("Predio.EstadoNoPermiteReimportacion",
