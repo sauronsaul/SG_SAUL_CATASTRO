@@ -33,7 +33,7 @@ public sealed class AuditoriaInterceptorGeometriaTests : IDisposable
         await using var scope = _factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
-        var ubicacion = UbicacionCatastral.Crear("AUDIT", "GEO", "001").Value;
+        var ubicacion = UbicacionCatastral.Crear("902", "903", "001").Value;
         var predio = Predio.CrearImportado(ubicacion, 150m, Guid.NewGuid()).Value;
 
         var geoFactory = new GeometryFactory(

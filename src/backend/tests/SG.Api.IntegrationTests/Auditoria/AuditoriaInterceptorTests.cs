@@ -25,7 +25,7 @@ public sealed class AuditoriaInterceptorTests : IDisposable
     private static async Task<AuditoriaEntidad> CrearPredioYObtenerAuditAsync(
         ApplicationDbContext db, string zonaSufijo)
     {
-        var ubicacion = UbicacionCatastral.Crear("IMMUT", zonaSufijo, "001").Value;
+        var ubicacion = UbicacionCatastral.Crear("901", zonaSufijo[1..], "001").Value;
         var predio = Predio.CrearImportado(ubicacion, 100m, Guid.NewGuid()).Value;
         db.Predios.Add(predio);
         await db.SaveChangesAsync();

@@ -188,6 +188,7 @@ public sealed class PrediosController(ISender sender) : ControllerBase
         _ when error.Code.EndsWith(".NoEncontrado", StringComparison.Ordinal) =>
             Problem(detail: error.Message, statusCode: StatusCodes.Status404NotFound),
         "Predio.CodigoCatastralDuplicado" or
+        "Predio.TripleteCatastralDuplicado" or
         "Relacion.PropietarioYaVigente" or
         "Documento.YaEliminado" =>
             Problem(detail: error.Message, statusCode: StatusCodes.Status409Conflict),

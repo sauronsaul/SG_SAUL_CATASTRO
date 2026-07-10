@@ -50,7 +50,7 @@ public static partial class DomainSeeder
         LogSeedFin(logger);
     }
 
-    [LoggerMessage(Level = LogLevel.Information, Message = "Seeding {Count} usos de suelo para Caranavi...")]
+    [LoggerMessage(Level = LogLevel.Information, Message = "Seeding {Count} usos de suelo...")]
     private static partial void LogSeedInicio(ILogger logger, int count);
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Error creando uso de suelo '{Codigo}': {Error}")]

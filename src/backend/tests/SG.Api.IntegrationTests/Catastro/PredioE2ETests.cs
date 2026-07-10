@@ -156,7 +156,7 @@ public sealed class PredioE2ETests : IDisposable
     }
 
     [Fact]
-    public async Task CodigoCatastralDuplicado_SegundaValidacion_Retorna409()
+    public async Task TripleteCatastralDuplicado_SegundoRegistro_Retorna409()
     {
         var usoSueloId = await ObtenerUsoSueloIdAsync();
 
@@ -167,9 +167,19 @@ public sealed class PredioE2ETests : IDisposable
         v1.StatusCode.Should().Be(HttpStatusCode.NoContent);
 
         // Predio 2: misma zona/manzana/lote → mismo código catastral esperado
-        var p2 = await CrearPredioAsync("003", "0003", "0003", 120m, usoSueloId);
-        await _clientAdmin.PostAsync($"/api/predios/{p2}/estado/enviar-revision", null);
-        var v2 = await _clientAdmin.PostAsync($"/api/predios/{p2}/estado/validar", null);
+        var v2 = await _clientAdmin.PostAsJsonAsync(
+            "/api/predios",
+            new
+            {
+                UbicacionZona = "003",
+                UbicacionManzana = "0003",
+                UbicacionLote = "0003",
+                UbicacionBarrio = (string?)null,
+                UbicacionDireccion = (string?)null,
+                UbicacionReferencia = (string?)null,
+                SuperficieDeclarada = 120m,
+                UsoSueloId = usoSueloId,
+            });
 
         v2.StatusCode.Should().Be(HttpStatusCode.Conflict);
     }

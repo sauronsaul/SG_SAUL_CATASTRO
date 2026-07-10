@@ -32,6 +32,15 @@ internal sealed class PredioRepositorio(ApplicationDbContext db) : IPredioReposi
             .FirstAsync(ct);
     }
 
+    public Task<bool> ExisteTripleteCatastralAsync(
+        int codUv,
+        int codMan,
+        int codPred,
+        CancellationToken ct = default) =>
+        db.Predios.AnyAsync(
+            p => p.CodUv == codUv && p.CodMan == codMan && p.CodPred == codPred,
+            ct);
+
     public async Task<PagedResult<Predio>> ListarAsync(
         int page, int pageSize, CancellationToken ct = default)
     {
