@@ -1,0 +1,314 @@
+using System.Globalization;
+using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using NetTopologySuite.Geometries;
+using SG.Application.Abstractions;
+using SG.Application.Abstractions.Importacion;
+using SG.Contracts.Importacion;
+using SG.Domain.Importacion;
+using SG.Infrastructure.Persistencia;
+
+namespace SG.Infrastructure.Importacion;
+
+internal sealed class CargaVersionadaServicio(
+    ApplicationDbContext db,
+    IDatasetVersionRepositorio versiones,
+    IPerfilImportacionRepositorio perfiles,
+    IMinioService minio,
+    IZipExtractor zipExtractor,
+    IShapefileReader shapefileReader,
+    IConfiguration configuration) : ICargaVersionadaServicio
+{
+    private const int TamanoLote = 1000;
+
+    public async Task CargarAsync(Guid datasetVersionId, CancellationToken ct = default)
+    {
+        var version = await versiones.ObtenerPorIdAsync(datasetVersionId, ct)
+            ?? throw new InvalidOperationException("DatasetVersion no encontrada para carga.");
+
+        if (version.Estado != EstadoDatasetVersion.EnCarga)
+            return;
+
+        if (string.IsNullOrWhiteSpace(version.RutaMinioPaquete))
+            throw new InvalidOperationException("DatasetVersion no tiene paquete almacenado en MinIO.");
+
+        var perfilesVersionados = await ObtenerPerfilesVersionadosAsync(ct);
+        await using var paqueteStream = await minio.DescargarAsync(version.RutaMinioPaquete, ct);
+        using var paquete = new MemoryStream();
+        await paqueteStream.CopyToAsync(paquete, ct);
+
+        var directorioTemporal = Path.Combine(Path.GetTempPath(), $"sg_version_{datasetVersionId:N}");
+        Directory.CreateDirectory(directorioTemporal);
+        var conteos = new Dictionary<string, int>(StringComparer.Ordinal);
+
+        try
+        {
+            foreach (var definicion in DefinicionesCapasVersionadasUyuni.Todas)
+            {
+                var perfil = perfilesVersionados[definicion.NombrePerfil];
+                version.RegistrarProgreso(SerializarReporte(definicion.NombreTabla, conteos));
+                await versiones.GuardarCambiosAsync(ct);
+
+                paquete.Position = 0;
+                var rutas = zipExtractor.Extraer(paquete, directorioTemporal, perfil.NombreArchivoShp);
+                var registros = shapefileReader.Leer(rutas.RutaShp).ToList();
+                await using var contextoCarga = CrearContextoCargaSinInterceptors();
+                await InsertarCapaAsync(contextoCarga, version.Id, definicion, perfil, registros, ct);
+                version = await versiones.ObtenerPorIdAsync(datasetVersionId, ct)
+                    ?? throw new InvalidOperationException("DatasetVersion no encontrada después de insertar una capa.");
+
+                var insertados = await ContarFilasCapaAsync(contextoCarga, version.Id, definicion.TipoCapa, ct);
+                if (insertados != registros.Count)
+                    throw new InvalidOperationException(
+                        $"Conteo inconsistente en {definicion.NombreTabla}: SHP={registros.Count}, insertadas={insertados}.");
+
+                conteos[definicion.NombreTabla] = insertados;
+                version.RegistrarProgreso(SerializarReporte(null, conteos));
+                await versiones.GuardarCambiosAsync(ct);
+            }
+
+            version.MarcarPreviewListo();
+            await versiones.GuardarCambiosAsync(ct);
+        }
+        finally
+        {
+            if (Directory.Exists(directorioTemporal))
+                Directory.Delete(directorioTemporal, recursive: true);
+        }
+    }
+
+    public async Task MarcarHuerfanasAlArrancarAsync(CancellationToken ct = default)
+    {
+        var huerfanas = await versiones.ObtenerEnCargaAsync(ct);
+        foreach (var version in huerfanas)
+            await MarcarFallidaYPurgarAsync(version.Id, "carga interrumpida por reinicio", ct);
+    }
+
+    public async Task MarcarFallidaYPurgarAsync(Guid datasetVersionId, string errorCarga, CancellationToken ct = default)
+    {
+        var version = await versiones.ObtenerPorIdAsync(datasetVersionId, ct);
+        if (version is null || version.Estado != EstadoDatasetVersion.EnCarga)
+            return;
+
+        var errorSeguro = string.IsNullOrWhiteSpace(errorCarga)
+            ? "error no especificado durante la carga"
+            : errorCarga[..Math.Min(errorCarga.Length, 2000)];
+        version.RegistrarErrorCarga(errorSeguro);
+        version.MarcarFallida();
+        await versiones.GuardarCambiosAsync(ct);
+
+        // El trigger permite DELETE únicamente para EnCarga/Fallida/Descartada.
+        await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM dominio.capa_parcelas WHERE dataset_version_id = {datasetVersionId}", ct);
+        await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM dominio.capa_edificaciones WHERE dataset_version_id = {datasetVersionId}", ct);
+        await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM dominio.capa_predios_no_fotografiados WHERE dataset_version_id = {datasetVersionId}", ct);
+        await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM dominio.capa_manzanas WHERE dataset_version_id = {datasetVersionId}", ct);
+        await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM dominio.capa_distritos WHERE dataset_version_id = {datasetVersionId}", ct);
+        await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM dominio.capa_zonas WHERE dataset_version_id = {datasetVersionId}", ct);
+        await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM dominio.capa_vias WHERE dataset_version_id = {datasetVersionId}", ct);
+    }
+
+    private async Task<Dictionary<string, PerfilImportacion>> ObtenerPerfilesVersionadosAsync(CancellationToken ct)
+    {
+        var disponibles = await perfiles.ListarAsync(ct);
+        var resultado = new Dictionary<string, PerfilImportacion>(StringComparer.Ordinal);
+        foreach (var definicion in DefinicionesCapasVersionadasUyuni.Todas)
+        {
+            var perfil = disponibles.FirstOrDefault(x => x.Nombre == definicion.NombrePerfil)
+                ?? throw new InvalidOperationException($"No existe el perfil '{definicion.NombrePerfil}'.");
+            resultado.Add(definicion.NombrePerfil, perfil);
+        }
+        return resultado;
+    }
+
+    private static async Task InsertarCapaAsync(
+        ApplicationDbContext contextoCarga,
+        Guid datasetVersionId,
+        DefinicionCapaVersionadaUyuni definicion,
+        PerfilImportacion perfil,
+        IReadOnlyList<RegistroCrudoShapefile> registros,
+        CancellationToken ct)
+    {
+        switch (definicion.TipoCapa)
+        {
+            case TipoCapa.Predios:
+                await InsertarEnLotesAsync(contextoCarga, contextoCarga.CapasParcelas, registros.Select((r, i) => CrearParcela(datasetVersionId, perfil, r, i + 1)), ct);
+                break;
+            case TipoCapa.Construcciones:
+                await InsertarEnLotesAsync(contextoCarga, contextoCarga.CapasEdificaciones, registros.Select((r, i) => CrearEdificacion(datasetVersionId, perfil, r, i + 1)), ct);
+                break;
+            case TipoCapa.PrediosNoFotografiados:
+                await InsertarEnLotesAsync(contextoCarga, contextoCarga.CapasPrediosNoFotografiados, registros.Select((r, i) => CrearPredioNoFotografiado(datasetVersionId, perfil, r, i + 1)), ct);
+                break;
+            case TipoCapa.Manzanas:
+                await InsertarEnLotesAsync(contextoCarga, contextoCarga.CapasManzanas, registros.Select((r, i) => CrearManzana(datasetVersionId, perfil, r, i + 1)), ct);
+                break;
+            case TipoCapa.Distritos:
+                await InsertarEnLotesAsync(contextoCarga, contextoCarga.CapasDistritos, registros.Select((r, i) => CrearDistrito(datasetVersionId, perfil, r, i + 1)), ct);
+                break;
+            case TipoCapa.ZonasValuacion:
+                await InsertarEnLotesAsync(contextoCarga, contextoCarga.CapasZonas, registros.Select((r, i) => CrearZona(datasetVersionId, perfil, r, i + 1)), ct);
+                break;
+            case TipoCapa.Vias:
+                await InsertarEnLotesAsync(contextoCarga, contextoCarga.CapasVias, registros.Select((r, i) => CrearVia(datasetVersionId, perfil, r, i + 1)), ct);
+                break;
+            default:
+                throw new InvalidOperationException($"Tipo de capa no soportado: {definicion.TipoCapa}.");
+        }
+
+    }
+
+    private static async Task InsertarEnLotesAsync<T>(ApplicationDbContext contextoCarga, DbSet<T> conjunto, IEnumerable<T> filas, CancellationToken ct)
+        where T : class
+    {
+        foreach (var lote in filas.Chunk(TamanoLote))
+        {
+            conjunto.AddRange(lote);
+            await contextoCarga.SaveChangesAsync(ct);
+            contextoCarga.ChangeTracker.Clear();
+        }
+    }
+
+    private static Task<int> ContarFilasCapaAsync(ApplicationDbContext contextoCarga, Guid datasetVersionId, TipoCapa tipoCapa, CancellationToken ct) =>
+        tipoCapa switch
+        {
+            TipoCapa.Predios => contextoCarga.CapasParcelas.CountAsync(x => x.DatasetVersionId == datasetVersionId, ct),
+            TipoCapa.Construcciones => contextoCarga.CapasEdificaciones.CountAsync(x => x.DatasetVersionId == datasetVersionId, ct),
+            TipoCapa.PrediosNoFotografiados => contextoCarga.CapasPrediosNoFotografiados.CountAsync(x => x.DatasetVersionId == datasetVersionId, ct),
+            TipoCapa.Manzanas => contextoCarga.CapasManzanas.CountAsync(x => x.DatasetVersionId == datasetVersionId, ct),
+            TipoCapa.Distritos => contextoCarga.CapasDistritos.CountAsync(x => x.DatasetVersionId == datasetVersionId, ct),
+            TipoCapa.ZonasValuacion => contextoCarga.CapasZonas.CountAsync(x => x.DatasetVersionId == datasetVersionId, ct),
+            TipoCapa.Vias => contextoCarga.CapasVias.CountAsync(x => x.DatasetVersionId == datasetVersionId, ct),
+            _ => throw new InvalidOperationException($"Tipo de capa no soportado: {tipoCapa}."),
+        };
+
+    private ApplicationDbContext CrearContextoCargaSinInterceptors()
+    {
+        var connectionString = configuration.GetConnectionString("Default")
+            ?? throw new InvalidOperationException("La cadena de conexión no está disponible para la carga.");
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseNpgsql(connectionString, npgsql => npgsql.UseNetTopologySuite())
+            .UseSnakeCaseNamingConvention()
+            .Options;
+
+        return new ApplicationDbContext(options);
+    }
+
+    private static CapaParcela CrearParcela(Guid versionId, PerfilImportacion perfil, RegistroCrudoShapefile r, int fila) =>
+        CapaParcela.Crear(versionId, Poligono(r, fila), AEntero(r, perfil, "CapaParcela.CodUv", fila),
+            AEntero(r, perfil, "CapaParcela.CodMan", fila), AEntero(r, perfil, "CapaParcela.CodPred", fila),
+            Extra(r, perfil), fila, Texto(r, perfil, "CapaParcela.CodigoGeografico"),
+            ADecimal(r, perfil, "CapaParcela.Superficie"), AEnteroOpcional(r, perfil, "CapaParcela.ValuacionZonal"),
+            Texto(r, perfil, "CapaParcela.TipoInmueble"), Texto(r, perfil, "CapaParcela.ServicioAlcantarillado"),
+            Texto(r, perfil, "CapaParcela.ServicioAgua"), Texto(r, perfil, "CapaParcela.ServicioLuz"),
+            Texto(r, perfil, "CapaParcela.ServicioTelefonia"), Texto(r, perfil, "CapaParcela.NombrePropietarioOrigen"),
+            Texto(r, perfil, "CapaParcela.NombreVia"), Texto(r, perfil, "CapaParcela.DireccionBarrio"),
+            Texto(r, perfil, "CapaParcela.DireccionUrbana"), Texto(r, perfil, "CapaParcela.UsoTerreno"),
+            Texto(r, perfil, "CapaParcela.TopografiaTerreno"));
+
+    private static CapaEdificacion CrearEdificacion(Guid versionId, PerfilImportacion perfil, RegistroCrudoShapefile r, int fila) =>
+        CapaEdificacion.Crear(versionId, Poligono(r, fila), Extra(r, perfil), fila,
+            ALongOpcional(r, perfil, "CapaEdificacion.IdEdificacionOrigen"), Texto(r, perfil, "CapaEdificacion.CodigoGeografico"),
+            AEnteroOpcional(r, perfil, "CapaEdificacion.CodUv"), AEnteroOpcional(r, perfil, "CapaEdificacion.CodMan"),
+            AEnteroOpcional(r, perfil, "CapaEdificacion.CodPred"), ALongOpcional(r, perfil, "CapaEdificacion.NumeroEdificacion"),
+            ALongOpcional(r, perfil, "CapaEdificacion.Piso"), Texto(r, perfil, "CapaEdificacion.CodigoEspacio"),
+            ALongOpcional(r, perfil, "CapaEdificacion.CodigoBloque"), ADecimal(r, perfil, "CapaEdificacion.AreaConstruida"));
+
+    private static CapaPredioNoFotografiado CrearPredioNoFotografiado(Guid versionId, PerfilImportacion perfil, RegistroCrudoShapefile r, int fila) =>
+        CapaPredioNoFotografiado.Crear(versionId, Poligono(r, fila), Extra(r, perfil), fila,
+            ALongOpcional(r, perfil, "CapaPredioNoFotografiado.IdPredioOrigen"), Texto(r, perfil, "CapaPredioNoFotografiado.CodigoGeografico"),
+            AEnteroOpcional(r, perfil, "CapaPredioNoFotografiado.CodUv"), AEnteroOpcional(r, perfil, "CapaPredioNoFotografiado.CodMan"),
+            AEnteroOpcional(r, perfil, "CapaPredioNoFotografiado.CodPred"), Texto(r, perfil, "CapaPredioNoFotografiado.IndicadorFotos"),
+            Texto(r, perfil, "CapaPredioNoFotografiado.FotoFrente"), Texto(r, perfil, "CapaPredioNoFotografiado.FotoDerecha"),
+            Texto(r, perfil, "CapaPredioNoFotografiado.FotoIzquierda"));
+
+    private static CapaManzana CrearManzana(Guid versionId, PerfilImportacion perfil, RegistroCrudoShapefile r, int fila) =>
+        CapaManzana.Crear(versionId, Poligono(r, fila), Extra(r, perfil), fila,
+            Texto(r, perfil, "CapaManzana.CodigoGeografico"), AEnteroOpcional(r, perfil, "CapaManzana.CodUv"),
+            AEnteroOpcional(r, perfil, "CapaManzana.CodMan"), ADecimal(r, perfil, "CapaManzana.CoordenadaOrigen"));
+
+    private static CapaDistrito CrearDistrito(Guid versionId, PerfilImportacion perfil, RegistroCrudoShapefile r, int fila) =>
+        CapaDistrito.Crear(versionId, Poligono(r, fila), Extra(r, perfil), fila,
+            Texto(r, perfil, "CapaDistrito.CodigoGeografico"), AEnteroOpcional(r, perfil, "CapaDistrito.CodUv"),
+            Texto(r, perfil, "CapaDistrito.Nombre"));
+
+    private static CapaZona CrearZona(Guid versionId, PerfilImportacion perfil, RegistroCrudoShapefile r, int fila) =>
+        CapaZona.Crear(versionId, Poligono(r, fila), Extra(r, perfil), fila,
+            Texto(r, perfil, "CapaZona.NombreZona"), ALongOpcional(r, perfil, "CapaZona.IdZonaOrigen"),
+            Texto(r, perfil, "CapaZona.CodigoGeografico"));
+
+    private static CapaVia CrearVia(Guid versionId, PerfilImportacion perfil, RegistroCrudoShapefile r, int fila) =>
+        CapaVia.Crear(versionId, Linea(r, fila), Extra(r, perfil), fila,
+            Texto(r, perfil, "CapaVia.Material"), Texto(r, perfil, "CapaVia.Nombre"),
+            Texto(r, perfil, "CapaVia.Tipo"), ADecimal(r, perfil, "CapaVia.DistanciaOrigen"));
+
+    private static Polygon Poligono(RegistroCrudoShapefile registro, int fila) =>
+        registro.Geometria switch
+        {
+            Polygon poligono => poligono,
+            MultiPolygon { NumGeometries: 1 } multipoligono => (Polygon)multipoligono.GetGeometryN(0),
+            _ => throw new InvalidOperationException($"La fila {fila} no contiene un Polygon válido."),
+        };
+
+    private static LineString Linea(RegistroCrudoShapefile registro, int fila) =>
+        registro.Geometria switch
+        {
+            LineString linea => linea,
+            MultiLineString { NumGeometries: 1 } multiLinea => (LineString)multiLinea.GetGeometryN(0),
+            _ => throw new InvalidOperationException($"La fila {fila} no contiene un LineString válido."),
+        };
+
+    private static string Extra(RegistroCrudoShapefile registro, PerfilImportacion perfil)
+    {
+        var mapeadas = perfil.Mapeos.Select(x => x.NombreColumnaOrigen).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var extras = registro.Atributos.Where(x => !mapeadas.Contains(x.Key))
+            .ToDictionary(x => x.Key, x => ValorJsonSeguro(x.Value), StringComparer.OrdinalIgnoreCase);
+        return JsonSerializer.Serialize(extras);
+    }
+
+    private static object? ValorJsonSeguro(object? valor) => valor switch
+    {
+        DBNull => null,
+        double numero when double.IsNaN(numero) || double.IsInfinity(numero) => null,
+        float numero when float.IsNaN(numero) || float.IsInfinity(numero) => null,
+        _ => valor,
+    };
+
+    private static string? Texto(RegistroCrudoShapefile registro, PerfilImportacion perfil, string destino) =>
+        Valor(registro, perfil, destino)?.ToString()?.Trim();
+
+    private static int AEntero(RegistroCrudoShapefile registro, PerfilImportacion perfil, string destino, int fila) =>
+        AEnteroOpcional(registro, perfil, destino)
+            ?? throw new InvalidOperationException($"La fila {fila} no tiene entero válido para {destino}.");
+
+    private static int? AEnteroOpcional(RegistroCrudoShapefile registro, PerfilImportacion perfil, string destino) =>
+        Convertir<int>(Valor(registro, perfil, destino), int.TryParse);
+
+    private static long? ALongOpcional(RegistroCrudoShapefile registro, PerfilImportacion perfil, string destino) =>
+        Convertir<long>(Valor(registro, perfil, destino), long.TryParse);
+
+    private static decimal? ADecimal(RegistroCrudoShapefile registro, PerfilImportacion perfil, string destino) =>
+        Convertir<decimal>(Valor(registro, perfil, destino), (string value, out decimal result) =>
+            decimal.TryParse(value, NumberStyles.Number, CultureInfo.InvariantCulture, out result));
+
+    private delegate bool TryParseDelegate<T>(string value, out T result);
+
+    private static T? Convertir<T>(object? valor, TryParseDelegate<T> parser) where T : struct
+    {
+        if (valor is null || valor is DBNull)
+            return null;
+        var texto = Convert.ToString(valor, CultureInfo.InvariantCulture);
+        return texto is not null && parser(texto, out var resultado) ? resultado : null;
+    }
+
+    private static object? Valor(RegistroCrudoShapefile registro, PerfilImportacion perfil, string destino)
+    {
+        var mapeo = perfil.Mapeos.FirstOrDefault(x => x.CampoDestino == destino);
+        return mapeo is not null && registro.Atributos.TryGetValue(mapeo.NombreColumnaOrigen, out var valor)
+            ? valor
+            : null;
+    }
+
+    private static string SerializarReporte(string? capaEnCurso, IReadOnlyDictionary<string, int> conteos) =>
+        JsonSerializer.Serialize(new ReportePreliminarVersionDto(capaEnCurso, conteos));
+}

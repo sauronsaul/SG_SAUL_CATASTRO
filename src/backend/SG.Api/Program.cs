@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Serilog;
 using SG.Api.Startup;
+using SG.Api.Importacion;
 using SG.Application;
 using SG.Application.Catastro.Config;
 using SG.Infrastructure.Almacenamiento;
@@ -106,6 +107,7 @@ builder.Services.AddOpenApi();
 builder.Services.AddAuthorization();
 builder.Services.AddPersistencia(builder.Configuration);
 builder.Services.AddAplicacion();
+builder.Services.AddHostedService<CargaVersionadaBackgroundService>();
 builder.Services.Configure<CatastroConfig>(builder.Configuration.GetSection("Catastro"));
 builder.Services.Configure<MinioSettings>(builder.Configuration.GetSection("Minio"));
 
