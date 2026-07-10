@@ -26,6 +26,7 @@ public sealed class SgApiFactory : WebApplicationFactory<Program>
     {
         // Development: JWT no requiere HTTPS (opts.RequireHttpsMetadata = false).
         builder.UseEnvironment("Development");
+        builder.UseSetting("SG_APPLY_MIGRATIONS", "true");
 
         // InMemoryCollection sobreescribe la configuración de Program.cs porque se
         // agrega como última fuente (mayor prioridad). Garantiza que el test siempre

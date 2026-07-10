@@ -1,8 +1,10 @@
+using System.Data.Common;
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Serilog;
+using SG.Api.Startup;
 using SG.Application;
 using SG.Application.Catastro.Config;
 using SG.Infrastructure.Almacenamiento;
@@ -49,6 +51,33 @@ var envMappings = new Dictionary<string, string?>
 };
 builder.Configuration.AddInMemoryCollection(
     envMappings.Where(kv => kv.Value is not null).ToDictionary(kv => kv.Key, kv => kv.Value));
+
+// La cadena completa de ConnectionStrings__Default (por ejemplo, la cargada desde
+// .env en Docker) tiene prioridad. El fallback de Development nunca versiona
+// contraseñas: completa appsettings.Development.json solo con SG_DB_PASSWORD.
+var connectionString = builder.Configuration.GetConnectionString("Default");
+if (builder.Environment.IsDevelopment() &&
+    !MigrationStartupGuard.TienePassword(connectionString) &&
+    !string.IsNullOrWhiteSpace(connectionString))
+{
+    var claveDb = Environment.GetEnvironmentVariable("SG_DB_PASSWORD");
+    if (string.IsNullOrWhiteSpace(claveDb))
+    {
+        throw new InvalidOperationException(
+            "SG_DB_PASSWORD no configurada para la cadena de desarrollo. " +
+            "Consulte docs/DESARROLLO_NATIVO.md.");
+    }
+
+    var connectionStringBuilder = new DbConnectionStringBuilder
+    {
+        ConnectionString = connectionString,
+    };
+    connectionStringBuilder["Password"] = claveDb;
+    builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
+    {
+        ["ConnectionStrings:Default"] = connectionStringBuilder.ConnectionString,
+    });
+}
 
 // Fail-fast: JWT_SECRET es obligatorio (ADR 0018).
 var jwtSecret = builder.Configuration["Jwt:Secret"];
@@ -103,12 +132,23 @@ builder.Services.AddHealthChecks()
 
 var app = builder.Build();
 
-// Aplicar migraciones pendientes al arrancar — necesario en el primer deploy con Docker.
-// En desarrollo (dotnet run) la base ya existe y MigrateAsync no hace nada si está al día.
+// Las migraciones solo se aplican con autorización explícita. Docker declara
+// SG_APPLY_MIGRATIONS=true; dotnet run queda protegido por defecto.
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-    await db.Database.MigrateAsync();
+    if (MigrationStartupGuard.DebeAplicarMigraciones(
+            builder.Configuration["SG_APPLY_MIGRATIONS"]))
+    {
+        MigrationStartupGuard.LogAplicacionMigraciones(app.Logger);
+        await db.Database.MigrateAsync();
+    }
+    else
+    {
+        var pendingMigrations = await db.Database.GetPendingMigrationsAsync();
+        MigrationStartupGuard.LogMigracionesAutomaticasDesactivadas(
+            app.Logger, pendingMigrations.Count());
+    }
 }
 
 // Seed: roles + usuario admin (fail-fast si ADMIN_INITIAL_* no están configurados)
