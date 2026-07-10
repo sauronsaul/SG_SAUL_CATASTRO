@@ -24,6 +24,11 @@
     }
   }
 
+  # Liveness/readiness de la API, expuesto también mediante el proxy local.
+  handle /health {
+    reverse_proxy api:8080
+  }
+
   # --- Frontend Web (Sprint 4) ---
   handle {
     reverse_proxy web:3000

@@ -79,6 +79,8 @@ services:
     restart: unless-stopped
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}
+      # El contenedor es el camino autorizado para aplicar migraciones.
+      SG_APPLY_MIGRATIONS: "true"
       # yamllint disable-line rule:line-length
       ConnectionStrings__Default: "Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD};Pooling=true"
       JWT_SECRET: ${JWT_SECRET}
