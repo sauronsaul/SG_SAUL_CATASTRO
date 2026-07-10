@@ -13,6 +13,9 @@ public sealed class DatasetVersion : AggregateRoot
     public Guid? ActivadoPor { get; private set; }
     public DateTime? ArchivadoAt { get; private set; }
     public Guid? ArchivadoPor { get; private set; }
+    public string? RutaMinioPaquete { get; private set; }
+    public string ReportePreliminar { get; private set; } = "{}";
+    public string? ErrorCarga { get; private set; }
 
     private DatasetVersion() { }
 
@@ -20,7 +23,8 @@ public sealed class DatasetVersion : AggregateRoot
         int numeroVersion,
         string municipioCodigo,
         Guid? importacionId,
-        string origenDescripcion)
+        string origenDescripcion,
+        string? rutaMinioPaquete = null)
     {
         if (numeroVersion < 1)
             throw new DomainException("El número de versión debe ser mayor o igual a 1.");
@@ -37,8 +41,33 @@ public sealed class DatasetVersion : AggregateRoot
             MunicipioCodigo = municipioCodigo.Trim(),
             ImportacionId = importacionId,
             OrigenDescripcion = origenDescripcion.Trim(),
+            RutaMinioPaquete = string.IsNullOrWhiteSpace(rutaMinioPaquete)
+                ? null
+                : rutaMinioPaquete.Trim(),
             Estado = EstadoDatasetVersion.EnCarga,
         };
+    }
+
+    public void RegistrarProgreso(string reportePreliminar)
+    {
+        if (Estado != EstadoDatasetVersion.EnCarga)
+            throw new DomainException("El progreso solo puede registrarse mientras DatasetVersion está EnCarga.");
+
+        if (string.IsNullOrWhiteSpace(reportePreliminar))
+            throw new DomainException("El reporte preliminar es requerido.");
+
+        ReportePreliminar = reportePreliminar;
+    }
+
+    public void RegistrarErrorCarga(string errorCarga)
+    {
+        if (Estado != EstadoDatasetVersion.EnCarga)
+            throw new DomainException("El error de carga solo puede registrarse mientras DatasetVersion está EnCarga.");
+
+        if (string.IsNullOrWhiteSpace(errorCarga))
+            throw new DomainException("El detalle del error de carga es requerido.");
+
+        ErrorCarga = errorCarga.Trim();
     }
 
     public void MarcarPreviewListo()

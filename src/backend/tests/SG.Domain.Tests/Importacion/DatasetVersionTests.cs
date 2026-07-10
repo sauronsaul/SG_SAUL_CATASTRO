@@ -20,6 +20,26 @@ public sealed class DatasetVersionTests
     }
 
     [Fact]
+    public void RegistrarProgreso_EnCarga_PersisteReportePreliminar()
+    {
+        var version = CrearEnCarga();
+
+        version.RegistrarProgreso("{\"capaEnCurso\":\"capa_parcelas\"}");
+
+        version.ReportePreliminar.Should().Contain("capa_parcelas");
+    }
+
+    [Fact]
+    public void RegistrarErrorCarga_EnCarga_PersisteDetalle()
+    {
+        var version = CrearEnCarga();
+
+        version.RegistrarErrorCarga("carga interrumpida por reinicio");
+
+        version.ErrorCarga.Should().Be("carga interrumpida por reinicio");
+    }
+
+    [Fact]
     public void Crear_NumeroNoPositivo_LanzaDomainException()
     {
         var act = () => DatasetVersion.Crear(0, "UYU", null, "Entrega");

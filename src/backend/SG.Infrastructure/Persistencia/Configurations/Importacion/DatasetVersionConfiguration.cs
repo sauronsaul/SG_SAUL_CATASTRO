@@ -18,6 +18,12 @@ public sealed class DatasetVersionConfiguration : IEntityTypeConfiguration<Impor
         builder.Property(x => x.MunicipioCodigo).IsRequired().HasMaxLength(30);
         builder.Property(x => x.OrigenDescripcion).IsRequired().HasMaxLength(500);
         builder.Property(x => x.Estado).IsRequired().HasConversion<string>().HasMaxLength(30);
+        builder.Property(x => x.RutaMinioPaquete).HasMaxLength(500);
+        builder.Property(x => x.ReportePreliminar)
+            .IsRequired()
+            .HasColumnType("jsonb")
+            .HasDefaultValue("{}");
+        builder.Property(x => x.ErrorCarga).HasMaxLength(2000);
         builder.Property(x => x.CreatedAt).IsRequired().HasColumnType("timestamptz");
         builder.Property(x => x.UpdatedAt).HasColumnType("timestamptz");
         builder.Property(x => x.ActivadoAt).HasColumnType("timestamptz");
