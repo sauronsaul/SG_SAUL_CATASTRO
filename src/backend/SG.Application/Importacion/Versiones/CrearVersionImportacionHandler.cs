@@ -22,18 +22,15 @@ public sealed class CrearVersionImportacionHandler(
         CancellationToken cancellationToken)
     {
         if (request.TamanoBytes is <= 0 or > TamanoMaximoBytes ||
-            string.IsNullOrWhiteSpace(request.NombreArchivo))
+            string.IsNullOrWhiteSpace(request.NombreArchivo) ||
+            !Path.GetExtension(request.NombreArchivo).Equals(".zip", StringComparison.OrdinalIgnoreCase))
             return Result.Failure<CrearVersionImportacionDto>(VersionImportacionErrores.PaqueteInvalido);
 
         using var paquete = new MemoryStream();
         await request.PaqueteStream.CopyToAsync(paquete, cancellationToken);
 
-        var perfilesDisponibles = await perfiles.ListarAsync(cancellationToken);
-        var perfilesVersionados = DefinicionesCapasVersionadasUyuni.Todas
-            .Select(definicion => perfilesDisponibles.FirstOrDefault(x => x.Nombre == definicion.NombrePerfil))
-            .ToList();
-
-        if (perfilesVersionados.Any(x => x is null) || !ContieneArchivosEsperados(paquete))
+        var perfilesVersionados = await ObtenerPerfilesVersionadosAsync(cancellationToken);
+        if (perfilesVersionados is null || !ContieneArchivosEsperados(paquete, perfilesVersionados))
             return Result.Failure<CrearVersionImportacionDto>(VersionImportacionErrores.PaqueteInvalido);
 
         paquete.Position = 0;
@@ -62,7 +59,26 @@ public sealed class CrearVersionImportacionHandler(
         return Result.Success(new CrearVersionImportacionDto(version.Id, version.Estado.ToString()));
     }
 
-    private static bool ContieneArchivosEsperados(MemoryStream paquete)
+    private async Task<IReadOnlyList<PerfilImportacion>?> ObtenerPerfilesVersionadosAsync(CancellationToken ct)
+    {
+        var disponibles = await perfiles.ListarAsync(ct);
+        var resultado = new List<PerfilImportacion>();
+
+        foreach (var definicion in DefinicionesCapasVersionadasUyuni.Todas)
+        {
+            var perfil = disponibles.FirstOrDefault(x => x.Nombre == definicion.NombrePerfil);
+            if (perfil is null || perfil.TipoCapa != definicion.TipoCapa)
+                return null;
+
+            resultado.Add(perfil);
+        }
+
+        return resultado;
+    }
+
+    private static bool ContieneArchivosEsperados(
+        MemoryStream paquete,
+        IReadOnlyList<PerfilImportacion> perfilesVersionados)
     {
         try
         {
@@ -70,12 +86,14 @@ public sealed class CrearVersionImportacionHandler(
             using var zip = new ZipArchive(paquete, ZipArchiveMode.Read, leaveOpen: true);
             var archivos = zip.Entries
                 .Where(x => !string.IsNullOrEmpty(x.Name))
-                .Select(x => x.Name)
+                // ZipExtractor busca los SHP en la raíz. Rechazar rutas anidadas aquí evita
+                // que un request malformado termine como carga Fallida.
+                .Select(x => x.FullName.Replace('\\', '/'))
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-            return DefinicionesCapasVersionadasUyuni.Todas.All(definicion =>
+            return perfilesVersionados.All(perfil =>
             {
-                var baseNombre = Path.GetFileNameWithoutExtension(definicion.NombreArchivoShp);
+                var baseNombre = Path.GetFileNameWithoutExtension(perfil.NombreArchivoShp);
                 return archivos.Contains(baseNombre + ".shp") &&
                        archivos.Contains(baseNombre + ".dbf") &&
                        archivos.Contains(baseNombre + ".shx") &&

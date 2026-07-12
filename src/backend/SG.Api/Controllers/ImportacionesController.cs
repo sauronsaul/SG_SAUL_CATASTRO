@@ -63,9 +63,15 @@ public sealed class ImportacionesController(ISender sender) : ControllerBase
     [Authorize(Roles = "Admin,Tecnico")]
     [RequestSizeLimit(110 * 1024 * 1024)]
     public async Task<IActionResult> CrearVersion(
-        [FromForm] IFormFile paquete,
+        [FromForm] IFormFile? paquete,
         CancellationToken ct)
     {
+        // La ausencia del archivo es un error de request: no debe crear una versión Fallida.
+        if (paquete is null)
+            return Problem(
+                detail: "Se requiere el archivo 'paquete'.",
+                statusCode: StatusCodes.Status400BadRequest);
+
         await using var stream = paquete.OpenReadStream();
         var result = await sender.Send(new CrearVersionImportacionCommand(
             paquete.FileName,

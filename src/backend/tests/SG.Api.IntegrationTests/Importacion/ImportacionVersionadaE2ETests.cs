@@ -105,11 +105,27 @@ SELECT (
     [Fact]
     public async Task PostVersion_SinPaquete_Retorna400SinCrearVersionFallida()
     {
+        var versionesAntes = await ContarVersionesAsync();
         using var content = new MultipartFormDataContent();
 
         var response = await _clientAdmin.PostAsync("/api/importaciones/versiones", content);
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        (await ContarVersionesAsync()).Should().Be(versionesAntes);
+    }
+
+    [Fact]
+    public async Task PostVersion_ZipSinArchivoEsperado_Retorna400SinCrearVersionFallida()
+    {
+        var versionesAntes = await ContarVersionesAsync();
+        var paquete = CrearPaqueteSieteCapas(
+            corromperEdificaciones: false,
+            omitirPrjDe: TipoCapa.Vias);
+
+        var response = await PostPaqueteAsync(paquete, "uyuni-incompleto.zip");
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        (await ContarVersionesAsync()).Should().Be(versionesAntes);
     }
 
     [Fact]
@@ -138,6 +154,13 @@ SELECT (
         archivo.Headers.ContentType = new MediaTypeHeaderValue("application/zip");
         content.Add(archivo, "paquete", nombre);
         return await _clientAdmin.PostAsync("/api/importaciones/versiones", content);
+    }
+
+    private async Task<int> ContarVersionesAsync()
+    {
+        await using var scope = _factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        return await db.DatasetVersiones.CountAsync();
     }
 
     private async Task<EstadoVersionImportacionDto> EsperarEstadoAsync(Guid versionId, string estadoEsperado)
@@ -175,7 +198,9 @@ SELECT (
         return client;
     }
 
-    private static byte[] CrearPaqueteSieteCapas(bool corromperEdificaciones)
+    private static byte[] CrearPaqueteSieteCapas(
+        bool corromperEdificaciones,
+        TipoCapa? omitirPrjDe = null)
     {
         var directorio = Path.Combine(Path.GetTempPath(), $"sg_shp_test_{Guid.NewGuid():N}");
         var zip = Path.Combine(Path.GetTempPath(), $"sg_shp_test_{Guid.NewGuid():N}.zip");
@@ -183,7 +208,13 @@ SELECT (
         try
         {
             foreach (var definicion in DefinicionesCapasVersionadasUyuni.Todas)
+            {
                 CrearShapefile(directorio, definicion, corromperEdificaciones);
+                if (definicion.TipoCapa == omitirPrjDe)
+                    File.Delete(Path.ChangeExtension(
+                        Path.Combine(directorio, definicion.NombreArchivoShp),
+                        ".prj"));
+            }
 
             ZipFile.CreateFromDirectory(directorio, zip, CompressionLevel.NoCompression, includeBaseDirectory: false);
             return File.ReadAllBytes(zip);
