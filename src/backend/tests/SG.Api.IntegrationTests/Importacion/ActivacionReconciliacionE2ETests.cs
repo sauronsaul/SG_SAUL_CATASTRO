@@ -295,16 +295,19 @@ public sealed class ActivacionReconciliacionE2ETests : IDisposable
     private static void AgregarCapasAuxiliares(ApplicationDbContext db, Guid versionId)
     {
         var poligono = CrearPoligono(1000, false);
+        var multiPoligono = new MultiPolygon([poligono]) { SRID = 32719 };
         db.CapasEdificaciones.Add(CapaEdificacion.Crear(
-            versionId, poligono, "{}", 1, 1, "E", 1, 1, 1, 1, 1, null, null, 10));
+            versionId, multiPoligono, "{}", 1, 1, "E", 1, 1, 1, 1, 1, null, null, 10));
         db.CapasPrediosNoFotografiados.Add(CapaPredioNoFotografiado.Crear(
-            versionId, poligono, "{}", 1, 1, "P", 1, 1, 1, null, null, null, null));
-        db.CapasManzanas.Add(CapaManzana.Crear(versionId, poligono, "{}", 1, "M", 1, 1, null));
-        db.CapasDistritos.Add(CapaDistrito.Crear(versionId, poligono, "{}", 1, "D", 1, "Distrito"));
-        db.CapasZonas.Add(CapaZona.Crear(versionId, poligono, "{}", 1, "Zona", 1, "Z"));
+            versionId, multiPoligono, "{}", 1, 1, "P", 1, 1, 1, null, null, null, null));
+        db.CapasManzanas.Add(CapaManzana.Crear(versionId, multiPoligono, "{}", 1, "M", 1, 1, null));
+        db.CapasDistritos.Add(CapaDistrito.Crear(versionId, multiPoligono, "{}", 1, "D", 1, "Distrito"));
+        db.CapasZonas.Add(CapaZona.Crear(versionId, multiPoligono, "{}", 1, "Zona", 1, "Z"));
         db.CapasVias.Add(CapaVia.Crear(
             versionId,
-            new LineString([new Coordinate(0, 0), new Coordinate(10, 10)]) { SRID = 32719 },
+            new MultiLineString(
+                [new LineString([new Coordinate(0, 0), new Coordinate(10, 10)]) { SRID = 32719 }])
+                { SRID = 32719 },
             "{}", 1, "Asfalto", "Vía", "Local", 10));
     }
 

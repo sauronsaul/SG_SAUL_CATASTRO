@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using System.IO.Compression;
 using System.Net;
 using System.Net.Http.Headers;
@@ -70,6 +71,109 @@ public sealed class ImportacionVersionadaE2ETests : IDisposable
         });
         estado.ErrorCarga.Should().BeNull();
         _output.WriteLine($"GET PreviewListo: {JsonSerializer.Serialize(estado)}");
+    }
+
+    [Fact]
+    public async Task PostVersion_GeometriasAuxiliaresReales_CargaYReportaO4()
+    {
+        var paquete = CrearPaqueteSieteCapas(
+            corromperEdificaciones: false,
+            escenarioGeometria: EscenarioGeometria.AuxiliaresReales);
+
+        var response = await PostPaqueteAsync(paquete, "uyuni-geometrias-reales.zip");
+
+        response.StatusCode.Should().Be(HttpStatusCode.Accepted);
+        var creada = (await response.Content.ReadFromJsonAsync<CrearVersionImportacionDto>(JsonOpts))!;
+        var estado = await EsperarEstadoAsync(creada.DatasetVersionId, "PreviewListo");
+
+        estado.ReportePreliminar.CapasCompletadas.Should().BeEquivalentTo(new Dictionary<string, int>
+        {
+            ["capa_parcelas"] = 2,
+            ["capa_edificaciones"] = 2,
+            ["capa_predios_no_fotografiados"] = 2,
+            ["capa_manzanas"] = 2,
+            ["capa_distritos"] = 2,
+            ["capa_zonas"] = 2,
+            ["capa_vias"] = 3,
+        });
+        var observaciones = estado.ReportePreliminar.Validacion!.Observaciones;
+        observaciones.Should().HaveCount(2);
+        observaciones.Should().OnlyContain(x => x.Codigo == "O4");
+
+        var edificaciones = observaciones.Single(x => x.Capa == "capa_edificaciones");
+        edificaciones.Conteo.Should().Be(1);
+        edificaciones.Ejemplos.Single().FilaOrigen.Should().Be(2);
+        edificaciones.Ejemplos.Single().Identificadores.Should().Contain(
+            new KeyValuePair<string, string?>("cod_uv", "1"));
+        edificaciones.Ejemplos.Single().Identificadores.Should().Contain(
+            new KeyValuePair<string, string?>("cod_man", "2"));
+        edificaciones.Ejemplos.Single().Identificadores.Should().Contain(
+            new KeyValuePair<string, string?>("cod_pred", "2"));
+
+        var vias = observaciones.Single(x => x.Capa == "capa_vias");
+        vias.Conteo.Should().Be(1);
+        vias.Ejemplos.Single().FilaOrigen.Should().Be(2);
+        vias.Ejemplos.Single().Identificadores["nombre"].Should().NotBeNullOrWhiteSpace();
+        vias.Ejemplos.Single().Identificadores["material"].Should().Be("Asfalto");
+
+        await using var scope = _factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var filasEdificaciones = await db.CapasEdificaciones.AsNoTracking()
+            .Where(x => x.DatasetVersionId == creada.DatasetVersionId)
+            .OrderBy(x => x.FilaOrigen)
+            .ToListAsync();
+        filasEdificaciones[0].Geometria!.NumGeometries.Should().Be(1);
+        (filasEdificaciones[1].Geometria is null).Should().BeTrue();
+
+        var filasManzanas = await db.CapasManzanas.AsNoTracking()
+            .Where(x => x.DatasetVersionId == creada.DatasetVersionId)
+            .OrderBy(x => x.FilaOrigen)
+            .ToListAsync();
+        filasManzanas[1].Geometria!.NumGeometries.Should().Be(2);
+
+        var filasVias = await db.CapasVias.AsNoTracking()
+            .Where(x => x.DatasetVersionId == creada.DatasetVersionId)
+            .OrderBy(x => x.FilaOrigen)
+            .ToListAsync();
+        filasVias[0].Geometria!.NumGeometries.Should().Be(1);
+        (filasVias[1].Geometria is null).Should().BeTrue();
+        filasVias[2].Geometria!.NumGeometries.Should().Be(2);
+
+        _output.WriteLine($"REPORTE O4: {JsonSerializer.Serialize(estado.ReportePreliminar)}");
+    }
+
+    [Fact]
+    public async Task PostVersion_ParcelaNula_MarcaFallidaConMensajePreciso()
+    {
+        var paquete = CrearPaqueteSieteCapas(
+            corromperEdificaciones: false,
+            escenarioGeometria: EscenarioGeometria.ParcelaNula);
+
+        var response = await PostPaqueteAsync(paquete, "uyuni-parcela-nula.zip");
+        response.StatusCode.Should().Be(HttpStatusCode.Accepted);
+        var creada = (await response.Content.ReadFromJsonAsync<CrearVersionImportacionDto>(JsonOpts))!;
+        var estado = await EsperarEstadoAsync(creada.DatasetVersionId, "Fallida");
+
+        estado.ErrorCarga.Should().Be(
+            "Capa 'capa_parcelas', fila 2: geometría nula; se esperaba Polygon (se admite MultiPolygon de una sola parte).");
+        _output.WriteLine($"ERROR PARCELA NULA: {JsonSerializer.Serialize(estado)}");
+    }
+
+    [Fact]
+    public async Task PostVersion_ParcelaMultiPolygon_MarcaFallidaConMensajePreciso()
+    {
+        var paquete = CrearPaqueteSieteCapas(
+            corromperEdificaciones: false,
+            escenarioGeometria: EscenarioGeometria.ParcelaMultiParte);
+
+        var response = await PostPaqueteAsync(paquete, "uyuni-parcela-multiparte.zip");
+        response.StatusCode.Should().Be(HttpStatusCode.Accepted);
+        var creada = (await response.Content.ReadFromJsonAsync<CrearVersionImportacionDto>(JsonOpts))!;
+        var estado = await EsperarEstadoAsync(creada.DatasetVersionId, "Fallida");
+
+        estado.ErrorCarga.Should().Be(
+            "Capa 'capa_parcelas', fila 2: llegó MultiPolygon de 2 partes; se esperaba Polygon (se admite MultiPolygon de una sola parte).");
+        _output.WriteLine($"ERROR PARCELA MULTIPARTE: {JsonSerializer.Serialize(estado)}");
     }
 
     [Fact]
@@ -240,7 +344,8 @@ SELECT (
 
     private static byte[] CrearPaqueteSieteCapas(
         bool corromperEdificaciones,
-        TipoCapa? omitirPrjDe = null)
+        TipoCapa? omitirPrjDe = null,
+        EscenarioGeometria escenarioGeometria = EscenarioGeometria.Normal)
     {
         var directorio = Path.Combine(Path.GetTempPath(), $"sg_shp_test_{Guid.NewGuid():N}");
         var zip = Path.Combine(Path.GetTempPath(), $"sg_shp_test_{Guid.NewGuid():N}.zip");
@@ -249,7 +354,7 @@ SELECT (
         {
             foreach (var definicion in DefinicionesCapasVersionadasUyuni.Todas)
             {
-                CrearShapefile(directorio, definicion, corromperEdificaciones);
+                CrearShapefile(directorio, definicion, corromperEdificaciones, escenarioGeometria);
                 if (definicion.TipoCapa == omitirPrjDe)
                     File.Delete(Path.ChangeExtension(
                         Path.Combine(directorio, definicion.NombreArchivoShp),
@@ -271,20 +376,63 @@ SELECT (
     private static void CrearShapefile(
         string directorio,
         DefinicionCapaVersionadaUyuni definicion,
-        bool corromperEdificaciones)
+        bool corromperEdificaciones,
+        EscenarioGeometria escenarioGeometria)
     {
         var rutaShp = Path.Combine(directorio, definicion.NombreArchivoShp);
-        var features = Enumerable.Range(1, 2)
-            .Select(indice => new Feature(
-                definicion.TipoCapa == TipoCapa.Vias ? CrearLinea(indice) : CrearPoligono(indice),
-                CrearAtributos(definicion.TipoCapa, indice)))
+        var geometrias = CrearGeometrias(definicion.TipoCapa, escenarioGeometria);
+        var features = geometrias
+            .Select((geometria, indice) => new Feature(
+                geometria ?? (definicion.TipoCapa == TipoCapa.Vias
+                    ? CrearLinea(indice + 1)
+                    : CrearPoligono(indice + 1)),
+                CrearAtributos(definicion.TipoCapa, indice + 1)))
             .ToList();
         Shapefile.WriteAllFeatures(features, rutaShp);
+        foreach (var indiceNulo in geometrias
+                     .Select((geometria, indice) => (geometria, indice))
+                     .Where(x => x.geometria is null)
+                     .Select(x => x.indice))
+            MarcarGeometriaNula(rutaShp, indiceNulo);
         File.WriteAllText(Path.ChangeExtension(rutaShp, ".prj"), ProjectedCoordinateSystem.WGS84_UTM(19, false).WKT);
 
         if (corromperEdificaciones && definicion.TipoCapa == TipoCapa.Construcciones)
             File.WriteAllBytes(rutaShp, [0x00, 0x01, 0x02]);
     }
+
+    private static void MarcarGeometriaNula(string rutaShp, int indiceCeroBased)
+    {
+        var rutaShx = Path.ChangeExtension(rutaShp, ".shx");
+        Span<byte> offsetBytes = stackalloc byte[4];
+        using (var shx = File.OpenRead(rutaShx))
+        {
+            shx.Position = 100 + indiceCeroBased * 8L;
+            shx.ReadExactly(offsetBytes);
+        }
+
+        var offsetPalabras = BinaryPrimitives.ReadInt32BigEndian(offsetBytes);
+        using var shp = File.Open(rutaShp, FileMode.Open, FileAccess.Write, FileShare.None);
+        shp.Position = offsetPalabras * 2L + 8;
+        shp.Write([0, 0, 0, 0]); // Shape Type 0 = Null Shape; conserva intactos SHX y DBF.
+    }
+
+    private static IReadOnlyList<Geometry?> CrearGeometrias(
+        TipoCapa tipoCapa,
+        EscenarioGeometria escenario) => (tipoCapa, escenario) switch
+    {
+        (TipoCapa.Construcciones, EscenarioGeometria.AuxiliaresReales) =>
+            [CrearPoligono(1), null],
+        (TipoCapa.Manzanas, EscenarioGeometria.AuxiliaresReales) =>
+            [CrearPoligono(1), CrearMultiPoligono(2)],
+        (TipoCapa.Vias, EscenarioGeometria.AuxiliaresReales) =>
+            [CrearLinea(1), null, CrearMultiLinea(3)],
+        (TipoCapa.Predios, EscenarioGeometria.ParcelaNula) =>
+            [CrearPoligono(1), null],
+        (TipoCapa.Predios, EscenarioGeometria.ParcelaMultiParte) =>
+            [CrearPoligono(1), CrearMultiPoligono(2)],
+        (TipoCapa.Vias, _) => [CrearLinea(1), CrearLinea(2)],
+        _ => [CrearPoligono(1), CrearPoligono(2)],
+    };
 
     private static Polygon CrearPoligono(int indice)
     {
@@ -299,6 +447,12 @@ SELECT (
 
     private static LineString CrearLinea(int indice) => new(
         [new Coordinate(500000 + indice, 8000000), new Coordinate(500100 + indice, 8000100)]) { SRID = 32719 };
+
+    private static MultiPolygon CrearMultiPoligono(int indice) => new(
+        [CrearPoligono(indice), CrearPoligono(indice + 100)]) { SRID = 32719 };
+
+    private static MultiLineString CrearMultiLinea(int indice) => new(
+        [CrearLinea(indice), CrearLinea(indice + 100)]) { SRID = 32719 };
 
     private static AttributesTable CrearAtributos(TipoCapa capa, int indice) => capa switch
     {
@@ -322,4 +476,12 @@ SELECT (
         TipoCapa.Vias => new AttributesTable { { "MATERIAL", "Asfalto" }, { "NOMBRE", "Vía prueba" }, { "TIPO", "Local" }, { "Distancia", 100d } },
         _ => throw new InvalidOperationException("Tipo de capa no soportado."),
     };
+
+    private enum EscenarioGeometria
+    {
+        Normal,
+        AuxiliaresReales,
+        ParcelaNula,
+        ParcelaMultiParte,
+    }
 }
