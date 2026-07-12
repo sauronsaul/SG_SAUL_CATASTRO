@@ -1,8 +1,8 @@
 # PLAN MAESTRO — SG_SAUL_CATASTRO
 ## De la base actual al mejor sistema catastral municipal de Bolivia
 
-**Versión:** 1.0
-**Fecha:** 9 de julio de 2026
+**Versión:** 1.1
+**Fecha:** 12 de julio de 2026
 **Autor del plan:** Claude (planificador/revisor del triángulo)
 **Aprobación:** Saul (mediador/orquestador)
 **Ejecutor:** ChatGPT Codex (con acceso a repositorio y terminal)
@@ -155,6 +155,8 @@ Cada fase tiene objetivo, entregables, y **criterio de cierre basado en evidenci
 
 **Criterio de cierre:** salida cruda de (a) `dotnet run` nativo respondiendo al endpoint de salud contra `sg_postgres:5434`; (b) `docker compose up` con `sg_api` en estado `Up` y mismo endpoint respondiendo; (c) 174/174 tests verdes en ambos modos; (d) `git log` mostrando los commits de docs y ADRs.
 
+**CERRADA — 2026-07-12.** Se verificaron el modelo híbrido de ejecución nativa/contenedor y el guard explícito de migraciones, manteniendo paridad contra PostgreSQL y MinIO. La infraestructura y sus decisiones quedaron integradas mediante el PR #2.
+
 ---
 
 ### FASE 1 — Núcleo de datos completo (PASO 1 + PASO 2)
@@ -171,6 +173,8 @@ Cada fase tiene objetivo, entregables, y **criterio de cierre basado en evidenci
 **Criterio de cierre:** (a) salida cruda de una importación completa de las 7 capas vía API: request 202, secuencia de polling, confirmación; (b) SQL vía `information_schema` + conteos por capa de la versión activa; (c) verificación de que los 11,985 predios mantienen el triplete canónico único (`SELECT ... GROUP BY ... HAVING count(*)>1` devolviendo 0 filas); (d) todos los tests verdes en CI.
 
 **Riesgo específico:** calidad geométrica de las 6 capas nuevas — desconocida hasta el preview. Mitigación: el preview reporta antes de confirmar; los defectos se documentan y se devuelven al GAM como observaciones, no se corrigen en silencio.
+
+**CERRADA — 2026-07-12.** Quedaron operativos el modelo versionado, la importación asíncrona, el preview y la activación/reconciliación atómica. Uyuni v1 está activa con 35.013 objetos en 7 capas y 11.985 predios reconciliados; PRs #3–#6, migraciones M010–M013 y suite completa 223/223.
 
 ---
 
@@ -315,6 +319,31 @@ Cada fase tiene objetivo, entregables, y **criterio de cierre basado en evidenci
 
 ---
 
+## 6-bis. Registro de pendientes técnicos
+
+### M-LECTOR-1 — Geometrías que NTS no logra construir
+
+`ShapefileReader`/NTS convierte a `null` 32 geometrías que GDAL/Fiona sí
+construye como objetos topológicamente inválidos: 30 edificaciones y 2
+manzanas con auto-intersecciones, según la evidencia D4 del cierre de Fase 1.
+La mejora consiste en capturar la geometría cruda ante el fallo de parseo para
+clasificarla como inválida (O1), en vez de nula (O4), y realizar una importación
+v3. **Agendada: dentro de Fase 2.**
+
+### DT-CI-1 — Integración con Testcontainers fuera de CI
+
+El job actual de CI ejecuta únicamente los tests de dominio y aplicación. Los
+41 tests de integración con PostgreSQL/PostGIS real mediante Testcontainers se
+ejecutan localmente. Se debe evaluar su activación en GitHub Actions.
+**Agendada: Fase 9 o antes.**
+
+### Limpiezas menores
+
+- `AGENTS.md` referencia `SG.sln`; la solución real es `SG.slnx`.
+- El seeder de perfiles es solo aditivo y no reconcilia perfiles divergentes.
+- Los archivos auxiliares `codex-commit-*.txt` dentro de `.git/` no son
+  versionados y deben eliminarse como higiene al finalizar cada flujo.
+
 ## 6. Registro de decisiones pendientes (nada colgando)
 
 | ID | Decisión | Disparador | Responsable de gestionar |
@@ -356,4 +385,4 @@ Estas reglas ya son ley del proyecto y este plan las ratifica: tests E2E contra 
 
 ---
 
-*Este documento se versiona en el repositorio (`docs/PLAN_MAESTRO.md`). Toda modificación de alcance u orden de fases se registra aquí con fecha y motivo. Última actualización: 2026-07-09, v1.0.*
+*Este documento se versiona en el repositorio (`docs/PLAN_MAESTRO.md`). Toda modificación de alcance u orden de fases se registra aquí con fecha y motivo. Última actualización: 2026-07-12, v1.1 — cierre de Fases 0 y 1.*
