@@ -18,6 +18,7 @@ internal sealed class CargaVersionadaServicio(
     IMinioService minio,
     IZipExtractor zipExtractor,
     IShapefileReader shapefileReader,
+    IReportePreviewVersionServicio reportePreview,
     IConfiguration configuration) : ICargaVersionadaServicio
 {
     private const int TamanoLote = 1000;
@@ -68,6 +69,8 @@ internal sealed class CargaVersionadaServicio(
                 await versiones.GuardarCambiosAsync(ct);
             }
 
+            var reporteCompleto = await reportePreview.GenerarAsync(datasetVersionId, ct);
+            version.RegistrarReportePreview(JsonSerializer.Serialize(reporteCompleto));
             version.MarcarPreviewListo();
             await versiones.GuardarCambiosAsync(ct);
         }

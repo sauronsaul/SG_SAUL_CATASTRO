@@ -112,6 +112,44 @@ public sealed class Predio : AggregateRoot
         return Result.Success(predio);
     }
 
+    public static Result<Predio> CrearDesdeDataset(
+        UbicacionCatastral ubicacion,
+        decimal superficieDeclarada,
+        decimal superficieSig,
+        GeometriaPredial geometria,
+        Guid datasetVersionId,
+        Guid importadoPor,
+        string? propietarioReferencia = null,
+        string? tipoInmuebleOrigen = null,
+        string? codigoOrigen = null,
+        string? detalleGeometriaInvalida = null)
+    {
+        if (datasetVersionId == Guid.Empty)
+            return Result.Failure<Predio>(PredioErrores.DatasetVersionRequerida);
+        if (geometria is null)
+            return Result.Failure<Predio>(GeometriaPredialErrores.PoligonoRequerido);
+        if (superficieSig < 0)
+            return Result.Failure<Predio>(PredioErrores.SuperficieInvalida);
+
+        var resultado = CrearImportado(
+            ubicacion,
+            superficieDeclarada,
+            importadoPor,
+            propietarioReferencia,
+            tipoInmuebleOrigen,
+            codigoOrigen);
+        if (resultado.IsFailure)
+            return resultado;
+
+        var predio = resultado.Value;
+        predio.SuperficieSig = superficieSig;
+        predio.Geometria = geometria;
+        predio.PresenteEnVersionActiva = true;
+        predio.UltimaVersionVistaId = datasetVersionId;
+        predio.RegistrarHallazgoGeometriaInvalida(detalleGeometriaInvalida);
+        return Result.Success(predio);
+    }
+
     // --- Máquina de estados ---
 
     public Result EnviarARevision(Guid usuarioId)
@@ -192,6 +230,82 @@ public sealed class Predio : AggregateRoot
             Id, Estado, Estado, importadoPor, "Actualizado por re-importación."));
 
         return Result.Success();
+    }
+
+    /// <summary>
+    /// Proyecta una fila versionada sobre el maestro sin modificar estado ni
+    /// limpiar marcas de revisión creadas por personas o controles de calidad.
+    /// </summary>
+    public Result<bool> ReconciliarDesdeDataset(
+        UbicacionCatastral ubicacion,
+        decimal superficieDeclarada,
+        decimal superficieSig,
+        GeometriaPredial geometria,
+        Guid datasetVersionId,
+        string? propietarioReferencia,
+        string? tipoInmuebleOrigen,
+        string? codigoOrigen,
+        string? detalleGeometriaInvalida)
+    {
+        if (ubicacion is null)
+            return Result.Failure<bool>(PredioErrores.UbicacionRequerida);
+        if (superficieDeclarada <= 0 || superficieSig < 0)
+            return Result.Failure<bool>(PredioErrores.SuperficieInvalida);
+        if (geometria is null)
+            return Result.Failure<bool>(GeometriaPredialErrores.PoligonoRequerido);
+        if (datasetVersionId == Guid.Empty)
+            return Result.Failure<bool>(PredioErrores.DatasetVersionRequerida);
+        if (!TryObtenerTriplete(ubicacion, out var codUv, out var codMan, out var codPred) ||
+            codUv != CodUv || codMan != CodMan || codPred != CodPred)
+            return Result.Failure<bool>(PredioErrores.TripleteCatastralInvalido);
+
+        var geometriaCambio = Geometria is null || !GeometriasEquivalentes(Geometria, geometria);
+        var requiereMarcarHallazgo = !string.IsNullOrWhiteSpace(detalleGeometriaInvalida) &&
+            (!RequiereRevision ||
+             !(DetalleRevision?.Contains(detalleGeometriaInvalida, StringComparison.Ordinal) ?? false));
+        var cambioImportado = SuperficieDeclarada != superficieDeclarada ||
+            SuperficieSig != superficieSig ||
+            !Equals(Ubicacion.Barrio, ubicacion.Barrio) ||
+            !Equals(Ubicacion.Direccion, ubicacion.Direccion) ||
+            !Equals(Ubicacion.Referencia, ubicacion.Referencia) ||
+            !Equals(PropietarioReferencia, Normalizar(propietarioReferencia)) ||
+            !Equals(TipoInmuebleOrigen, Normalizar(tipoInmuebleOrigen)) ||
+            !Equals(CodigoOrigen, Normalizar(codigoOrigen)) ||
+            geometriaCambio ||
+            !PresenteEnVersionActiva ||
+            requiereMarcarHallazgo;
+
+        // No generar UPDATE/auditoría solo para rotar UltimaVersionVistaId.
+        if (!cambioImportado)
+            return Result.Success(false);
+
+        Ubicacion = ubicacion;
+        SuperficieDeclarada = superficieDeclarada;
+        SuperficieSig = superficieSig;
+        Geometria = geometria;
+        PropietarioReferencia = Normalizar(propietarioReferencia);
+        TipoInmuebleOrigen = Normalizar(tipoInmuebleOrigen);
+        CodigoOrigen = Normalizar(codigoOrigen);
+        PresenteEnVersionActiva = true;
+        UltimaVersionVistaId = datasetVersionId;
+        RegistrarHallazgoGeometriaInvalida(detalleGeometriaInvalida);
+        return Result.Success(true);
+    }
+
+    public bool MarcarAusenteEnDataset(int numeroVersion)
+    {
+        if (numeroVersion < 1)
+            throw new DomainException("El número de versión debe ser mayor o igual a 1.");
+
+        var detalle = $"Ausente en dataset versión {numeroVersion}";
+        var cambio = PresenteEnVersionActiva || !RequiereRevision ||
+            !(DetalleRevision?.Contains(detalle, StringComparison.Ordinal) ?? false);
+        if (!cambio)
+            return false;
+
+        PresenteEnVersionActiva = false;
+        AgregarDetalleRevision(detalle);
+        return true;
     }
 
     public Result TomarParaTrabajo(Guid usuarioId)
@@ -328,6 +442,36 @@ public sealed class Predio : AggregateRoot
         _historial.Add(HistorialEstado.Registrar(Id, anterior, nuevo, usuarioId, observaciones));
     }
 
+    private void RegistrarHallazgoGeometriaInvalida(string? detalle)
+    {
+        if (!string.IsNullOrWhiteSpace(detalle))
+            AgregarDetalleRevision(detalle);
+    }
+
+    private void AgregarDetalleRevision(string detalle)
+    {
+        RequiereRevision = true;
+        if (string.IsNullOrWhiteSpace(DetalleRevision))
+        {
+            DetalleRevision = detalle;
+            return;
+        }
+
+        if (!DetalleRevision.Contains(detalle, StringComparison.Ordinal))
+            DetalleRevision = $"{DetalleRevision}; {detalle}";
+    }
+
+    private static string? Normalizar(string? valor) =>
+        string.IsNullOrWhiteSpace(valor) ? null : valor.Trim();
+
+    private static bool GeometriasEquivalentes(GeometriaPredial actual, GeometriaPredial nueva)
+    {
+        if (actual.Poligono.IsValid && nueva.Poligono.IsValid)
+            return actual.Poligono.EqualsTopologically(nueva.Poligono);
+
+        return actual.Poligono.AsBinary().SequenceEqual(nueva.Poligono.AsBinary());
+    }
+
     private static bool TryObtenerTriplete(
         UbicacionCatastral ubicacion,
         out int codUv,
@@ -359,6 +503,9 @@ public static class PredioErrores
     public static readonly DomainError EstadoNoPermiteReimportacion =
         new("Predio.EstadoNoPermiteReimportacion",
             "El predio no está en estado Importado ni Borrador — no puede ser actualizado por importación.");
+
+    public static readonly DomainError DatasetVersionRequerida =
+        new("Predio.DatasetVersionRequerida", "La versión de dataset es requerida para reconciliar el predio.");
 
     public static DomainError TransicionInvalida(EstadoPredio actual, EstadoPredio destino) =>
         new("Predio.TransicionInvalida",
