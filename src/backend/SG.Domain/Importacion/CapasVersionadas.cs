@@ -5,9 +5,9 @@ namespace SG.Domain.Importacion;
 
 public abstract class CapaVersionada : Entity
 {
-    public Guid DatasetVersionId { get; private set; }
-    public string AtributosExtra { get; private set; } = "{}";
-    public int FilaOrigen { get; private set; }
+    public Guid DatasetVersionId { get; protected set; }
+    public string AtributosExtra { get; protected set; } = "{}";
+    public int FilaOrigen { get; protected set; }
 
     protected CapaVersionada() { }
 }
@@ -34,6 +34,24 @@ public sealed class CapaParcela : CapaVersionada
     public string? TopografiaTerreno { get; private set; }
 
     private CapaParcela() { }
+
+    public static CapaParcela Crear(
+        Guid datasetVersionId, Polygon geometria, int codUv, int codMan, int codPred,
+        string atributosExtra, int filaOrigen, string? codigoGeografico, decimal? superficie,
+        int? valuacionZonal, string? tipoInmueble, string? servicioAlcantarillado,
+        string? servicioAgua, string? servicioLuz, string? servicioTelefonia,
+        string? nombrePropietarioOrigen, string? nombreVia, string? direccionBarrio,
+        string? direccionUrbana, string? usoTerreno, string? topografiaTerreno) => new()
+    {
+        DatasetVersionId = datasetVersionId, Geometria = geometria, CodUv = codUv, CodMan = codMan,
+        CodPred = codPred, AtributosExtra = atributosExtra, FilaOrigen = filaOrigen,
+        CodigoGeografico = codigoGeografico, Superficie = superficie, ValuacionZonal = valuacionZonal,
+        TipoInmueble = tipoInmueble, ServicioAlcantarillado = servicioAlcantarillado,
+        ServicioAgua = servicioAgua, ServicioLuz = servicioLuz, ServicioTelefonia = servicioTelefonia,
+        NombrePropietarioOrigen = nombrePropietarioOrigen, NombreVia = nombreVia,
+        DireccionBarrio = direccionBarrio, DireccionUrbana = direccionUrbana,
+        UsoTerreno = usoTerreno, TopografiaTerreno = topografiaTerreno,
+    };
 }
 
 public sealed class CapaEdificacion : CapaVersionada
@@ -51,6 +69,17 @@ public sealed class CapaEdificacion : CapaVersionada
     public decimal? AreaConstruida { get; private set; }
 
     private CapaEdificacion() { }
+
+    public static CapaEdificacion Crear(Guid datasetVersionId, Polygon geometria, string atributosExtra,
+        int filaOrigen, long? idEdificacionOrigen, string? codigoGeografico, int? codUv, int? codMan,
+        int? codPred, long? numeroEdificacion, long? piso, string? codigoEspacio, long? codigoBloque,
+        decimal? areaConstruida) => new()
+    {
+        DatasetVersionId = datasetVersionId, Geometria = geometria, AtributosExtra = atributosExtra,
+        FilaOrigen = filaOrigen, IdEdificacionOrigen = idEdificacionOrigen, CodigoGeografico = codigoGeografico,
+        CodUv = codUv, CodMan = codMan, CodPred = codPred, NumeroEdificacion = numeroEdificacion,
+        Piso = piso, CodigoEspacio = codigoEspacio, CodigoBloque = codigoBloque, AreaConstruida = areaConstruida,
+    };
 }
 
 public sealed class CapaPredioNoFotografiado : CapaVersionada
@@ -67,6 +96,16 @@ public sealed class CapaPredioNoFotografiado : CapaVersionada
     public string? FotoIzquierda { get; private set; }
 
     private CapaPredioNoFotografiado() { }
+
+    public static CapaPredioNoFotografiado Crear(Guid datasetVersionId, Polygon geometria, string atributosExtra,
+        int filaOrigen, long? idPredioOrigen, string? codigoGeografico, int? codUv, int? codMan, int? codPred,
+        string? indicadorFotos, string? fotoFrente, string? fotoDerecha, string? fotoIzquierda) => new()
+    {
+        DatasetVersionId = datasetVersionId, Geometria = geometria, AtributosExtra = atributosExtra,
+        FilaOrigen = filaOrigen, IdPredioOrigen = idPredioOrigen, CodigoGeografico = codigoGeografico,
+        CodUv = codUv, CodMan = codMan, CodPred = codPred, IndicadorFotos = indicadorFotos,
+        FotoFrente = fotoFrente, FotoDerecha = fotoDerecha, FotoIzquierda = fotoIzquierda,
+    };
 }
 
 public sealed class CapaManzana : CapaVersionada
@@ -78,6 +117,14 @@ public sealed class CapaManzana : CapaVersionada
     public decimal? CoordenadaOrigen { get; private set; }
 
     private CapaManzana() { }
+
+    public static CapaManzana Crear(Guid datasetVersionId, Polygon geometria, string atributosExtra,
+        int filaOrigen, string? codigoGeografico, int? codUv, int? codMan, decimal? coordenadaOrigen) => new()
+    {
+        DatasetVersionId = datasetVersionId, Geometria = geometria, AtributosExtra = atributosExtra,
+        FilaOrigen = filaOrigen, CodigoGeografico = codigoGeografico, CodUv = codUv, CodMan = codMan,
+        CoordenadaOrigen = coordenadaOrigen,
+    };
 }
 
 public sealed class CapaDistrito : CapaVersionada
@@ -88,6 +135,13 @@ public sealed class CapaDistrito : CapaVersionada
     public string? Nombre { get; private set; }
 
     private CapaDistrito() { }
+
+    public static CapaDistrito Crear(Guid datasetVersionId, Polygon geometria, string atributosExtra,
+        int filaOrigen, string? codigoGeografico, int? codUv, string? nombre) => new()
+    {
+        DatasetVersionId = datasetVersionId, Geometria = geometria, AtributosExtra = atributosExtra,
+        FilaOrigen = filaOrigen, CodigoGeografico = codigoGeografico, CodUv = codUv, Nombre = nombre,
+    };
 }
 
 public sealed class CapaZona : CapaVersionada
@@ -98,6 +152,14 @@ public sealed class CapaZona : CapaVersionada
     public string? CodigoGeografico { get; private set; }
 
     private CapaZona() { }
+
+    public static CapaZona Crear(Guid datasetVersionId, Polygon geometria, string atributosExtra,
+        int filaOrigen, string? nombreZona, long? idZonaOrigen, string? codigoGeografico) => new()
+    {
+        DatasetVersionId = datasetVersionId, Geometria = geometria, AtributosExtra = atributosExtra,
+        FilaOrigen = filaOrigen, NombreZona = nombreZona, IdZonaOrigen = idZonaOrigen,
+        CodigoGeografico = codigoGeografico,
+    };
 }
 
 public sealed class CapaVia : CapaVersionada
@@ -109,4 +171,12 @@ public sealed class CapaVia : CapaVersionada
     public decimal? DistanciaOrigen { get; private set; }
 
     private CapaVia() { }
+
+    public static CapaVia Crear(Guid datasetVersionId, LineString geometria, string atributosExtra,
+        int filaOrigen, string? material, string? nombre, string? tipo, decimal? distanciaOrigen) => new()
+    {
+        DatasetVersionId = datasetVersionId, Geometria = geometria, AtributosExtra = atributosExtra,
+        FilaOrigen = filaOrigen, Material = material, Nombre = nombre, Tipo = tipo,
+        DistanciaOrigen = distanciaOrigen,
+    };
 }

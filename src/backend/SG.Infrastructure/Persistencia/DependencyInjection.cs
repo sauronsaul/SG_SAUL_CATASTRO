@@ -55,6 +55,8 @@ public static class DependencyInjection
         // Repositorios de importación
         services.AddScoped<IPerfilImportacionRepositorio, PerfilImportacionRepositorio>();
         services.AddScoped<IImportacionRepositorio, ImportacionRepositorio>();
+        services.AddScoped<IDatasetVersionRepositorio, DatasetVersionRepositorio>();
+        services.AddScoped<ICargaVersionadaServicio, CargaVersionadaServicio>();
 
         // Servicios de importación
         services.AddSingleton<IShapefileReader, ShapefileReader>();

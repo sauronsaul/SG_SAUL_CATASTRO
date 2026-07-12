@@ -5,6 +5,7 @@ using SG.Application.Importacion.Confirmar;
 using SG.Application.Importacion.GenerarPreview;
 using SG.Application.Importacion.Listar;
 using SG.Application.Importacion.ObtenerDetalle;
+using SG.Application.Importacion.Versiones;
 using SG.Domain.Common;
 using ImportacionDomain = SG.Domain.Importacion;
 
@@ -55,6 +56,43 @@ public sealed class ImportacionesController(ISender sender) : ControllerBase
     }
 
     /// <summary>
+    /// Recibe un ZIP con las siete capas SHP de una entrega y encola su carga versionada.
+    /// El paquete se conserva en MinIO antes de devolver la respuesta Accepted.
+    /// </summary>
+    [HttpPost("versiones")]
+    [Authorize(Roles = "Admin,Tecnico")]
+    [RequestSizeLimit(110 * 1024 * 1024)]
+    public async Task<IActionResult> CrearVersion(
+        [FromForm] IFormFile? paquete,
+        CancellationToken ct)
+    {
+        // La ausencia del archivo es un error de request: no debe crear una versión Fallida.
+        if (paquete is null)
+            return Problem(
+                detail: "Se requiere el archivo 'paquete'.",
+                statusCode: StatusCodes.Status400BadRequest);
+
+        await using var stream = paquete.OpenReadStream();
+        var result = await sender.Send(new CrearVersionImportacionCommand(
+            paquete.FileName,
+            stream,
+            paquete.Length), ct);
+
+        return result.IsSuccess
+            ? AcceptedAtAction(nameof(ObtenerEstadoVersion), new { id = result.Value.DatasetVersionId }, result.Value)
+            : MapError(result.Error);
+    }
+
+    /// <summary>Estado, progreso y error persistido de una carga versionada.</summary>
+    [HttpGet("versiones/{id:guid}")]
+    [Authorize(Roles = "Admin,Tecnico")]
+    public async Task<IActionResult> ObtenerEstadoVersion(Guid id, CancellationToken ct)
+    {
+        var result = await sender.Send(new ObtenerEstadoVersionImportacionQuery(id), ct);
+        return result.IsSuccess ? Ok(result.Value) : MapError(result.Error);
+    }
+
+    /// <summary>
     /// Genera un preview de la importación: clasifica cada fila del shapefile como
     /// Crear / Actualizar / Omitir / Rechazada sin escribir en dominio.predios.
     /// </summary>
@@ -95,7 +133,7 @@ public sealed class ImportacionesController(ISender sender) : ControllerBase
 
     private ObjectResult MapError(DomainError error) => error.Code switch
     {
-        "PerfilImportacion.NoEncontrado" or "Importacion.NoEncontrada" =>
+        "PerfilImportacion.NoEncontrado" or "Importacion.NoEncontrada" or "VersionImportacion.NoEncontrada" =>
             Problem(detail: error.Message, statusCode: StatusCodes.Status404NotFound),
         "Importacion.YaConfirmada" =>
             Problem(detail: error.Message, statusCode: StatusCodes.Status409Conflict),

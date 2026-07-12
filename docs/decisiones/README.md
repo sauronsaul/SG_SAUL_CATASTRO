@@ -48,3 +48,4 @@
 | [0034](0034-testcontainers-connection-string-leak-y-sqlquery-bool.md) | Checkpoint 2.3: dos bugs de infraestructura de tests | 2.3 |
 | [0048](0048-modelo-hibrido-desarrollo-nativo-contenedor-paridad.md) | Modelo híbrido: nativo para iteración y contenedor para paridad | Fase 0 |
 | [0049](0049-importacion-reemplazo-completo-versionado-siete-capas-shp-datasetversion.md) | Importación SHP por reemplazo completo versionado | Fase 0 |
+| [0050](0050-carga-versionada-asincrona-recuperable.md) | Carga versionada asíncrona y recuperación tras reinicio | Fase 0 |
