@@ -73,6 +73,46 @@ public sealed class ImportacionVersionadaE2ETests : IDisposable
     }
 
     [Fact]
+    public async Task ActivarVersion_FlujoCompleto_RetornaResumenYProtegeCapasActivas()
+    {
+        var paquete = CrearPaqueteSieteCapas(corromperEdificaciones: false);
+        var post = await PostPaqueteAsync(paquete, "uyuni-activar.zip");
+        var creada = (await post.Content.ReadFromJsonAsync<CrearVersionImportacionDto>(JsonOpts))!;
+        var preview = await EsperarEstadoAsync(creada.DatasetVersionId, "PreviewListo");
+
+        preview.ReportePreliminar.Validacion.Should().NotBeNull();
+        preview.ReportePreliminar.Validacion!.Bloqueantes.Should().BeEmpty();
+        _output.WriteLine($"REPORTE PREVIEW: {JsonSerializer.Serialize(preview.ReportePreliminar)}");
+
+        var activar = await _clientAdmin.PostAsync(
+            $"/api/importaciones/versiones/{creada.DatasetVersionId}/activar",
+            null);
+        var respuesta = await activar.Content.ReadAsStringAsync();
+
+        activar.StatusCode.Should().Be(HttpStatusCode.OK, respuesta);
+        var activada = JsonSerializer.Deserialize<ActivarVersionImportacionDto>(respuesta, JsonOpts)!;
+        activada.Estado.Should().Be("Activa");
+        activada.Resumen.Altas.Should().Be(2);
+        _output.WriteLine($"POST ACTIVAR status={(int)activar.StatusCode}: {respuesta}");
+
+        await using var scope = _factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        (await db.DatasetVersiones.CountAsync(x =>
+            x.MunicipioCodigo == "UYUNI" && x.Estado == EstadoDatasetVersion.Activa))
+            .Should().Be(1);
+        (await db.Predios.CountAsync(x => x.UltimaVersionVistaId == creada.DatasetVersionId))
+            .Should().Be(2);
+
+        var act = async () => await db.Database.ExecuteSqlInterpolatedAsync($"""
+            UPDATE dominio.capa_parcelas
+            SET codigo_geografico = 'TAMPERED'
+            WHERE dataset_version_id = {creada.DatasetVersionId}
+            """);
+        await act.Should().ThrowAsync<Exception>()
+            .WithMessage("*UPDATE*prohibida*Activa*");
+    }
+
+    [Fact]
     public async Task PostVersion_ShpCorrupto_MarcaFallidaYPurgaLasCapas()
     {
         var paquete = CrearPaqueteSieteCapas(corromperEdificaciones: true);

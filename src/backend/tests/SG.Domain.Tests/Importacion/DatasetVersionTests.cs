@@ -40,6 +40,18 @@ public sealed class DatasetVersionTests
     }
 
     [Fact]
+    public void RegistrarReportePreview_AntesDePreviewListo_PersisteReporte()
+    {
+        var version = CrearEnCarga();
+
+        version.RegistrarReportePreview("{\"validacion\":{\"bloqueantes\":[]}}");
+        version.MarcarPreviewListo();
+
+        version.ReportePreliminar.Should().Contain("bloqueantes");
+        version.Estado.Should().Be(EstadoDatasetVersion.PreviewListo);
+    }
+
+    [Fact]
     public void Crear_NumeroNoPositivo_LanzaDomainException()
     {
         var act = () => DatasetVersion.Crear(0, "UYU", null, "Entrega");
@@ -105,6 +117,35 @@ public sealed class DatasetVersionTests
         version.Estado.Should().Be(EstadoDatasetVersion.Archivada);
         version.ArchivadoPor.Should().Be(usuario);
         version.ArchivadoAt.Should().NotBeNull();
+    }
+
+    [Fact]
+    public void ReactivarDesdeArchivada_TransicionaYLimpiaMarcaArchivada()
+    {
+        var version = CrearEnCarga();
+        version.MarcarPreviewListo();
+        version.Activar(Guid.NewGuid());
+        version.Archivar(Guid.NewGuid());
+        var usuario = Guid.NewGuid();
+
+        version.ReactivarDesdeArchivada(usuario);
+
+        version.Estado.Should().Be(EstadoDatasetVersion.Activa);
+        version.ActivadoPor.Should().Be(usuario);
+        version.ArchivadoAt.Should().BeNull();
+        version.ArchivadoPor.Should().BeNull();
+    }
+
+    [Fact]
+    public void RegistrarResumenReconciliacion_Activa_PersisteJson()
+    {
+        var version = CrearEnCarga();
+        version.MarcarPreviewListo();
+        version.Activar(Guid.NewGuid());
+
+        version.RegistrarResumenReconciliacion("{\"altas\":1}");
+
+        version.ResumenReconciliacion.Should().Contain("altas");
     }
 
     [Fact]
