@@ -55,6 +55,11 @@ internal sealed class ShapefileReader : IShapefileReader
                 if (shpHasNext)
                 {
                     geometria = shpReader.Geometry;
+                    // NetTopologySuite representa los registros SHP Null Shape como una
+                    // geometría tipada vacía. Desde este límite de lectura se normalizan
+                    // a null para conservar la semántica del archivo de origen.
+                    if (geometria?.IsEmpty == true)
+                        geometria = null;
                     if (geometria is not null)
                     {
                         if (transformacion is not null)

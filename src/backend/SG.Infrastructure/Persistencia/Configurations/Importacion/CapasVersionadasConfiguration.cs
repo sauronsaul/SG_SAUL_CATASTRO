@@ -69,7 +69,7 @@ public sealed class CapaEdificacionConfiguration : IEntityTypeConfiguration<Impo
     {
         CapaVersionadaConfiguration.ConfigurarBase(builder, "capa_edificaciones");
         CapaVersionadaConfiguration.ConfigurarSrid(builder, "capa_edificaciones");
-        builder.Property(x => x.Geometria).IsRequired().HasColumnType("geometry(Polygon,32719)");
+        builder.Property(x => x.Geometria).HasColumnType("geometry(MultiPolygon,32719)");
         builder.Property(x => x.CodigoGeografico).HasMaxLength(11);
         builder.Property(x => x.CodigoEspacio).HasMaxLength(3);
         builder.Property(x => x.AreaConstruida).HasColumnType("numeric(14,4)");
@@ -82,7 +82,7 @@ public sealed class CapaPredioNoFotografiadoConfiguration : IEntityTypeConfigura
     {
         CapaVersionadaConfiguration.ConfigurarBase(builder, "capa_predios_no_fotografiados");
         CapaVersionadaConfiguration.ConfigurarSrid(builder, "capa_predios_no_fotografiados");
-        builder.Property(x => x.Geometria).IsRequired().HasColumnType("geometry(Polygon,32719)");
+        builder.Property(x => x.Geometria).HasColumnType("geometry(MultiPolygon,32719)");
         builder.Property(x => x.CodigoGeografico).HasMaxLength(11);
         builder.Property(x => x.IndicadorFotos).HasMaxLength(2);
         builder.Property(x => x.FotoFrente).HasMaxLength(85);
@@ -97,7 +97,7 @@ public sealed class CapaManzanaConfiguration : IEntityTypeConfiguration<Importac
     {
         CapaVersionadaConfiguration.ConfigurarBase(builder, "capa_manzanas");
         CapaVersionadaConfiguration.ConfigurarSrid(builder, "capa_manzanas");
-        builder.Property(x => x.Geometria).IsRequired().HasColumnType("geometry(Polygon,32719)");
+        builder.Property(x => x.Geometria).HasColumnType("geometry(MultiPolygon,32719)");
         builder.Property(x => x.CodigoGeografico).HasMaxLength(11);
         builder.Property(x => x.CoordenadaOrigen).HasColumnType("numeric(5,1)");
     }
@@ -109,7 +109,7 @@ public sealed class CapaDistritoConfiguration : IEntityTypeConfiguration<Importa
     {
         CapaVersionadaConfiguration.ConfigurarBase(builder, "capa_distritos");
         CapaVersionadaConfiguration.ConfigurarSrid(builder, "capa_distritos");
-        builder.Property(x => x.Geometria).IsRequired().HasColumnType("geometry(Polygon,32719)");
+        builder.Property(x => x.Geometria).HasColumnType("geometry(MultiPolygon,32719)");
         builder.Property(x => x.CodigoGeografico).HasMaxLength(11);
         builder.Property(x => x.Nombre).HasMaxLength(30);
     }
@@ -121,7 +121,7 @@ public sealed class CapaZonaConfiguration : IEntityTypeConfiguration<Importacion
     {
         CapaVersionadaConfiguration.ConfigurarBase(builder, "capa_zonas");
         CapaVersionadaConfiguration.ConfigurarSrid(builder, "capa_zonas");
-        builder.Property(x => x.Geometria).IsRequired().HasColumnType("geometry(Polygon,32719)");
+        builder.Property(x => x.Geometria).HasColumnType("geometry(MultiPolygon,32719)");
         builder.Property(x => x.NombreZona).HasMaxLength(254);
         builder.Property(x => x.CodigoGeografico).HasMaxLength(11);
     }
@@ -133,7 +133,7 @@ public sealed class CapaViaConfiguration : IEntityTypeConfiguration<ImportacionD
     {
         CapaVersionadaConfiguration.ConfigurarBase(builder, "capa_vias");
         CapaVersionadaConfiguration.ConfigurarSrid(builder, "capa_vias");
-        builder.Property(x => x.Geometria).IsRequired().HasColumnType("geometry(LineString,32719)");
+        builder.Property(x => x.Geometria).HasColumnType("geometry(MultiLineString,32719)");
         builder.Property(x => x.Material).HasMaxLength(7);
         builder.Property(x => x.Nombre).HasMaxLength(50);
         builder.Property(x => x.Tipo).HasMaxLength(50);

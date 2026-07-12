@@ -13,6 +13,7 @@ public sealed record ValidacionPreviewVersionDto(
     DateTime GeneradoAtUtc,
     IReadOnlyList<BloqueantePreviewVersionDto> Bloqueantes,
     IReadOnlyList<GeometriasInvalidasCapaDto> GeometriasInvalidas,
+    IReadOnlyList<ObservacionPreviewVersionDto> Observaciones,
     IReadOnlyList<DiferenciaConteoCapaDto> DiferenciasContraActiva,
     ProyeccionReconciliacionDto ProyeccionReconciliacion)
 {
@@ -33,6 +34,17 @@ public sealed record GeometriasInvalidasCapaDto(
 public sealed record GeometriaInvalidaPreviewDto(
     int FilaOrigen,
     string Razon);
+
+public sealed record ObservacionPreviewVersionDto(
+    string Codigo,
+    string Capa,
+    string Mensaje,
+    int Conteo,
+    IReadOnlyList<ObservacionPreviewEjemploDto> Ejemplos);
+
+public sealed record ObservacionPreviewEjemploDto(
+    int FilaOrigen,
+    IReadOnlyDictionary<string, string?> Identificadores);
 
 public sealed record DiferenciaConteoCapaDto(
     string Capa,

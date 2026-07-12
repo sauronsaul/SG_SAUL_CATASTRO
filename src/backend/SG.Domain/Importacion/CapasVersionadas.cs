@@ -56,7 +56,7 @@ public sealed class CapaParcela : CapaVersionada
 
 public sealed class CapaEdificacion : CapaVersionada
 {
-    public Polygon Geometria { get; private set; } = null!;
+    public MultiPolygon? Geometria { get; private set; }
     public long? IdEdificacionOrigen { get; private set; }
     public string? CodigoGeografico { get; private set; }
     public int? CodUv { get; private set; }
@@ -70,7 +70,7 @@ public sealed class CapaEdificacion : CapaVersionada
 
     private CapaEdificacion() { }
 
-    public static CapaEdificacion Crear(Guid datasetVersionId, Polygon geometria, string atributosExtra,
+    public static CapaEdificacion Crear(Guid datasetVersionId, MultiPolygon? geometria, string atributosExtra,
         int filaOrigen, long? idEdificacionOrigen, string? codigoGeografico, int? codUv, int? codMan,
         int? codPred, long? numeroEdificacion, long? piso, string? codigoEspacio, long? codigoBloque,
         decimal? areaConstruida) => new()
@@ -84,7 +84,7 @@ public sealed class CapaEdificacion : CapaVersionada
 
 public sealed class CapaPredioNoFotografiado : CapaVersionada
 {
-    public Polygon Geometria { get; private set; } = null!;
+    public MultiPolygon? Geometria { get; private set; }
     public long? IdPredioOrigen { get; private set; }
     public string? CodigoGeografico { get; private set; }
     public int? CodUv { get; private set; }
@@ -97,7 +97,7 @@ public sealed class CapaPredioNoFotografiado : CapaVersionada
 
     private CapaPredioNoFotografiado() { }
 
-    public static CapaPredioNoFotografiado Crear(Guid datasetVersionId, Polygon geometria, string atributosExtra,
+    public static CapaPredioNoFotografiado Crear(Guid datasetVersionId, MultiPolygon? geometria, string atributosExtra,
         int filaOrigen, long? idPredioOrigen, string? codigoGeografico, int? codUv, int? codMan, int? codPred,
         string? indicadorFotos, string? fotoFrente, string? fotoDerecha, string? fotoIzquierda) => new()
     {
@@ -110,7 +110,7 @@ public sealed class CapaPredioNoFotografiado : CapaVersionada
 
 public sealed class CapaManzana : CapaVersionada
 {
-    public Polygon Geometria { get; private set; } = null!;
+    public MultiPolygon? Geometria { get; private set; }
     public string? CodigoGeografico { get; private set; }
     public int? CodUv { get; private set; }
     public int? CodMan { get; private set; }
@@ -118,7 +118,7 @@ public sealed class CapaManzana : CapaVersionada
 
     private CapaManzana() { }
 
-    public static CapaManzana Crear(Guid datasetVersionId, Polygon geometria, string atributosExtra,
+    public static CapaManzana Crear(Guid datasetVersionId, MultiPolygon? geometria, string atributosExtra,
         int filaOrigen, string? codigoGeografico, int? codUv, int? codMan, decimal? coordenadaOrigen) => new()
     {
         DatasetVersionId = datasetVersionId, Geometria = geometria, AtributosExtra = atributosExtra,
@@ -129,14 +129,14 @@ public sealed class CapaManzana : CapaVersionada
 
 public sealed class CapaDistrito : CapaVersionada
 {
-    public Polygon Geometria { get; private set; } = null!;
+    public MultiPolygon? Geometria { get; private set; }
     public string? CodigoGeografico { get; private set; }
     public int? CodUv { get; private set; }
     public string? Nombre { get; private set; }
 
     private CapaDistrito() { }
 
-    public static CapaDistrito Crear(Guid datasetVersionId, Polygon geometria, string atributosExtra,
+    public static CapaDistrito Crear(Guid datasetVersionId, MultiPolygon? geometria, string atributosExtra,
         int filaOrigen, string? codigoGeografico, int? codUv, string? nombre) => new()
     {
         DatasetVersionId = datasetVersionId, Geometria = geometria, AtributosExtra = atributosExtra,
@@ -146,14 +146,14 @@ public sealed class CapaDistrito : CapaVersionada
 
 public sealed class CapaZona : CapaVersionada
 {
-    public Polygon Geometria { get; private set; } = null!;
+    public MultiPolygon? Geometria { get; private set; }
     public string? NombreZona { get; private set; }
     public long? IdZonaOrigen { get; private set; }
     public string? CodigoGeografico { get; private set; }
 
     private CapaZona() { }
 
-    public static CapaZona Crear(Guid datasetVersionId, Polygon geometria, string atributosExtra,
+    public static CapaZona Crear(Guid datasetVersionId, MultiPolygon? geometria, string atributosExtra,
         int filaOrigen, string? nombreZona, long? idZonaOrigen, string? codigoGeografico) => new()
     {
         DatasetVersionId = datasetVersionId, Geometria = geometria, AtributosExtra = atributosExtra,
@@ -164,7 +164,7 @@ public sealed class CapaZona : CapaVersionada
 
 public sealed class CapaVia : CapaVersionada
 {
-    public LineString Geometria { get; private set; } = null!;
+    public MultiLineString? Geometria { get; private set; }
     public string? Material { get; private set; }
     public string? Nombre { get; private set; }
     public string? Tipo { get; private set; }
@@ -172,7 +172,7 @@ public sealed class CapaVia : CapaVersionada
 
     private CapaVia() { }
 
-    public static CapaVia Crear(Guid datasetVersionId, LineString geometria, string atributosExtra,
+    public static CapaVia Crear(Guid datasetVersionId, MultiLineString? geometria, string atributosExtra,
         int filaOrigen, string? material, string? nombre, string? tipo, decimal? distanciaOrigen) => new()
     {
         DatasetVersionId = datasetVersionId, Geometria = geometria, AtributosExtra = atributosExtra,
