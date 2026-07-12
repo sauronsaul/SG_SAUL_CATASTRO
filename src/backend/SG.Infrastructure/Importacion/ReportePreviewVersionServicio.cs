@@ -21,6 +21,7 @@ internal sealed class ReportePreviewVersionServicio(
         var conteos = await ContarCapasAsync(datasetVersionId, ct);
         var bloqueantes = await ObtenerBloqueantesAsync(datasetVersionId, conteos, ct);
         var invalidas = await ObtenerGeometriasInvalidasAsync(datasetVersionId, ct);
+        var observaciones = await ObtenerObservacionesAsync(datasetVersionId, ct);
         var diferencias = await ObtenerDiferenciasContraActivaAsync(datasetVersionId, conteos, ct);
         var proyeccion = await ProyectarReconciliacionAsync(datasetVersionId, ct);
 
@@ -28,6 +29,7 @@ internal sealed class ReportePreviewVersionServicio(
             DateTime.UtcNow,
             bloqueantes,
             invalidas,
+            observaciones,
             diferencias,
             proyeccion);
         return new ReportePreliminarVersionDto(null, conteos, validacion);
@@ -115,6 +117,7 @@ internal sealed class ReportePreviewVersionServicio(
                        COUNT(*) OVER()::int AS total
                 FROM dominio.__TABLA__
                 WHERE dataset_version_id = {0}
+                  AND geometria IS NOT NULL
                   AND NOT ST_IsValid(geometria)
                 ORDER BY fila_origen
                 LIMIT 100
@@ -133,6 +136,147 @@ internal sealed class ReportePreviewVersionServicio(
 
         return resultado;
     }
+
+    private async Task<IReadOnlyList<ObservacionPreviewVersionDto>> ObtenerObservacionesAsync(
+        Guid datasetVersionId,
+        CancellationToken ct)
+    {
+        var resultado = new List<ObservacionPreviewVersionDto>();
+
+        var edificaciones = await db.CapasEdificaciones.AsNoTracking()
+            .Where(x => x.DatasetVersionId == datasetVersionId && x.Geometria == null)
+            .OrderBy(x => x.FilaOrigen)
+            .Select(x => new
+            {
+                x.FilaOrigen,
+                x.IdEdificacionOrigen,
+                x.CodUv,
+                x.CodMan,
+                x.CodPred,
+                x.CodigoBloque,
+            })
+            .ToListAsync(ct);
+        AgregarO4(resultado, "capa_edificaciones", edificaciones.Count,
+            edificaciones.Take(100).Select(x => new ObservacionPreviewEjemploDto(
+                x.FilaOrigen,
+                new Dictionary<string, string?>
+                {
+                    ["id_edificacion_origen"] = Formatear(x.IdEdificacionOrigen),
+                    ["cod_uv"] = Formatear(x.CodUv),
+                    ["cod_man"] = Formatear(x.CodMan),
+                    ["cod_pred"] = Formatear(x.CodPred),
+                    ["codigo_bloque"] = Formatear(x.CodigoBloque),
+                })));
+
+        var noFotografiados = await db.CapasPrediosNoFotografiados.AsNoTracking()
+            .Where(x => x.DatasetVersionId == datasetVersionId && x.Geometria == null)
+            .OrderBy(x => x.FilaOrigen)
+            .Select(x => new
+            {
+                x.FilaOrigen,
+                x.IdPredioOrigen,
+                x.CodUv,
+                x.CodMan,
+                x.CodPred,
+            })
+            .ToListAsync(ct);
+        AgregarO4(resultado, "capa_predios_no_fotografiados", noFotografiados.Count,
+            noFotografiados.Take(100).Select(x => new ObservacionPreviewEjemploDto(
+                x.FilaOrigen,
+                new Dictionary<string, string?>
+                {
+                    ["id_predio_origen"] = Formatear(x.IdPredioOrigen),
+                    ["cod_uv"] = Formatear(x.CodUv),
+                    ["cod_man"] = Formatear(x.CodMan),
+                    ["cod_pred"] = Formatear(x.CodPred),
+                })));
+
+        var manzanas = await db.CapasManzanas.AsNoTracking()
+            .Where(x => x.DatasetVersionId == datasetVersionId && x.Geometria == null)
+            .OrderBy(x => x.FilaOrigen)
+            .Select(x => new { x.FilaOrigen, x.CodigoGeografico, x.CodUv, x.CodMan })
+            .ToListAsync(ct);
+        AgregarO4(resultado, "capa_manzanas", manzanas.Count,
+            manzanas.Take(100).Select(x => new ObservacionPreviewEjemploDto(
+                x.FilaOrigen,
+                new Dictionary<string, string?>
+                {
+                    ["codigo_geografico"] = x.CodigoGeografico,
+                    ["cod_uv"] = Formatear(x.CodUv),
+                    ["cod_man"] = Formatear(x.CodMan),
+                })));
+
+        var distritos = await db.CapasDistritos.AsNoTracking()
+            .Where(x => x.DatasetVersionId == datasetVersionId && x.Geometria == null)
+            .OrderBy(x => x.FilaOrigen)
+            .Select(x => new { x.FilaOrigen, x.CodigoGeografico, x.CodUv, x.Nombre })
+            .ToListAsync(ct);
+        AgregarO4(resultado, "capa_distritos", distritos.Count,
+            distritos.Take(100).Select(x => new ObservacionPreviewEjemploDto(
+                x.FilaOrigen,
+                new Dictionary<string, string?>
+                {
+                    ["codigo_geografico"] = x.CodigoGeografico,
+                    ["cod_uv"] = Formatear(x.CodUv),
+                    ["nombre"] = x.Nombre,
+                })));
+
+        var zonas = await db.CapasZonas.AsNoTracking()
+            .Where(x => x.DatasetVersionId == datasetVersionId && x.Geometria == null)
+            .OrderBy(x => x.FilaOrigen)
+            .Select(x => new { x.FilaOrigen, x.IdZonaOrigen, x.CodigoGeografico, x.NombreZona })
+            .ToListAsync(ct);
+        AgregarO4(resultado, "capa_zonas", zonas.Count,
+            zonas.Take(100).Select(x => new ObservacionPreviewEjemploDto(
+                x.FilaOrigen,
+                new Dictionary<string, string?>
+                {
+                    ["id_zona_origen"] = Formatear(x.IdZonaOrigen),
+                    ["codigo_geografico"] = x.CodigoGeografico,
+                    ["nombre_zona"] = x.NombreZona,
+                })));
+
+        var vias = await db.CapasVias.AsNoTracking()
+            .Where(x => x.DatasetVersionId == datasetVersionId && x.Geometria == null)
+            .OrderBy(x => x.FilaOrigen)
+            .Select(x => new { x.FilaOrigen, x.Nombre, x.Material, x.Tipo })
+            .ToListAsync(ct);
+        AgregarO4(resultado, "capa_vias", vias.Count,
+            vias.Take(100).Select(x => new ObservacionPreviewEjemploDto(
+                x.FilaOrigen,
+                new Dictionary<string, string?>
+                {
+                    ["nombre"] = x.Nombre,
+                    ["material"] = x.Material,
+                    ["tipo"] = x.Tipo,
+                })));
+
+        return resultado;
+    }
+
+    private static void AgregarO4(
+        List<ObservacionPreviewVersionDto> resultado,
+        string capa,
+        int conteo,
+        IEnumerable<ObservacionPreviewEjemploDto> ejemplos)
+    {
+        if (conteo == 0)
+            return;
+
+        resultado.Add(new ObservacionPreviewVersionDto(
+            "O4",
+            capa,
+            "La capa contiene geometrías nulas; las filas se conservaron con sus atributos para revisión del GAM.",
+            conteo,
+            ejemplos.ToList()));
+    }
+
+    private static string? Formatear(object? valor) => valor switch
+    {
+        null => null,
+        IFormattable formateable => formateable.ToString(null, CultureInfo.InvariantCulture),
+        _ => valor.ToString(),
+    };
 
     private async Task<IReadOnlyList<DiferenciaConteoCapaDto>> ObtenerDiferenciasContraActivaAsync(
         Guid datasetVersionId,

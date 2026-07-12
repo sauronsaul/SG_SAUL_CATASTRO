@@ -198,7 +198,7 @@ internal sealed class CargaVersionadaServicio(
     }
 
     private static CapaParcela CrearParcela(Guid versionId, PerfilImportacion perfil, RegistroCrudoShapefile r, int fila) =>
-        CapaParcela.Crear(versionId, Poligono(r, fila), AEntero(r, perfil, "CapaParcela.CodUv", fila),
+        CapaParcela.Crear(versionId, PoligonoParcela(r, "capa_parcelas", fila), AEntero(r, perfil, "CapaParcela.CodUv", fila),
             AEntero(r, perfil, "CapaParcela.CodMan", fila), AEntero(r, perfil, "CapaParcela.CodPred", fila),
             Extra(r, perfil), fila, Texto(r, perfil, "CapaParcela.CodigoGeografico"),
             ADecimal(r, perfil, "CapaParcela.Superficie"), AEnteroOpcional(r, perfil, "CapaParcela.ValuacionZonal"),
@@ -210,7 +210,7 @@ internal sealed class CargaVersionadaServicio(
             Texto(r, perfil, "CapaParcela.TopografiaTerreno"));
 
     private static CapaEdificacion CrearEdificacion(Guid versionId, PerfilImportacion perfil, RegistroCrudoShapefile r, int fila) =>
-        CapaEdificacion.Crear(versionId, Poligono(r, fila), Extra(r, perfil), fila,
+        CapaEdificacion.Crear(versionId, MultiPoligonoAuxiliar(r, "capa_edificaciones", fila), Extra(r, perfil), fila,
             ALongOpcional(r, perfil, "CapaEdificacion.IdEdificacionOrigen"), Texto(r, perfil, "CapaEdificacion.CodigoGeografico"),
             AEnteroOpcional(r, perfil, "CapaEdificacion.CodUv"), AEnteroOpcional(r, perfil, "CapaEdificacion.CodMan"),
             AEnteroOpcional(r, perfil, "CapaEdificacion.CodPred"), ALongOpcional(r, perfil, "CapaEdificacion.NumeroEdificacion"),
@@ -218,7 +218,7 @@ internal sealed class CargaVersionadaServicio(
             ALongOpcional(r, perfil, "CapaEdificacion.CodigoBloque"), ADecimal(r, perfil, "CapaEdificacion.AreaConstruida"));
 
     private static CapaPredioNoFotografiado CrearPredioNoFotografiado(Guid versionId, PerfilImportacion perfil, RegistroCrudoShapefile r, int fila) =>
-        CapaPredioNoFotografiado.Crear(versionId, Poligono(r, fila), Extra(r, perfil), fila,
+        CapaPredioNoFotografiado.Crear(versionId, MultiPoligonoAuxiliar(r, "capa_predios_no_fotografiados", fila), Extra(r, perfil), fila,
             ALongOpcional(r, perfil, "CapaPredioNoFotografiado.IdPredioOrigen"), Texto(r, perfil, "CapaPredioNoFotografiado.CodigoGeografico"),
             AEnteroOpcional(r, perfil, "CapaPredioNoFotografiado.CodUv"), AEnteroOpcional(r, perfil, "CapaPredioNoFotografiado.CodMan"),
             AEnteroOpcional(r, perfil, "CapaPredioNoFotografiado.CodPred"), Texto(r, perfil, "CapaPredioNoFotografiado.IndicadorFotos"),
@@ -226,40 +226,66 @@ internal sealed class CargaVersionadaServicio(
             Texto(r, perfil, "CapaPredioNoFotografiado.FotoIzquierda"));
 
     private static CapaManzana CrearManzana(Guid versionId, PerfilImportacion perfil, RegistroCrudoShapefile r, int fila) =>
-        CapaManzana.Crear(versionId, Poligono(r, fila), Extra(r, perfil), fila,
+        CapaManzana.Crear(versionId, MultiPoligonoAuxiliar(r, "capa_manzanas", fila), Extra(r, perfil), fila,
             Texto(r, perfil, "CapaManzana.CodigoGeografico"), AEnteroOpcional(r, perfil, "CapaManzana.CodUv"),
             AEnteroOpcional(r, perfil, "CapaManzana.CodMan"), ADecimal(r, perfil, "CapaManzana.CoordenadaOrigen"));
 
     private static CapaDistrito CrearDistrito(Guid versionId, PerfilImportacion perfil, RegistroCrudoShapefile r, int fila) =>
-        CapaDistrito.Crear(versionId, Poligono(r, fila), Extra(r, perfil), fila,
+        CapaDistrito.Crear(versionId, MultiPoligonoAuxiliar(r, "capa_distritos", fila), Extra(r, perfil), fila,
             Texto(r, perfil, "CapaDistrito.CodigoGeografico"), AEnteroOpcional(r, perfil, "CapaDistrito.CodUv"),
             Texto(r, perfil, "CapaDistrito.Nombre"));
 
     private static CapaZona CrearZona(Guid versionId, PerfilImportacion perfil, RegistroCrudoShapefile r, int fila) =>
-        CapaZona.Crear(versionId, Poligono(r, fila), Extra(r, perfil), fila,
+        CapaZona.Crear(versionId, MultiPoligonoAuxiliar(r, "capa_zonas", fila), Extra(r, perfil), fila,
             Texto(r, perfil, "CapaZona.NombreZona"), ALongOpcional(r, perfil, "CapaZona.IdZonaOrigen"),
             Texto(r, perfil, "CapaZona.CodigoGeografico"));
 
     private static CapaVia CrearVia(Guid versionId, PerfilImportacion perfil, RegistroCrudoShapefile r, int fila) =>
-        CapaVia.Crear(versionId, Linea(r, fila), Extra(r, perfil), fila,
+        CapaVia.Crear(versionId, MultiLineaAuxiliar(r, "capa_vias", fila), Extra(r, perfil), fila,
             Texto(r, perfil, "CapaVia.Material"), Texto(r, perfil, "CapaVia.Nombre"),
             Texto(r, perfil, "CapaVia.Tipo"), ADecimal(r, perfil, "CapaVia.DistanciaOrigen"));
 
-    private static Polygon Poligono(RegistroCrudoShapefile registro, int fila) =>
+    private static Polygon PoligonoParcela(RegistroCrudoShapefile registro, string capa, int fila) =>
         registro.Geometria switch
         {
             Polygon poligono => poligono,
             MultiPolygon { NumGeometries: 1 } multipoligono => (Polygon)multipoligono.GetGeometryN(0),
-            _ => throw new InvalidOperationException($"La fila {fila} no contiene un Polygon válido."),
+            null => throw new InvalidOperationException(
+                $"Capa '{capa}', fila {fila}: geometría nula; se esperaba Polygon (se admite MultiPolygon de una sola parte)."),
+            Geometry geometria => throw new InvalidOperationException(
+                $"Capa '{capa}', fila {fila}: llegó {DescribirTipo(geometria)}; se esperaba Polygon (se admite MultiPolygon de una sola parte)."),
         };
 
-    private static LineString Linea(RegistroCrudoShapefile registro, int fila) =>
-        registro.Geometria switch
+    private static MultiPolygon? MultiPoligonoAuxiliar(
+        RegistroCrudoShapefile registro,
+        string capa,
+        int fila) => registro.Geometria switch
         {
-            LineString linea => linea,
-            MultiLineString { NumGeometries: 1 } multiLinea => (LineString)multiLinea.GetGeometryN(0),
-            _ => throw new InvalidOperationException($"La fila {fila} no contiene un LineString válido."),
+            null => null,
+            Polygon poligono => new MultiPolygon([poligono]) { SRID = poligono.SRID },
+            MultiPolygon multipoligono => multipoligono,
+            Geometry geometria => throw new InvalidOperationException(
+                $"Capa '{capa}', fila {fila}: llegó {DescribirTipo(geometria)}; se esperaba Polygon o MultiPolygon."),
         };
+
+    private static MultiLineString? MultiLineaAuxiliar(
+        RegistroCrudoShapefile registro,
+        string capa,
+        int fila) => registro.Geometria switch
+        {
+            null => null,
+            LineString linea => new MultiLineString([linea]) { SRID = linea.SRID },
+            MultiLineString multiLinea => multiLinea,
+            Geometry geometria => throw new InvalidOperationException(
+                $"Capa '{capa}', fila {fila}: llegó {DescribirTipo(geometria)}; se esperaba LineString o MultiLineString."),
+        };
+
+    private static string DescribirTipo(Geometry geometria) => geometria switch
+    {
+        MultiPolygon multipoligono => $"MultiPolygon de {multipoligono.NumGeometries} partes",
+        MultiLineString multiLinea => $"MultiLineString de {multiLinea.NumGeometries} partes",
+        _ => geometria.GeometryType,
+    };
 
     private static string Extra(RegistroCrudoShapefile registro, PerfilImportacion perfil)
     {
