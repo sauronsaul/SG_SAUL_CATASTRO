@@ -1,7 +1,6 @@
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using SG.Application.Importacion.Confirmar;
 using SG.Application.Importacion.GenerarPreview;
 using SG.Application.Importacion.Listar;
 using SG.Application.Importacion.ObtenerDetalle;
@@ -96,6 +95,14 @@ public sealed class ImportacionesController(ISender sender) : ControllerBase
     /// Genera un preview de la importación: clasifica cada fila del shapefile como
     /// Crear / Actualizar / Omitir / Rechazada sin escribir en dominio.predios.
     /// </summary>
+    [HttpPost("versiones/{id:guid}/activar")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> ActivarVersion(Guid id, CancellationToken ct)
+    {
+        var result = await sender.Send(new ActivarVersionImportacionCommand(id), ct);
+        return result.IsSuccess ? Ok(result.Value) : MapError(result.Error);
+    }
+
     [HttpPost("preview")]
     [Authorize(Roles = "Admin,Tecnico")]
     [RequestSizeLimit(110 * 1024 * 1024)] // 110 MB — margen sobre el límite de 100 MB del comando
@@ -118,18 +125,15 @@ public sealed class ImportacionesController(ISender sender) : ControllerBase
     }
 
     /// <summary>
-    /// Fase 2: confirma la importación — escribe predios/construcciones en el dominio.
-    /// Idempotente: segunda llamada sobre una importación ya confirmada devuelve 409.
+    /// Endpoint legado fuera de servicio. El handler se conserva temporalmente,
+    /// pero la reconciliación versionada es el único escritor automatizado del maestro.
     /// </summary>
     [HttpPost("{id:guid}/confirmar")]
     [Authorize(Roles = "Admin,Tecnico")]
-    public async Task<IActionResult> Confirmar(Guid id, CancellationToken ct)
-    {
-        var result = await sender.Send(new ConfirmarImportacionCommand(id), ct);
-        return result.IsSuccess
-            ? Ok(result.Value)
-            : MapError(result.Error);
-    }
+    public IActionResult Confirmar(Guid id) =>
+        Problem(
+            detail: "Este flujo fue retirado. Use POST /api/importaciones/versiones y luego /api/importaciones/versiones/{id}/activar.",
+            statusCode: StatusCodes.Status410Gone);
 
     private ObjectResult MapError(DomainError error) => error.Code switch
     {
@@ -139,6 +143,14 @@ public sealed class ImportacionesController(ISender sender) : ControllerBase
             Problem(detail: error.Message, statusCode: StatusCodes.Status409Conflict),
         "Importacion.EstadoInvalidoParaConfirmar" =>
             Problem(detail: error.Message, statusCode: StatusCodes.Status422UnprocessableEntity),
+        "VersionImportacion.EstadoNoActivable" =>
+            Problem(detail: error.Message, statusCode: StatusCodes.Status409Conflict),
+        "VersionImportacion.ReporteNoDisponible" or
+        "VersionImportacion.ReporteConBloqueantes" or
+        "VersionImportacion.ReconciliacionInvalida" =>
+            Problem(detail: error.Message, statusCode: StatusCodes.Status422UnprocessableEntity),
+        "VersionImportacion.UsuarioNoDisponible" =>
+            Problem(detail: error.Message, statusCode: StatusCodes.Status401Unauthorized),
         _ => Problem(detail: error.Message, statusCode: StatusCodes.Status400BadRequest),
     };
 }

@@ -17,8 +17,16 @@ public sealed class ObtenerEstadoVersionImportacionHandler(IDatasetVersionReposi
         if (version is null)
             return Result.Failure<EstadoVersionImportacionDto>(VersionImportacionErrores.NoEncontrada);
 
-        var reporte = JsonSerializer.Deserialize<ReportePreliminarVersionDto>(version.ReportePreliminar)
+        var jsonOptions = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+        var reporte = JsonSerializer.Deserialize<ReportePreliminarVersionDto>(
+                version.ReportePreliminar,
+                jsonOptions)
             ?? new ReportePreliminarVersionDto(null, new Dictionary<string, int>());
+        var resumen = string.IsNullOrWhiteSpace(version.ResumenReconciliacion)
+            ? null
+            : JsonSerializer.Deserialize<ResumenReconciliacionDto>(
+                version.ResumenReconciliacion,
+                jsonOptions);
 
         return Result.Success(new EstadoVersionImportacionDto(
             version.Id,
@@ -26,6 +34,7 @@ public sealed class ObtenerEstadoVersionImportacionHandler(IDatasetVersionReposi
             version.MunicipioCodigo,
             version.Estado.ToString(),
             reporte,
-            version.ErrorCarga));
+            version.ErrorCarga,
+            resumen));
     }
 }

@@ -72,6 +72,31 @@ public sealed class GeometriaPredialTests
     }
 
     [Fact]
+    public void CrearDesdeImportacion_PoligonoTopologicamenteInvalido_EsExito()
+    {
+        var factory = new GeometryFactory(new PrecisionModel(), GeometriaPredial.SridObligatorio);
+        var invalid = factory.CreatePolygon(factory.CreateLinearRing(
+        [
+            new Coordinate(0, 0), new Coordinate(10, 10), new Coordinate(10, 0),
+            new Coordinate(0, 10), new Coordinate(0, 0),
+        ]));
+
+        var result = GeometriaPredial.CrearDesdeImportacion(invalid);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value.Poligono.IsValid.Should().BeFalse();
+    }
+
+    [Fact]
+    public void CrearDesdeImportacion_SridIncorrecto_EsFailure()
+    {
+        var result = GeometriaPredial.CrearDesdeImportacion(PoligonoValido(4326));
+
+        result.IsFailure.Should().BeTrue();
+        result.Error.Should().Be(GeometriaPredialErrores.SridInvalido);
+    }
+
+    [Fact]
     public void CalcularAreaM2_PoligonoCuadrado10x10_RetornaAreaCorrecta()
     {
         var geometria = GeometriaPredial.Crear(PoligonoValido()).Value;

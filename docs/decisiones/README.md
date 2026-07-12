@@ -49,3 +49,4 @@
 | [0048](0048-modelo-hibrido-desarrollo-nativo-contenedor-paridad.md) | Modelo híbrido: nativo para iteración y contenedor para paridad | Fase 0 |
 | [0049](0049-importacion-reemplazo-completo-versionado-siete-capas-shp-datasetversion.md) | Importación SHP por reemplazo completo versionado | Fase 0 |
 | [0050](0050-carga-versionada-asincrona-recuperable.md) | Carga versionada asíncrona y recuperación tras reinicio | Fase 0 |
+| [0051](0051-preview-activacion-reconciliacion-dataset.md) | Preview, activación atómica y reconciliación del maestro | Fase 1 |

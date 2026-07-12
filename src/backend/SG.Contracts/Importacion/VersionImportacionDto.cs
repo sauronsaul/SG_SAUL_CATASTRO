@@ -6,7 +6,59 @@ public sealed record CrearVersionImportacionDto(
 
 public sealed record ReportePreliminarVersionDto(
     string? CapaEnCurso,
-    IReadOnlyDictionary<string, int> CapasCompletadas);
+    IReadOnlyDictionary<string, int> CapasCompletadas,
+    ValidacionPreviewVersionDto? Validacion = null);
+
+public sealed record ValidacionPreviewVersionDto(
+    DateTime GeneradoAtUtc,
+    IReadOnlyList<BloqueantePreviewVersionDto> Bloqueantes,
+    IReadOnlyList<GeometriasInvalidasCapaDto> GeometriasInvalidas,
+    IReadOnlyList<DiferenciaConteoCapaDto> DiferenciasContraActiva,
+    ProyeccionReconciliacionDto ProyeccionReconciliacion)
+{
+    public bool TieneBloqueantes => Bloqueantes.Count > 0;
+}
+
+public sealed record BloqueantePreviewVersionDto(
+    string Codigo,
+    string Mensaje,
+    int Conteo,
+    IReadOnlyList<string> Ejemplos);
+
+public sealed record GeometriasInvalidasCapaDto(
+    string Capa,
+    int Conteo,
+    IReadOnlyList<GeometriaInvalidaPreviewDto> Ejemplos);
+
+public sealed record GeometriaInvalidaPreviewDto(
+    int FilaOrigen,
+    string Razon);
+
+public sealed record DiferenciaConteoCapaDto(
+    string Capa,
+    int ConteoVersion,
+    int ConteoActiva,
+    int DiferenciaAbsoluta,
+    decimal? DiferenciaPorcentual);
+
+public sealed record ProyeccionReconciliacionDto(
+    int TotalMaestro,
+    int AltasEstimadas,
+    int AusenciasEstimadas,
+    decimal PorcentajeCambio,
+    decimal UmbralAdvertenciaPorcentaje,
+    bool PosibleRenumeracion);
+
+public sealed record ResumenReconciliacionDto(
+    int Altas,
+    int Actualizadas,
+    int SinCambio,
+    int Ausencias);
+
+public sealed record ActivarVersionImportacionDto(
+    Guid DatasetVersionId,
+    string Estado,
+    ResumenReconciliacionDto Resumen);
 
 public sealed record EstadoVersionImportacionDto(
     Guid DatasetVersionId,
@@ -14,4 +66,5 @@ public sealed record EstadoVersionImportacionDto(
     string MunicipioCodigo,
     string Estado,
     ReportePreliminarVersionDto ReportePreliminar,
-    string? ErrorCarga);
+    string? ErrorCarga,
+    ResumenReconciliacionDto? ResumenReconciliacion = null);

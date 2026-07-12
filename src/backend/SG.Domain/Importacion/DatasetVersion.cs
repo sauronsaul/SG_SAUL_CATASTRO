@@ -15,6 +15,7 @@ public sealed class DatasetVersion : AggregateRoot
     public Guid? ArchivadoPor { get; private set; }
     public string? RutaMinioPaquete { get; private set; }
     public string ReportePreliminar { get; private set; } = "{}";
+    public string? ResumenReconciliacion { get; private set; }
     public string? ErrorCarga { get; private set; }
 
     private DatasetVersion() { }
@@ -70,6 +71,17 @@ public sealed class DatasetVersion : AggregateRoot
         ErrorCarga = errorCarga.Trim();
     }
 
+    public void RegistrarReportePreview(string reportePreliminar)
+    {
+        if (Estado != EstadoDatasetVersion.EnCarga)
+            throw new DomainException("El reporte de preview debe registrarse antes de publicar PreviewListo.");
+
+        if (string.IsNullOrWhiteSpace(reportePreliminar))
+            throw new DomainException("El reporte de preview es requerido.");
+
+        ReportePreliminar = reportePreliminar;
+    }
+
     public void MarcarPreviewListo()
         => Transicionar(EstadoDatasetVersion.EnCarga, EstadoDatasetVersion.PreviewListo);
 
@@ -78,6 +90,15 @@ public sealed class DatasetVersion : AggregateRoot
         Transicionar(EstadoDatasetVersion.PreviewListo, EstadoDatasetVersion.Activa);
         ActivadoAt = DateTime.UtcNow;
         ActivadoPor = activadoPor;
+    }
+
+    public void ReactivarDesdeArchivada(Guid activadoPor)
+    {
+        Transicionar(EstadoDatasetVersion.Archivada, EstadoDatasetVersion.Activa);
+        ActivadoAt = DateTime.UtcNow;
+        ActivadoPor = activadoPor;
+        ArchivadoAt = null;
+        ArchivadoPor = null;
     }
 
     public void Archivar(Guid archivadoPor)
@@ -92,6 +113,16 @@ public sealed class DatasetVersion : AggregateRoot
 
     public void Descartar()
         => Transicionar(EstadoDatasetVersion.PreviewListo, EstadoDatasetVersion.Descartada);
+
+    public void RegistrarResumenReconciliacion(string resumenReconciliacion)
+    {
+        if (Estado != EstadoDatasetVersion.Activa)
+            throw new DomainException("El resumen de reconciliación solo puede registrarse al activar la versión.");
+        if (string.IsNullOrWhiteSpace(resumenReconciliacion))
+            throw new DomainException("El resumen de reconciliación es requerido.");
+
+        ResumenReconciliacion = resumenReconciliacion;
+    }
 
     private void Transicionar(EstadoDatasetVersion origenPermitido, EstadoDatasetVersion destino)
     {

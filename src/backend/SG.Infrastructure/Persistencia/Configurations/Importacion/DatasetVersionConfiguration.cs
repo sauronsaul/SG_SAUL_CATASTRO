@@ -23,6 +23,8 @@ public sealed class DatasetVersionConfiguration : IEntityTypeConfiguration<Impor
             .IsRequired()
             .HasColumnType("jsonb")
             .HasDefaultValue("{}");
+        builder.Property(x => x.ResumenReconciliacion)
+            .HasColumnType("jsonb");
         builder.Property(x => x.ErrorCarga).HasMaxLength(2000);
         builder.Property(x => x.CreatedAt).IsRequired().HasColumnType("timestamptz");
         builder.Property(x => x.UpdatedAt).HasColumnType("timestamptz");

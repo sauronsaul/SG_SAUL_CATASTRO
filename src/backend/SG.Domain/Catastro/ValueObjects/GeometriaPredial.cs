@@ -30,6 +30,22 @@ public sealed class GeometriaPredial : ValueObject
         return Result.Success(new GeometriaPredial(poligono));
     }
 
+    /// <summary>
+    /// Crea una geometría proveniente de una entrega institucional. Mantiene
+    /// como invariantes el tipo Polygon y el SRID, pero permite invalidez
+    /// topológica para que el hallazgo ingrese documentado y sea revisado.
+    /// </summary>
+    public static Result<GeometriaPredial> CrearDesdeImportacion(Polygon poligono)
+    {
+        if (poligono is null)
+            return Result.Failure<GeometriaPredial>(GeometriaPredialErrores.PoligonoRequerido);
+
+        if (poligono.SRID != SridObligatorio)
+            return Result.Failure<GeometriaPredial>(GeometriaPredialErrores.SridInvalido);
+
+        return Result.Success(new GeometriaPredial(poligono));
+    }
+
     public double CalcularAreaM2() => Poligono.Area;
 
     protected override IEnumerable<object?> GetEqualityComponents()
