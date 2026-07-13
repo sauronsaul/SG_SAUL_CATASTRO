@@ -3,6 +3,7 @@ using NetTopologySuite.Features;
 using NetTopologySuite.Geometries;
 using NetTopologySuite.IO.Esri;
 using NetTopologySuite.IO.Esri.Dbf;
+using NetTopologySuite.IO.Esri.Shapefiles.Readers;
 using ProjNet.CoordinateSystems;
 using ProjNet.CoordinateSystems.Transformations;
 using SG.Application.Abstractions;
@@ -25,6 +26,10 @@ internal sealed class ShapefileReader : IShapefileReader
 
         using var dbfReader = new DbfReader(rutaDbf);
         using var shpReader = Shapefile.OpenRead(rutaShp);
+        using var shpReaderTolerante = Shapefile.OpenRead(rutaShp, new ShapefileReaderOptions
+        {
+            GeometryBuilderMode = GeometryBuilderMode.IgnoreInvalidShapes,
+        });
 
         // Pre-verificación: registros DBF y SHP deben coincidir exactamente.
         // Una diferencia indica shapefile corrupto/desincronizado — abortar antes de leer.
@@ -44,9 +49,13 @@ internal sealed class ShapefileReader : IShapefileReader
             Geometry? geometria = null;
             string? errorGeometria = null;
 
+            // El lector tolerante avanza en paralelo, pero solo aporta su geometría
+            // cuando el lector estricto no logra construir un shape con bytes.
+            bool shpToleranteHasNext = shpReaderTolerante.Read(out _);
+
             // Read() avanza el lector SHP y parsea la geometría en un único paso de la API.
             // IOException se propaga (error de stream/archivo roto, no recuperable).
-            // Cualquier otro fallo es error de parseo de geometría → fila Rechazada.
+            // Cualquier otro fallo de construcción habilita el fallback tolerante.
             // shpHasNext permanece false si Read() lanza; en ese caso el catch lo corrige.
             bool shpHasNext = false;
             try
@@ -74,15 +83,29 @@ internal sealed class ShapefileReader : IShapefileReader
             {
                 // Read() lanzó al parsear la geometría de un registro que sí existe.
                 // ShapefileException hereda de IOException — el filtro anterior la deja
-                // pasar aquí en lugar de relanzarla como error de stream.
+                // pasar aquí en lugar de relanzarla como error de stream. Los Null Shape
+                // genuinos no lanzan: el lector estricto los devuelve como geometría vacía.
                 shpHasNext = true;
-                var msg = ex.Message;
-                errorGeometria = msg.Length > 200 ? msg[..200] : msg;
+                geometria = shpReaderTolerante.Geometry;
+                if (geometria is null || geometria.IsEmpty)
+                {
+                    geometria = null;
+                    var msg = ex.Message;
+                    errorGeometria = msg.Length > 200 ? msg[..200] : msg;
+                }
+                else if (transformacion is not null)
+                {
+                    geometria = AplicarTransformacion(geometria, transformacion);
+                }
+                else if (!proyeccionDesconocida)
+                {
+                    geometria.SRID = (int)SridDestino;
+                }
             }
 
             // Detección de desincronización en tiempo de lectura (defensa en profundidad:
             // la pre-verificación de conteos ya debería haber evitado llegar aquí).
-            if (!shpHasNext)
+            if (!shpHasNext || !shpToleranteHasNext)
                 throw new InvalidOperationException(
                     $"Shapefile desincronizado durante lectura: SHP terminó antes que DBF " +
                     $"en '{Path.GetFileName(rutaShp)}'. Archivo probablemente corrupto.");
