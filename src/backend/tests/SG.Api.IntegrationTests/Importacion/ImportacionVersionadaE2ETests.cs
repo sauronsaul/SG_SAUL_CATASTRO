@@ -409,7 +409,7 @@ SELECT (
         return client;
     }
 
-    private static byte[] CrearPaqueteSieteCapas(
+    internal static byte[] CrearPaqueteSieteCapas(
         bool corromperEdificaciones,
         TipoCapa? omitirPrjDe = null,
         EscenarioGeometria escenarioGeometria = EscenarioGeometria.Normal)
@@ -562,7 +562,7 @@ SELECT (
         _ => throw new InvalidOperationException("Tipo de capa no soportado."),
     };
 
-    private enum EscenarioGeometria
+    internal enum EscenarioGeometria
     {
         Normal,
         AuxiliaresReales,

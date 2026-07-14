@@ -8,6 +8,7 @@ using SG.Application.Abstractions;
 using SG.Application.Abstractions.Catastro;
 using SG.Application.Abstractions.Autenticacion;
 using SG.Application.Abstractions.Importacion;
+using SG.Application.Abstractions.GIS;
 using SG.Infrastructure.Almacenamiento;
 using SG.Infrastructure.Catastro;
 using SG.Infrastructure.GIS;
@@ -51,6 +52,8 @@ public static class DependencyInjection
         // Servicios GIS
         services.AddScoped<ICoordenadasService, CoordenadasService>();
         services.AddScoped<IGeometriaService, GeometriaService>();
+        services.AddScoped<ITileVectorialService, TileVectorialService>();
+        services.Configure<TilesSettings>(configuration.GetSection("Tiles"));
 
         // Repositorios de importación
         services.AddScoped<IPerfilImportacionRepositorio, PerfilImportacionRepositorio>();

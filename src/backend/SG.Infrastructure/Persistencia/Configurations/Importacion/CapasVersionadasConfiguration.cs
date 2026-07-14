@@ -60,6 +60,10 @@ public sealed class CapaParcelaConfiguration : IEntityTypeConfiguration<Importac
         builder.Property(x => x.TopografiaTerreno).HasMaxLength(3);
         builder.HasIndex(x => new { x.DatasetVersionId, x.CodUv, x.CodMan, x.CodPred })
             .HasDatabaseName("ix_capa_parcelas_version_triplete");
+        builder.HasIndex(x => x.Geometria)
+            .HasMethod("gist")
+            .HasFilter("geometria IS NOT NULL")
+            .HasDatabaseName("ix_capa_parcelas_geometria");
     }
 }
 
@@ -73,6 +77,10 @@ public sealed class CapaEdificacionConfiguration : IEntityTypeConfiguration<Impo
         builder.Property(x => x.CodigoGeografico).HasMaxLength(11);
         builder.Property(x => x.CodigoEspacio).HasMaxLength(3);
         builder.Property(x => x.AreaConstruida).HasColumnType("numeric(14,4)");
+        builder.HasIndex(x => x.Geometria)
+            .HasMethod("gist")
+            .HasFilter("geometria IS NOT NULL")
+            .HasDatabaseName("ix_capa_edificaciones_geometria");
     }
 }
 
@@ -88,6 +96,10 @@ public sealed class CapaPredioNoFotografiadoConfiguration : IEntityTypeConfigura
         builder.Property(x => x.FotoFrente).HasMaxLength(85);
         builder.Property(x => x.FotoDerecha).HasMaxLength(85);
         builder.Property(x => x.FotoIzquierda).HasMaxLength(85);
+        builder.HasIndex(x => x.Geometria)
+            .HasMethod("gist")
+            .HasFilter("geometria IS NOT NULL")
+            .HasDatabaseName("ix_capa_predios_no_fotografiados_geometria");
     }
 }
 
@@ -100,6 +112,10 @@ public sealed class CapaManzanaConfiguration : IEntityTypeConfiguration<Importac
         builder.Property(x => x.Geometria).HasColumnType("geometry(MultiPolygon,32719)");
         builder.Property(x => x.CodigoGeografico).HasMaxLength(11);
         builder.Property(x => x.CoordenadaOrigen).HasColumnType("numeric(5,1)");
+        builder.HasIndex(x => x.Geometria)
+            .HasMethod("gist")
+            .HasFilter("geometria IS NOT NULL")
+            .HasDatabaseName("ix_capa_manzanas_geometria");
     }
 }
 
@@ -112,6 +128,10 @@ public sealed class CapaDistritoConfiguration : IEntityTypeConfiguration<Importa
         builder.Property(x => x.Geometria).HasColumnType("geometry(MultiPolygon,32719)");
         builder.Property(x => x.CodigoGeografico).HasMaxLength(11);
         builder.Property(x => x.Nombre).HasMaxLength(30);
+        builder.HasIndex(x => x.Geometria)
+            .HasMethod("gist")
+            .HasFilter("geometria IS NOT NULL")
+            .HasDatabaseName("ix_capa_distritos_geometria");
     }
 }
 
@@ -124,6 +144,10 @@ public sealed class CapaZonaConfiguration : IEntityTypeConfiguration<Importacion
         builder.Property(x => x.Geometria).HasColumnType("geometry(MultiPolygon,32719)");
         builder.Property(x => x.NombreZona).HasMaxLength(254);
         builder.Property(x => x.CodigoGeografico).HasMaxLength(11);
+        builder.HasIndex(x => x.Geometria)
+            .HasMethod("gist")
+            .HasFilter("geometria IS NOT NULL")
+            .HasDatabaseName("ix_capa_zonas_geometria");
     }
 }
 
@@ -138,5 +162,9 @@ public sealed class CapaViaConfiguration : IEntityTypeConfiguration<ImportacionD
         builder.Property(x => x.Nombre).HasMaxLength(50);
         builder.Property(x => x.Tipo).HasMaxLength(50);
         builder.Property(x => x.DistanciaOrigen).HasColumnType("numeric(19,11)");
+        builder.HasIndex(x => x.Geometria)
+            .HasMethod("gist")
+            .HasFilter("geometria IS NOT NULL")
+            .HasDatabaseName("ix_capa_vias_geometria");
     }
 }

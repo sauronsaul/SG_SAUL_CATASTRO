@@ -3,8 +3,11 @@ param(
   [string]$Zip,
   [string]$Id
 )
-# Flujo de importacion autenticado — SOLO ORQUESTADOR (ver AGENTS.md).
+# Flujo de importacion autenticado - SOLO ORQUESTADOR (ver AGENTS.md).
 # Credenciales interactivas; token solo en memoria de esta ejecucion.
+# ADVERTENCIA: mantener este archivo en ASCII puro (sin tildes ni
+# guiones largos) - PowerShell 5.1 lee sin BOM como ANSI y los
+# caracteres multibyte rompen el parseo.
 $base = 'http://localhost:5000/api'
 
 $email = Read-Host 'Email'
@@ -33,7 +36,7 @@ switch ($Accion) {
   }
   'activar' {
     if (-not $Id) { throw 'Falta -Id' }
-    Write-Host "VAS A ACTIVAR $Id — acto irreversible de estado productivo."
+    Write-Host "VAS A ACTIVAR $Id - acto irreversible de estado productivo."
     if ((Read-Host 'Escribe ACTIVAR para confirmar') -ne 'ACTIVAR') { throw 'Cancelado.' }
     Invoke-RestMethod -Method Post -Uri "$base/importaciones/versiones/$Id/activar" `
       -Headers @{ Authorization = "Bearer $token" } | ConvertTo-Json -Depth 6
