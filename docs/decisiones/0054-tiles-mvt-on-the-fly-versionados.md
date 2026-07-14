@@ -1,6 +1,6 @@
 # ADR 0054 - Tiles MVT on-the-fly versionados
 
-**Fecha**: 2026-07-14  
+**Fecha**: 2026-07-14
 **Estado**: Aceptado
 
 ## Contexto
