@@ -143,6 +143,73 @@ public sealed class ImportacionVersionadaE2ETests : IDisposable
     }
 
     [Fact]
+    public async Task PostVersion_GeometriasInvalidasRecuperables_SeparaO1DeNulosGenuinosO4()
+    {
+        var paquete = CrearPaqueteSieteCapas(
+            corromperEdificaciones: false,
+            escenarioGeometria: EscenarioGeometria.InvalidasRecuperablesConNulosGenuinos);
+
+        var response = await PostPaqueteAsync(paquete, "uyuni-invalidas-recuperables.zip");
+
+        response.StatusCode.Should().Be(HttpStatusCode.Accepted);
+        var creada = (await response.Content.ReadFromJsonAsync<CrearVersionImportacionDto>(JsonOpts))!;
+        var estado = await EsperarEstadoAsync(creada.DatasetVersionId, "PreviewListo");
+
+        estado.ReportePreliminar.CapasCompletadas.Should().BeEquivalentTo(new Dictionary<string, int>
+        {
+            ["capa_parcelas"] = 2,
+            ["capa_edificaciones"] = 3,
+            ["capa_predios_no_fotografiados"] = 2,
+            ["capa_manzanas"] = 2,
+            ["capa_distritos"] = 2,
+            ["capa_zonas"] = 2,
+            ["capa_vias"] = 2,
+        });
+
+        var invalidas = estado.ReportePreliminar.Validacion!.GeometriasInvalidas;
+        invalidas.Should().HaveCount(2);
+        invalidas.Single(x => x.Capa == "capa_edificaciones").Should().Match<GeometriasInvalidasCapaDto>(x =>
+            x.Conteo == 1 && x.Ejemplos.Single().FilaOrigen == 2 &&
+            !string.IsNullOrWhiteSpace(x.Ejemplos.Single().Razon));
+        invalidas.Single(x => x.Capa == "capa_manzanas").Should().Match<GeometriasInvalidasCapaDto>(x =>
+            x.Conteo == 1 && x.Ejemplos.Single().FilaOrigen == 2 &&
+            !string.IsNullOrWhiteSpace(x.Ejemplos.Single().Razon));
+
+        var observaciones = estado.ReportePreliminar.Validacion.Observaciones;
+        observaciones.Should().HaveCount(2);
+        observaciones.Should().OnlyContain(x => x.Codigo == "O4");
+        observaciones.Single(x => x.Capa == "capa_edificaciones").Should().Match<ObservacionPreviewVersionDto>(x =>
+            x.Conteo == 1 && x.Ejemplos.Single().FilaOrigen == 3);
+        observaciones.Single(x => x.Capa == "capa_vias").Should().Match<ObservacionPreviewVersionDto>(x =>
+            x.Conteo == 1 && x.Ejemplos.Single().FilaOrigen == 2);
+
+        await using var scope = _factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var edificaciones = await db.CapasEdificaciones.AsNoTracking()
+            .Where(x => x.DatasetVersionId == creada.DatasetVersionId)
+            .OrderBy(x => x.FilaOrigen)
+            .ToListAsync();
+        (edificaciones[1].Geometria is not null).Should().BeTrue();
+        edificaciones[1].Geometria!.IsValid.Should().BeFalse();
+        (edificaciones[2].Geometria is null).Should().BeTrue();
+
+        var manzanas = await db.CapasManzanas.AsNoTracking()
+            .Where(x => x.DatasetVersionId == creada.DatasetVersionId)
+            .OrderBy(x => x.FilaOrigen)
+            .ToListAsync();
+        (manzanas[1].Geometria is not null).Should().BeTrue();
+        manzanas[1].Geometria!.IsValid.Should().BeFalse();
+
+        var vias = await db.CapasVias.AsNoTracking()
+            .Where(x => x.DatasetVersionId == creada.DatasetVersionId)
+            .OrderBy(x => x.FilaOrigen)
+            .ToListAsync();
+        (vias[1].Geometria is null).Should().BeTrue();
+
+        _output.WriteLine($"REPORTE O1/O4: {JsonSerializer.Serialize(estado.ReportePreliminar)}");
+    }
+
+    [Fact]
     public async Task PostVersion_ParcelaNula_MarcaFallidaConMensajePreciso()
     {
         var paquete = CrearPaqueteSieteCapas(
@@ -426,6 +493,12 @@ SELECT (
             [CrearPoligono(1), CrearMultiPoligono(2)],
         (TipoCapa.Vias, EscenarioGeometria.AuxiliaresReales) =>
             [CrearLinea(1), null, CrearMultiLinea(3)],
+        (TipoCapa.Construcciones, EscenarioGeometria.InvalidasRecuperablesConNulosGenuinos) =>
+            [CrearPoligono(1), CrearPoligonoAutoIntersectado(2), null],
+        (TipoCapa.Manzanas, EscenarioGeometria.InvalidasRecuperablesConNulosGenuinos) =>
+            [CrearPoligono(1), CrearPoligonoAutoIntersectado(2)],
+        (TipoCapa.Vias, EscenarioGeometria.InvalidasRecuperablesConNulosGenuinos) =>
+            [CrearLinea(1), null],
         (TipoCapa.Predios, EscenarioGeometria.ParcelaNula) =>
             [CrearPoligono(1), null],
         (TipoCapa.Predios, EscenarioGeometria.ParcelaMultiParte) =>
@@ -447,6 +520,18 @@ SELECT (
 
     private static LineString CrearLinea(int indice) => new(
         [new Coordinate(500000 + indice, 8000000), new Coordinate(500100 + indice, 8000100)]) { SRID = 32719 };
+
+    private static Polygon CrearPoligonoAutoIntersectado(int indice)
+    {
+        var x = 500000 + indice * 100;
+        var y = 8000000 + indice * 100;
+        return new Polygon(new LinearRing(
+        [
+            new Coordinate(x, y), new Coordinate(x + 10, y + 10),
+            new Coordinate(x + 10, y), new Coordinate(x, y + 10),
+            new Coordinate(x, y),
+        ])) { SRID = 32719 };
+    }
 
     private static MultiPolygon CrearMultiPoligono(int indice) => new(
         [CrearPoligono(indice), CrearPoligono(indice + 100)]) { SRID = 32719 };
@@ -481,6 +566,7 @@ SELECT (
     {
         Normal,
         AuxiliaresReales,
+        InvalidasRecuperablesConNulosGenuinos,
         ParcelaNula,
         ParcelaMultiParte,
     }

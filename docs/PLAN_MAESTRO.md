@@ -323,12 +323,39 @@ Cada fase tiene objetivo, entregables, y **criterio de cierre basado en evidenci
 
 ### M-LECTOR-1 — Geometrías que NTS no logra construir
 
-`ShapefileReader`/NTS convierte a `null` 32 geometrías que GDAL/Fiona sí
-construye como objetos topológicamente inválidos: 30 edificaciones y 2
-manzanas con auto-intersecciones, según la evidencia D4 del cierre de Fase 1.
-La mejora consiste en capturar la geometría cruda ante el fallo de parseo para
-clasificarla como inválida (O1), en vez de nula (O4), y realizar una importación
-v3. **Agendada: dentro de Fase 2.**
+**RESUELTA — 2026-07-14.** `ShapefileReader` conserva ahora la geometría cruda
+cuando el lector estricto de NTS falla y el fallback
+`IgnoreInvalidShapes` logra construirla. Los 32 registros recuperados —30
+edificaciones y 2 manzanas— se clasifican como O1 con geometría y razón de
+invalidez persistidas; los nulos genuinos permanecen separados como O4. La
+política completa está documentada en el ADR 0053.
+
+Evidencia de cierre:
+
+1. Gate de persistencia de cinco celdas: 32 O1 exactos, todos con geometría no
+   nula y razón; 28 O4 exactos; O2=O3=0; 35.013 objetos; manzana fila 125 con
+   `Too few points in geometry component`; igualdad textual v2/v3, incluidos
+   `JOSÉ EDUARDO PEREZ` y `JOSÉ EDUARDO PÉREZ`.
+2. Comparación final: v2 archivada y v3 activa; conteos idénticos en las siete
+   capas; 60 O4 en v2 frente a 32 O1 + 28 O4 en v3.
+3. Comparación exhaustiva por `(capa, fila_origen)`: 35.013 pares, cero filas
+   exclusivas y cero atributos distintos.
+4. Suite backend ampliada de 223 a 224 tests con
+   `PostVersion_GeometriasInvalidasRecuperables_SeparaO1DeNulosGenuinosO4`.
+
+### DT-LECTOR-2 — Codificación DBF sin descubrimiento de `.cpg`
+
+**Pendiente — severidad baja.** El camino de atributos construye directamente
+`new DbfReader(rutaDbf)` en
+`src/backend/SG.Infrastructure/Importacion/ShapefileReader.cs:24-27`; por ello
+no usa el descubrimiento de `.cpg` disponible en el lector SHP configurado en
+las líneas 28-32. Debe integrarse una política explícita de encoding para DBF
+sin alterar la lectura geométrica.
+
+No es un bloqueante actual: el barrido de mojibake sobre las 34 columnas de
+texto devolvió cero filas afectadas y la comparación v2/v3 confirmó igualdad
+en los 35.013 pares. Se mantiene como deuda técnica para una entrega futura con
+codificación DBF distinta.
 
 ### DT-CI-1 — Integración con Testcontainers fuera de CI
 
@@ -339,10 +366,7 @@ ejecutan localmente. Se debe evaluar su activación en GitHub Actions.
 
 ### Limpiezas menores
 
-- `AGENTS.md` referencia `SG.sln`; la solución real es `SG.slnx`.
 - El seeder de perfiles es solo aditivo y no reconcilia perfiles divergentes.
-- Los archivos auxiliares `codex-commit-*.txt` dentro de `.git/` no son
-  versionados y deben eliminarse como higiene al finalizar cada flujo.
 
 ## 6. Registro de decisiones pendientes (nada colgando)
 
