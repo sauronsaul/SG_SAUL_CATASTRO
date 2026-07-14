@@ -140,7 +140,7 @@ SG_SAUL_CATASTRO/
 │   │   ├── SG.Domain/           ← entidades, VOs, reglas
 │   │   ├── SG.Infrastructure/   ← EF Core, MinIO, Auth
 │   │   ├── SG.Contracts/        ← DTOs públicos compartidos
-│   │   ├── SG.sln
+│   │   ├── SG.slnx
 │   │   └── tests/
 │   │       ├── SG.Domain.Tests/
 │   │       ├── SG.Application.Tests/
@@ -442,6 +442,41 @@ La normativa debe convertirse en: reglas, validaciones, estructuras de datos, pr
 - **Git**: 2.54.0
 - **Usuario GitHub**: sauronsaul
 - **Conexión**: SSH configurada y verificada
+
+---
+
+## 17-bis. Entorno del ejecutor y mecanismos canónicos
+
+- El ejecutor Codex opera en **PowerShell**. Antes de declarar un bloqueo de
+  herramientas, debe verificar el mecanismo canónico correspondiente al shell
+  actual contra este archivo y el historial de la fase.
+- El acceso SQL canónico del ejecutor es
+  `powershell -ExecutionPolicy Bypass -File scripts\sql.ps1 -Sql "<SQL>"`.
+  `scripts/sql.sh` pertenece al orquestador que opera con Git Bash; no debe
+  invocarse mediante el alias `bash` de PowerShell porque resuelve a WSL.
+- Los commits se crean con `scripts/commit.sh` mediante
+  `'C:\Program Files\Git\bin\bash.exe'`. Los archivos de mensaje deben ubicarse
+  fuera del repositorio y fuera de `.git/`.
+- Está prohibido ofuscar, fragmentar o codificar nombres de variables para
+  evadir filtros de secretos. Un filtro o guarda activado exige detenerse y
+  reportar el bloqueo.
+- Todos los scripts `.ps1` del repositorio deben mantenerse en ASCII puro.
+- El Compose local canónico incluye siempre el archivo de entorno y ambos
+  archivos Compose:
+
+  ```powershell
+  docker compose --env-file <raiz>\.env `
+    -f <raiz>\infra\docker\docker-compose.yml `
+    -f <raiz>\infra\docker\docker-compose.local.yml <comando> api
+  ```
+
+  El nombre del servicio es `api`. Omitir `--env-file` degrada la configuración
+  a credenciales en blanco y no constituye una prueba válida del despliegue.
+- Desplegar cambios de código requiere reconstruir la imagen del servicio
+  `api`; `docker start` solo revive el contenedor con el código viejo.
+- `numero_version` es el consecutivo interno del dataset y no debe confundirse
+  con su etiqueta comercial. Toda línea base operativa se selecciona por
+  `estado = 'Activa'`, nunca suponiendo un número de versión.
 
 ---
 
