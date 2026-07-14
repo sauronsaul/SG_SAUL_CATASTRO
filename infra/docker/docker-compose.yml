@@ -112,12 +112,32 @@ services:
       start_period: 60s
 
   # ----------------------------------------------------------
+  # Frontend Blazor WebAssembly - estaticos servidos por Caddy
+  # ----------------------------------------------------------
+  web:
+    build:
+      context: ../..
+      dockerfile: infra/docker/web.Dockerfile
+    container_name: sg_web
+    restart: unless-stopped
+    networks:
+      - sg_network
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3000/ || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  # ----------------------------------------------------------
   # Caddy — reverse proxy (TLS automático en modo servidor)
   # ----------------------------------------------------------
   caddy:
     image: caddy:2-alpine
     container_name: sg_caddy
     restart: unless-stopped
+    environment:
+      WEB_UPSTREAM: ${WEB_UPSTREAM:-web:3000}
     volumes:
       - ./caddy/Caddyfile.local:/etc/caddy/Caddyfile:ro
       - sg_caddy_data:/data
@@ -133,6 +153,8 @@ services:
       minio:
         condition: service_healthy
       api:
+        condition: service_healthy
+      web:
         condition: service_healthy
 
 # ------------------------------------------------------------
