@@ -1,5 +1,7 @@
 # 0046 — Stack de frontend: Blazor WebAssembly
 
+- **Estado parcial:** Superseded parcialmente por ADR 0055 (librería de mapas).
+
 - **Estado:** Aceptada — decisión ratificada por Saul el 2026-06-13; este archivo es su formalización en `docs/decisiones/`.
 - **Fecha decisión:** 2026-06-13 · **Formalizada:** 2026-06-17.
 - **Reconstruido** a partir del borrador `BORRADOR_ADR_00XX_stack_frontend.md` (sesión 2026-06-13). El contenido es fiel; se ajustó numeración y formato a la serie.
