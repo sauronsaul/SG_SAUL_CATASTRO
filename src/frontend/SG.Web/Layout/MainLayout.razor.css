@@ -1,0 +1,37 @@
+.aplicacion {
+    min-height: 100vh;
+}
+
+.barra-superior {
+    align-items: center;
+    background: #123047;
+    color: #fff;
+    display: flex;
+    gap: 1rem;
+    min-height: 3.5rem;
+    padding: 0 1.25rem;
+}
+
+.marca {
+    color: #fff;
+    font-size: 1.05rem;
+    font-weight: 700;
+    text-decoration: none;
+}
+
+.municipio {
+    color: #cbd5e1;
+}
+
+.usuario {
+    margin-left: auto;
+}
+
+.boton-secundario {
+    background: transparent;
+    border: 1px solid #cbd5e1;
+    border-radius: .25rem;
+    color: #fff;
+    cursor: pointer;
+    padding: .4rem .7rem;
+}

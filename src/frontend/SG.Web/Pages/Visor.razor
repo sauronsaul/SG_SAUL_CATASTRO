@@ -1,0 +1,24 @@
+@page "/visor"
+@inject SesionAutenticacion Sesion
+@inject NavigationManager Navigation
+
+<PageTitle>Visor catastral</PageTitle>
+
+@if (_autorizada)
+{
+    <MapaCatastral />
+}
+
+@code {
+    private bool _autorizada;
+
+    protected override void OnInitialized()
+    {
+        _autorizada = !Sesion.RequiereAutenticacion && !Sesion.EstaExpirada(DateTime.UtcNow);
+        if (!_autorizada)
+        {
+            Sesion.NotificarNoAutorizado();
+            Navigation.NavigateTo("/login");
+        }
+    }
+}

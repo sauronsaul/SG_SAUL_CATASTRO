@@ -1,0 +1,94 @@
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+@inject ConfiguracionVisor Configuracion
+@inject SesionAutenticacion Sesion
+@inject EstadoVisor Estado
+@inject NavigationManager Navigation
+
+<section class="visor">
+    <aside class="panel-capas" aria-label="Capas del mapa">
+        <p class="sobrelinea">@Configuracion.MunicipioCodigo</p>
+        <h1>Cartografía catastral</h1>
+        <p class="ayuda">Active o desactive las capas disponibles.</p>
+        @foreach (var capa in CatalogoCapasMapa.ObtenerTodas())
+        {
+            <label class="selector-capa">
+                <input type="checkbox"
+                       checked="@Estado.EsVisible(capa.Nombre)"
+                       @onchange="e => CambiarVisibilidadAsync(capa.Nombre, e.Value is true)" />
+                <span class="muestra" style="background-color: @capa.Color"></span>
+                <span>@capa.Titulo</span>
+                <small>z@capa.MinZoom+</small>
+            </label>
+        }
+    </aside>
+
+    <div id="@_contenedorId" class="mapa" aria-label="Mapa catastral de @Configuracion.MunicipioCodigo"></div>
+</section>
+
+@code {
+    private readonly string _contenedorId = $"mapa-{Guid.NewGuid():N}";
+    private MapaInterop? _interop;
+    private DotNetObjectReference<MapaCatastral>? _referenciaDotNet;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || Sesion.AccessToken is null)
+            return;
+
+        _interop = new MapaInterop(JS);
+        _referenciaDotNet = DotNetObjectReference.Create(this);
+        var capas = CatalogoCapasMapa.ObtenerTodas().Select(capa => new
+        {
+            capa.Nombre,
+            capa.MinZoom,
+            capa.Color,
+            capa.TieneRelleno,
+            capa.TieneLinea,
+            capa.CampoEtiqueta,
+            capa.MinZoomEtiqueta,
+            Visible = Estado.EsVisible(capa.Nombre),
+        }).ToArray();
+
+        await _interop.CrearAsync(
+            _contenedorId,
+            Configuracion.Limites,
+            Estado.Camara,
+            Sesion.AccessToken,
+            capas,
+            _referenciaDotNet);
+    }
+
+    private async Task CambiarVisibilidadAsync(string nombre, bool visible)
+    {
+        if (!Estado.CambiarVisibilidad(nombre, visible) || _interop is null)
+            return;
+
+        await _interop.CambiarVisibilidadAsync(_contenedorId, nombre, visible);
+    }
+
+    [JSInvokable]
+    public async Task NotificarNoAutorizadoAsync()
+    {
+        if (_interop is not null)
+        {
+            var camara = await _interop.ObtenerCamaraAsync(_contenedorId);
+            if (camara is not null)
+                Estado.ActualizarCamara(camara);
+        }
+
+        if (Sesion.NotificarNoAutorizado())
+            Navigation.NavigateTo("/login");
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_interop is not null)
+        {
+            await _interop.DestruirAsync(_contenedorId);
+            await _interop.DisposeAsync();
+        }
+
+        _referenciaDotNet?.Dispose();
+    }
+}

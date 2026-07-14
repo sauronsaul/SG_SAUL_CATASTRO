@@ -14,8 +14,7 @@ Sistema institucional de gestión catastral municipal para el municipio de Caran
 |---|---|---|
 | Docker Desktop | 29.4+ | Con Docker Compose integrado |
 | Git | 2.54+ | Configurado con SSH para GitHub |
-| .NET SDK | 10.0+ | Solo necesario para desarrollo del backend |
-| Node.js | 22 LTS+ | Solo necesario para desarrollo del frontend |
+| .NET SDK | 10.0+ | Desarrollo del backend y del frontend Blazor WebAssembly |
 
 ---
 
@@ -50,7 +49,7 @@ bash scripts/stop-local.sh
 SG_SAUL_CATASTRO/
 ├── src/
 │   ├── backend/          # .NET 10 — Api, Application, Domain, Infrastructure, Contracts
-│   └── frontend/sg-web/  # Vite + React + TypeScript + Ant Design 5
+│   └── frontend/SG.Web/  # Blazor WebAssembly + MapLibre GL JS vendorizado
 ├── database/
 │   ├── init/             # Scripts SQL ejecutados al primer arranque del contenedor
 │   └── seed/             # Datos semilla (catálogos, usuario admin)
@@ -68,14 +67,9 @@ SG_SAUL_CATASTRO/
 
 ## Cómo correr tests
 
-> Pendiente — Sprint 1+
-
 ```bash
-# Backend (xUnit)
-dotnet test src/backend/SG.sln
-
-# Frontend (Vitest)
-cd src/frontend/sg-web && npm run test
+# Suite completa: backend y frontend (xUnit)
+dotnet test src/backend/SG.slnx
 ```
 
 ---
