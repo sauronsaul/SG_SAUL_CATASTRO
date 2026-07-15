@@ -55,6 +55,15 @@ docker inspect --format '{{.State.Health.Status}}' sg_web
 docker inspect --format '{{.State.Status}}' sg_caddy
 curl.exe --silent --show-error --fail-with-body --dump-header - http://localhost/health --output NUL
 curl.exe --silent --show-error --fail-with-body --dump-header - http://localhost/ --output NUL
+$indicePublicado = curl.exe --silent --show-error --fail-with-body http://localhost/
+$coincidenciaRuntime = [regex]::Match($indicePublicado, 'src="(?<ruta>_framework/blazor\.webassembly\.[^"]+\.js)"')
+if (-not $coincidenciaRuntime.Success) { throw "index.html no referencia el runtime Blazor con fingerprint." }
+$rutaRuntime = $coincidenciaRuntime.Groups['ruta'].Value
+$headersRuntime = (curl.exe --silent --show-error --fail-with-body --dump-header - "http://localhost/$rutaRuntime" --output NUL) -join "`n"
+Write-Output "runtime=$rutaRuntime"
+Write-Output $headersRuntime
+if ($headersRuntime -match '(?im)^Content-Type:\s*text/html') { throw "El runtime Blazor recibió el fallback HTML." }
+if ($headersRuntime -notmatch '(?im)^Content-Type:\s*(text|application)/javascript') { throw "Content-Type inesperado para el runtime Blazor." }
 ```
 
 Resultado esperado:
@@ -67,12 +76,16 @@ sg_web       healthy
 sg_caddy     running
 ```
 
-Los dos `curl` deben devolver `HTTP/1.1 200`. El segundo debe incluir
-`Content-Type: text/html`. Si `CADDY_HTTP_PORT` no es 80, sustituir
-`localhost` por `localhost:<puerto>` en esta guía y registrar el valor usado.
+Los tres recursos HTTP deben devolver `HTTP/1.1 200`. La raíz debe incluir
+`Content-Type: text/html`; el artefacto fingerprinted extraído del `index.html`
+debe incluir `Content-Type: text/javascript` o `application/javascript`, nunca
+`text/html`. Si `CADDY_HTTP_PORT` no es 80, sustituir `localhost` por
+`localhost:<puerto>` en esta guía y registrar el valor usado.
 
 Criterio de fallo: cualquier health distinto de `healthy`, Caddy distinto de
-`running`, reinicios continuos o respuesta HTTP distinta de 200.
+`running`, reinicios continuos, respuesta HTTP distinta de 200, referencia
+literal sin fingerprint, runtime inexistente o fallback HTML entregado para un
+artefacto `_framework`.
 
 ## 4. Preparar la captura del navegador
 
@@ -87,7 +100,8 @@ Resultado esperado: aparece el formulario institucional de ingreso y no hay
 errores en consola.
 
 Criterio de fallo: pantalla en blanco, error Blazor, 404 de `_framework`,
-MapLibre cargado desde un CDN o error JavaScript.
+respuesta HTML para un artefacto JavaScript, MapLibre cargado desde un CDN o
+error JavaScript.
 
 ## 5. Iniciar sesión
 
@@ -202,11 +216,12 @@ automático, mapa operando con token vencido o imposibilidad de reingresar.
 Conservar:
 
 1. Salida de `docker compose ps`, cuatro health `healthy` y Caddy `running`.
-2. Login 200 sin payload ni tokens visibles.
-3. Mapa con los siete toggles y geometrías visibles en zoom 16.
-4. Tile 200 con `Content-Type`, `ETag`, `Cache-Control` y `Vary`.
-5. Misma URL de tile revalidada con 304.
-6. Ráfaga de 401 y un único aviso de sesión expirada.
+2. Runtime Blazor fingerprinted con Content-Type JavaScript y no HTML.
+3. Login 200 sin payload ni tokens visibles.
+4. Mapa con los siete toggles y geometrías visibles en zoom 16.
+5. Tile 200 con `Content-Type`, `ETag`, `Cache-Control` y `Vary`.
+6. Misma URL de tile revalidada con 304.
+7. Ráfaga de 401 y un único aviso de sesión expirada.
 
-T-2.2 falla si falta cualquiera de esas seis evidencias, si aparece un secreto
+T-2.2 falla si falta cualquiera de esas siete evidencias, si aparece un secreto
 en una captura o si consola/red registra un error no explicado.

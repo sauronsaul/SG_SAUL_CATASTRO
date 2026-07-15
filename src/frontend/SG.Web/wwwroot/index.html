@@ -5,11 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="Visor institucional del sistema catastral municipal" />
     <base href="/" />
+    <link rel="preload" id="webassembly" />
     <link rel="stylesheet" href="lib/maplibre-gl/5.24.0/maplibre-gl.css" />
     <link rel="stylesheet" href="css/app.css" />
     <link rel="stylesheet" href="SG.Web.styles.css" />
     <link rel="icon" href="data:," />
     <title>SG Catastro</title>
+    <script type="importmap"></script>
 </head>
 <body>
     <div id="app">
@@ -23,6 +25,6 @@
     </div>
 
     <script src="lib/maplibre-gl/5.24.0/maplibre-gl.js"></script>
-    <script src="_framework/blazor.webassembly.js"></script>
+    <script src="_framework/blazor.webassembly#[.{fingerprint}].js"></script>
 </body>
 </html>
