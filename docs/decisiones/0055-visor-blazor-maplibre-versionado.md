@@ -57,6 +57,16 @@ usar `host.docker.internal:5001` con `dotnet watch` sin introducir CORS. Un
 despliegue exige rebuild de la imagen web; `docker start` puede revivir código
 anterior y no es un mecanismo de despliegue.
 
+Los recursos propios con URL estable (`index.html`, `appsettings.json`,
+`css/*`, `js/*` y el fallback SPA) se sirven con `Cache-Control: no-cache` y
+ETag. El navegador puede almacenarlos, pero debe revalidarlos y recibe el nuevo
+contenido después de un rebuild. Los artefactos con identidad versionada
+(`_framework/*` con huella del SDK y MapLibre bajo `5.24.0/`) usan
+`public, max-age=31536000, immutable`. Se prefiere esta política a introducir
+un pipeline adicional para renombrar módulos propios o una versión manual en
+la URL de importación: centraliza el contrato en el servidor estático y cubre
+también CSS, configuración y respuestas SPA, no sólo `mapa.js`.
+
 ## Configuración mono-municipio
 
 El bbox y `Visor:MunicipioCodigo = UYUNI` viven en

@@ -88,7 +88,11 @@ esperado en `encuadre_limites` y las opciones `padding: 40, maxZoom: 14` en
 `encuadre_dimensiones=1024x768` y un `zoom_final` mayor que 10. La sonda
 reproduce un estilo ya cargado y un contenedor que adquiere dimensiones después
 del primer frame; demuestra que fuentes, capas y encuadre esperan el layout y
-que la cámara final no depende de una animación pendiente. Si
+que la cámara final no depende de una animación pendiente. Antes de esas
+comprobaciones debe registrar `mapa_js_cache_control=no-cache`, un ETag no vacío,
+`mapa_js_revalidacion_status=304` y `no-cache` para `appsettings.json`,
+`app.css` e `index.html`. Esto prueba que los recursos propios sin huella se
+revalidan después de cada despliegue aunque exista una copia en disco. Si
 `CADDY_HTTP_PORT` no es 80, sustituir `localhost` por
 `localhost:<puerto>` tanto en los `curl` como en el argumento de la sonda, y
 registrar el valor usado.
@@ -98,7 +102,8 @@ Criterio de fallo: cualquier health distinto de `healthy`, Caddy distinto de
 literal sin fingerprint, runtime inexistente o fallback HTML entregado para un
 artefacto `_framework`, `mapa.js` servido como HTML, conteos de la sonda
 distintos de 7/7/16, inicialización antes de adquirir dimensiones, zoom final
-menor o igual que 10, o ausencia/diferencia del encuadre esperado.
+menor o igual que 10, ausencia de `Cache-Control: no-cache`/ETag, revalidación
+distinta de 304, o ausencia/diferencia del encuadre esperado.
 
 ## 4. Preparar la captura del navegador
 
@@ -110,11 +115,14 @@ menor o igual que 10, o ausencia/diferencia del encuadre esperado.
 5. Filtrar inicialmente por `login`.
 
 Resultado esperado: aparece el formulario institucional de ingreso y no hay
-errores en consola.
+errores en consola. En Network, `js/mapa.js`, `css/app.css` y
+`appsettings.json` muestran `Cache-Control: no-cache`; una copia en disk cache
+debe producir una solicitud condicional y no reutilizarse sin revalidación.
 
 Criterio de fallo: pantalla en blanco, error Blazor, 404 de `_framework`,
 respuesta HTML para un artefacto JavaScript, MapLibre cargado desde un CDN o
-error JavaScript.
+error JavaScript; también falla si un asset propio sin huella se sirve desde
+disk cache sin una solicitud condicional al servidor.
 
 ## 5. Iniciar sesión
 

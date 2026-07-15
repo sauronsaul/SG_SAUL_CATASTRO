@@ -1,9 +1,13 @@
 const urlModulo = process.argv[2] ?? "http://localhost/js/mapa.js";
 const respuesta = await fetch(urlModulo);
 const tipoContenido = respuesta.headers.get("content-type") ?? "";
+const cacheControlModulo = respuesta.headers.get("cache-control") ?? "";
+const etagModulo = respuesta.headers.get("etag") ?? "";
 
 console.log(`mapa_js_status=${respuesta.status}`);
 console.log(`mapa_js_content_type=${tipoContenido}`);
+console.log(`mapa_js_cache_control=${cacheControlModulo}`);
+console.log(`mapa_js_etag=${etagModulo}`);
 
 if (!respuesta.ok) {
     throw new Error(`No se pudo descargar ${urlModulo}: HTTP ${respuesta.status}.`);
@@ -17,12 +21,49 @@ if (!/(text|application)\/javascript/i.test(tipoContenido)) {
     throw new Error(`Content-Type inesperado para mapa.js: ${tipoContenido}.`);
 }
 
+if (!cacheControlModulo.split(",").map(x => x.trim()).includes("no-cache")) {
+    throw new Error(`mapa.js no exige revalidación HTTP: Cache-Control=${cacheControlModulo}.`);
+}
+
+if (!etagModulo) {
+    throw new Error("mapa.js no incluye ETag para revalidación condicional.");
+}
+
+const respuestaRevalidada = await fetch(urlModulo, {
+    headers: { "If-None-Match": etagModulo },
+});
+console.log(`mapa_js_revalidacion_status=${respuestaRevalidada.status}`);
+if (respuestaRevalidada.status !== 304) {
+    throw new Error(`La revalidación de mapa.js devolvió HTTP ${respuestaRevalidada.status}, no 304.`);
+}
+
 const codigo = await respuesta.text();
 const urlConfiguracion = new URL("../appsettings.json", urlModulo);
 const respuestaConfiguracion = await fetch(urlConfiguracion);
 console.log(`appsettings_status=${respuestaConfiguracion.status}`);
+console.log(`appsettings_cache_control=${respuestaConfiguracion.headers.get("cache-control") ?? ""}`);
 if (!respuestaConfiguracion.ok) {
     throw new Error(`No se pudo descargar ${urlConfiguracion}: HTTP ${respuestaConfiguracion.status}.`);
+}
+if (!(respuestaConfiguracion.headers.get("cache-control") ?? "").includes("no-cache")) {
+    throw new Error("appsettings.json no exige revalidación HTTP.");
+}
+
+const urlCss = new URL("../css/app.css", urlModulo);
+const respuestaCss = await fetch(urlCss);
+console.log(`app_css_status=${respuestaCss.status}`);
+console.log(`app_css_content_type=${respuestaCss.headers.get("content-type") ?? ""}`);
+console.log(`app_css_cache_control=${respuestaCss.headers.get("cache-control") ?? ""}`);
+if (!respuestaCss.ok || !(respuestaCss.headers.get("cache-control") ?? "").includes("no-cache")) {
+    throw new Error("app.css no está disponible con revalidación HTTP obligatoria.");
+}
+
+const urlIndice = new URL("../", urlModulo);
+const respuestaIndice = await fetch(urlIndice);
+console.log(`index_status=${respuestaIndice.status}`);
+console.log(`index_cache_control=${respuestaIndice.headers.get("cache-control") ?? ""}`);
+if (!respuestaIndice.ok || !(respuestaIndice.headers.get("cache-control") ?? "").includes("no-cache")) {
+    throw new Error("La respuesta SPA no exige revalidación HTTP.");
 }
 
 const configuracion = await respuestaConfiguracion.json();
