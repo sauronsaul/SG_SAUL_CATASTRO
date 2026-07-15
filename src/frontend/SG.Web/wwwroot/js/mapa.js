@@ -1,8 +1,15 @@
 const mapas = new Map();
+const prefijoLog = "[SG.Web mapa]";
 
 export function crearMapa(contenedorId, limites, camara, token, capas, referenciaDotNet) {
     if (!window.maplibregl) {
         throw new Error("MapLibre GL JS 5.24.0 no esta disponible.");
+    }
+
+    const cantidadCapas = Array.isArray(capas) ? capas.length : -1;
+    console.info(`${prefijoLog} creación`, { contenedorId, cantidadCapas });
+    if (!Array.isArray(capas) || capas.length !== 7) {
+        throw new Error(`${prefijoLog} se esperaban 7 capas y llegaron ${cantidadCapas}.`);
     }
 
     destruirMapa(contenedorId);
@@ -30,11 +37,20 @@ export function crearMapa(contenedorId, limites, camara, token, capas, referenci
     const mapa = new window.maplibregl.Map(opciones);
     mapa.addControl(new window.maplibregl.NavigationControl({ showCompass: false }), "top-right");
 
-    const estado = { mapa, notificado401: false, referenciaDotNet };
+    const estado = { mapa, notificado401: false, capasInicializadas: false, referenciaDotNet };
     mapas.set(contenedorId, estado);
 
     mapa.on("load", () => {
+        console.info(`${prefijoLog} evento load`);
+    });
+
+    const agregarCapas = () => {
+        if (estado.capasInicializadas) return;
+        estado.capasInicializadas = true;
+        console.info(`${prefijoLog} inicialización de capas`, { cantidadCapas: capas.length });
+
         for (const capa of capas) {
+            console.info(`${prefijoLog} addSource`, { capa: capa.nombre, minZoom: capa.minZoom });
             mapa.addSource(capa.nombre, {
                 type: "vector",
                 tiles: [`/api/tiles/${capa.nombre}/{z}/{x}/{y}.mvt`],
@@ -54,7 +70,22 @@ export function crearMapa(contenedorId, limites, camara, token, capas, referenci
         for (const capa of capas.filter(x => x.campoEtiqueta)) {
             mapa.addLayer(crearEtiqueta(capa));
         }
-    });
+
+        console.info(`${prefijoLog} capas listas`, {
+            fuentes: capas.length,
+            capasDibujadas: capas.filter(x => x.tieneRelleno).length
+                + capas.filter(x => x.tieneLinea).length
+                + capas.filter(x => x.campoEtiqueta).length
+        });
+    };
+
+    if (mapa.isStyleLoaded()) {
+        console.info(`${prefijoLog} estilo ya cargado; inicialización inmediata`);
+        agregarCapas();
+    } else {
+        console.info(`${prefijoLog} esperando evento style.load`);
+        mapa.once("style.load", agregarCapas);
+    }
 
     mapa.on("error", (evento) => {
         const status = evento?.error?.status;

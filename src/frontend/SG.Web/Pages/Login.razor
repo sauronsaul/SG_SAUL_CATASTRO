@@ -27,8 +27,11 @@
         <EditForm Model="_credenciales" OnValidSubmit="IngresarAsync">
             <DataAnnotationsValidator />
             <div class="campo">
-                <label for="email">Correo institucional</label>
-                <InputText id="email" @bind-Value="_credenciales.Email" autocomplete="username" />
+                <label for="email">Correo electrónico</label>
+                <InputText id="email"
+                           @bind-Value="_credenciales.Email"
+                           autocomplete="username"
+                           placeholder="tecnico@municipio.gob.bo" />
                 <ValidationMessage For="@(() => _credenciales.Email)" />
             </div>
             <div class="campo">
@@ -78,7 +81,7 @@
 
     private sealed class CredencialesFormulario
     {
-        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Ingrese el correo.")]
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Ingrese el correo electrónico.")]
         [System.ComponentModel.DataAnnotations.EmailAddress(ErrorMessage = "Ingrese un correo válido.")]
         public string Email { get; set; } = string.Empty;
 

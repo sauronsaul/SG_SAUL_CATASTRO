@@ -64,6 +64,7 @@ Write-Output "runtime=$rutaRuntime"
 Write-Output $headersRuntime
 if ($headersRuntime -match '(?im)^Content-Type:\s*text/html') { throw "El runtime Blazor recibió el fallback HTML." }
 if ($headersRuntime -notmatch '(?im)^Content-Type:\s*(text|application)/javascript') { throw "Content-Type inesperado para el runtime Blazor." }
+node scripts/verificar-mapa-publicado.mjs http://localhost/js/mapa.js
 ```
 
 Resultado esperado:
@@ -79,13 +80,17 @@ sg_caddy     running
 Los tres recursos HTTP deben devolver `HTTP/1.1 200`. La raíz debe incluir
 `Content-Type: text/html`; el artefacto fingerprinted extraído del `index.html`
 debe incluir `Content-Type: text/javascript` o `application/javascript`, nunca
-`text/html`. Si `CADDY_HTTP_PORT` no es 80, sustituir `localhost` por
-`localhost:<puerto>` en esta guía y registrar el valor usado.
+`text/html`. La sonda JavaScript debe terminar con `capas_entrada=7`,
+`fuentes_agregadas=7` y `capas_dibujadas=16`; reproduce el caso donde el estilo
+ya estaba cargado antes de registrar eventos. Si `CADDY_HTTP_PORT` no es 80,
+sustituir `localhost` por `localhost:<puerto>` tanto en los `curl` como en el
+argumento de la sonda, y registrar el valor usado.
 
 Criterio de fallo: cualquier health distinto de `healthy`, Caddy distinto de
 `running`, reinicios continuos, respuesta HTTP distinta de 200, referencia
 literal sin fingerprint, runtime inexistente o fallback HTML entregado para un
-artefacto `_framework`.
+artefacto `_framework`, `mapa.js` servido como HTML, o conteos de la sonda
+distintos de 7/7/16.
 
 ## 4. Preparar la captura del navegador
 
@@ -130,6 +135,17 @@ refresh token persistido, token en URL o token en almacenamiento del navegador.
    solicitudes a zoom bajo.
 3. Acercar el mapa hasta zoom 16 sobre el centro urbano.
 4. Desactivar y volver a activar cada capa, una por una.
+5. En Console comprobar las trazas `[SG.Web mapa]`: creación con
+   `cantidadCapas: 7`, inicialización, siete mensajes `addSource` y `capas
+   listas` con `fuentes: 7`.
+6. En Network o en la consola comprobar que existen recursos cuya URL contiene
+   `/api/tiles/`:
+
+```javascript
+performance.getEntriesByType("resource")
+    .map(x => x.name)
+    .filter(x => x.includes("/api/tiles/"))
+```
 
 Resultado esperado:
 
@@ -138,9 +154,13 @@ Resultado esperado:
   final del orden visual.
 - En zoom 16 aparecen solicitudes para las capas de detalle.
 - No hay solicitudes a nombres de capa distintos de la lista blanca.
+- La traza demuestra que el catálogo serializado no está vacío y que el camino
+  de inicialización llegó a `addSource` para las siete capas.
 
 Criterio de fallo: falta un toggle, un toggle afecta otra capa, parcelas o
-edificaciones se solicitan a zoom bajo, o hay errores MapLibre en consola.
+edificaciones se solicitan a zoom bajo, falta una traza de inicialización,
+`cantidadCapas`/`fuentes` no vale 7, no hay solicitudes `/api/tiles/`, o hay
+errores MapLibre en consola.
 
 ## 7. Capturar tile 200 y sus encabezados
 

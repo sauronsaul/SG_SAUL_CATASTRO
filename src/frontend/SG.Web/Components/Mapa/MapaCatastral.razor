@@ -18,7 +18,7 @@
                        @onchange="e => CambiarVisibilidadAsync(capa.Nombre, e.Value is true)" />
                 <span class="muestra" style="background-color: @capa.Color"></span>
                 <span>@capa.Titulo</span>
-                <small>z@capa.MinZoom+</small>
+                <small>@($"z{capa.MinZoom}+")</small>
             </label>
         }
     </aside>
@@ -38,17 +38,9 @@
 
         _interop = new MapaInterop(JS);
         _referenciaDotNet = DotNetObjectReference.Create(this);
-        var capas = CatalogoCapasMapa.ObtenerTodas().Select(capa => new
-        {
-            capa.Nombre,
-            capa.MinZoom,
-            capa.Color,
-            capa.TieneRelleno,
-            capa.TieneLinea,
-            capa.CampoEtiqueta,
-            capa.MinZoomEtiqueta,
-            Visible = Estado.EsVisible(capa.Nombre),
-        }).ToArray();
+        var capas = CatalogoCapasMapa.ObtenerTodas()
+            .Select(capa => CapaMapaInterop.Crear(capa, Estado.EsVisible(capa.Nombre)))
+            .ToArray();
 
         await _interop.CrearAsync(
             _contenedorId,
