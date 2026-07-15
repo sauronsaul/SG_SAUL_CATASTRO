@@ -93,6 +93,8 @@ export function crearMapa(contenedorId, limites, camara, token, capas, referenci
                 + capas.filter(x => x.tieneLinea).length
                 + capas.filter(x => x.campoEtiqueta).length
         });
+
+        mapa.on("click", evento => seleccionarParcela(mapa, evento, referenciaDotNet));
     };
 
     if (mapa.isStyleLoaded()) {
@@ -237,6 +239,18 @@ export function obtenerCamara(contenedorId) {
     return { longitud: centro.lng, latitud: centro.lat, zoom: mapa.getZoom() };
 }
 
+export function enfocarPredio(contenedorId, limites) {
+    const mapa = mapas.get(contenedorId)?.mapa;
+    if (!mapa) return;
+
+    const bbox = [limites.oeste, limites.sur, limites.este, limites.norte];
+    validarLimites(bbox);
+    mapa.fitBounds(
+        [[bbox[0], bbox[1]], [bbox[2], bbox[3]]],
+        { padding: 64, maxZoom: 19, duration: 500 });
+    console.info(`${prefijoLog} predio enfocado`, { bbox });
+}
+
 export function destruirMapa(contenedorId) {
     const estado = mapas.get(contenedorId);
     if (!estado) return;
@@ -267,6 +281,35 @@ function transformarSolicitud(url, tipoRecurso, token) {
         };
     }
     return { url };
+}
+
+function seleccionarParcela(mapa, evento, referenciaDotNet) {
+    const features = mapa.queryRenderedFeatures(evento.point, {
+        layers: ["parcelas-relleno"]
+    });
+    const feature = features.find(item => item?.properties);
+    if (!feature) return;
+
+    const distrito = Number(feature.properties.cod_uv);
+    const manzana = Number(feature.properties.cod_man);
+    const predio = Number(feature.properties.cod_pred);
+    if (![distrito, manzana, predio].every(Number.isInteger)
+        || distrito < 1 || manzana < 1 || predio < 1) {
+        console.warn(`${prefijoLog} parcela sin triplete válido`, { featureId: feature.id ?? null });
+        return;
+    }
+
+    console.info(`${prefijoLog} parcela seleccionada`, {
+        featureId: feature.id ?? null,
+        distrito,
+        manzana,
+        predio
+    });
+    void referenciaDotNet.invokeMethodAsync(
+        "SeleccionarPredioAsync",
+        distrito,
+        manzana,
+        predio);
 }
 
 function crearRelleno(capa) {

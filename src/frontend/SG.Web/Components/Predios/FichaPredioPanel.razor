@@ -1,0 +1,67 @@
+@using System.Globalization
+@using SG.Contracts.Catastro
+
+<aside class="ficha-predio" aria-label="Ficha del predio">
+    <header>
+        <div>
+            <p class="sobrelinea">Ficha del predio</p>
+            <h2>@Ficha.Distrito / @Ficha.Manzana / @Ficha.Predio</h2>
+        </div>
+        <button type="button" aria-label="Cerrar ficha" @onclick="AlCerrar">×</button>
+    </header>
+
+    <dl>
+        <div><dt>Estado</dt><dd>@Ficha.Estado</dd></div>
+        <div><dt>Fila de origen</dt><dd>@Ficha.FilaOrigen</dd></div>
+        <div><dt>Código geográfico</dt><dd>@Valor(Ficha.CodigoGeografico)</dd></div>
+        <div><dt>Código catastral</dt><dd>@Valor(Ficha.CodigoCatastral)</dd></div>
+        <div><dt>Propietario de referencia</dt><dd>@Valor(Ficha.PropietarioReferencia)</dd></div>
+        <div><dt>Tipo de inmueble</dt><dd>@Valor(Ficha.TipoInmueble)</dd></div>
+        <div><dt>Uso de terreno</dt><dd>@Valor(Ficha.UsoTerreno)</dd></div>
+        <div><dt>Vía</dt><dd>@Valor(Ficha.NombreVia)</dd></div>
+        <div><dt>Barrio</dt><dd>@Valor(Ficha.Barrio)</dd></div>
+        <div><dt>Dirección</dt><dd>@Valor(Ficha.Direccion)</dd></div>
+    </dl>
+
+    <section aria-label="Superficies">
+        <h3>Superficies</h3>
+        <dl>
+            <div><dt>Declarada</dt><dd>@Metros(Ficha.SuperficieDeclaradaM2)</dd></div>
+            <div><dt>Gráfica</dt><dd>@Metros(Ficha.SuperficieGraficaM2)</dd></div>
+            <div><dt>Oficial</dt><dd>@MetrosNullable(Ficha.SuperficieOficialM2)</dd></div>
+        </dl>
+    </section>
+
+    <section aria-label="Servicios básicos">
+        <h3>Servicios básicos</h3>
+        <dl>
+            <div><dt>Agua</dt><dd>@Valor(Ficha.ServicioAgua)</dd></div>
+            <div><dt>Luz</dt><dd>@Valor(Ficha.ServicioLuz)</dd></div>
+            <div><dt>Alcantarillado</dt><dd>@Valor(Ficha.ServicioAlcantarillado)</dd></div>
+            <div><dt>Telefonía</dt><dd>@Valor(Ficha.ServicioTelefonia)</dd></div>
+        </dl>
+    </section>
+
+    <footer>
+        Dataset @Ficha.MunicipioCodigo — versión interna @Ficha.NumeroVersion
+    </footer>
+</aside>
+
+@code {
+    private static readonly CultureInfo CulturaBolivia = CultureInfo.GetCultureInfo("es-BO");
+
+    [Parameter, EditorRequired]
+    public FichaPredioDto Ficha { get; set; } = null!;
+
+    [Parameter]
+    public EventCallback AlCerrar { get; set; }
+
+    private static string Valor(string? valor) =>
+        string.IsNullOrWhiteSpace(valor) ? "No registrado" : valor;
+
+    private static string Metros(decimal valor) =>
+        $"{valor.ToString("N4", CulturaBolivia)} m²";
+
+    private static string MetrosNullable(decimal? valor) =>
+        valor is null ? "No registrada" : Metros(valor.Value);
+}
