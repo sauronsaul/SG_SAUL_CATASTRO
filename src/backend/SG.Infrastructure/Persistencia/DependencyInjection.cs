@@ -48,6 +48,7 @@ public static class DependencyInjection
         services.AddScoped<IUsoSueloRepositorio, UsoSueloRepositorio>();
         services.AddScoped<IPropietarioRepositorio, PropietarioRepositorio>();
         services.AddScoped<IPredioRepositorio, PredioRepositorio>();
+        services.AddScoped<IConsultaPredioVersionado, ConsultaPredioVersionado>();
 
         // Servicios GIS
         services.AddScoped<ICoordenadasService, CoordenadasService>();
