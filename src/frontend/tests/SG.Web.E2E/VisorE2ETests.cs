@@ -5,6 +5,12 @@ namespace SG.Web.E2E;
 
 public sealed class VisorE2ETests(ITestOutputHelper output)
 {
+    private const string ResaltadoTriplete111 =
+        "{\"relleno\":[\"all\",[\"==\",[\"get\",\"cod_uv\"],1],[\"==\",[\"get\",\"cod_man\"],1],[\"==\",[\"get\",\"cod_pred\"],1]]," +
+        "\"linea\":[\"all\",[\"==\",[\"get\",\"cod_uv\"],1],[\"==\",[\"get\",\"cod_man\"],1],[\"==\",[\"get\",\"cod_pred\"],1]]}";
+    private const string ResaltadoVacio =
+        "{\"relleno\":[\"==\",[\"get\",\"cod_uv\"],-1],\"linea\":[\"==\",[\"get\",\"cod_uv\"],-1]}";
+
     [Fact]
     public async Task LoginCargaTileBuscaPredioYMuestraFicha()
     {
@@ -108,6 +114,15 @@ public sealed class VisorE2ETests(ITestOutputHelper output)
             null,
             new() { Timeout = 30_000 });
         var zoomPredio = await ObtenerZoomAsync(page);
+        var resaltadoBusqueda = await ObtenerResaltadoAsync(page);
+        Assert.Equal(ResaltadoTriplete111, resaltadoBusqueda);
+
+        await CambiarZoomAsync(page, ".maplibregl-ctrl-zoom-out", 5, "< 15");
+        var resaltadoZoomOut = await ObtenerResaltadoAsync(page);
+        Assert.Equal(ResaltadoTriplete111, resaltadoZoomOut);
+        await CambiarZoomAsync(page, ".maplibregl-ctrl-zoom-in", 5, "> 17");
+        var resaltadoZoomIn = await ObtenerResaltadoAsync(page);
+        Assert.Equal(ResaltadoTriplete111, resaltadoZoomIn);
 
         await Assertions.Expect(panel).ToContainTextAsync("1 / 1 / 1");
         await Assertions.Expect(panel).ToContainTextAsync("Fila de origen11883");
@@ -123,6 +138,7 @@ public sealed class VisorE2ETests(ITestOutputHelper output)
             AriaRole.Button,
             new() { Name = "Cerrar ficha", Exact = true }).ClickAsync();
         await panel.WaitForAsync(new() { State = WaitForSelectorState.Hidden });
+        Assert.Equal(ResaltadoVacio, await ObtenerResaltadoAsync(page));
         var lienzo = page.Locator(".maplibregl-canvas");
         var cajaLienzo = await lienzo.BoundingBoxAsync();
         Assert.NotNull(cajaLienzo);
@@ -145,6 +161,8 @@ public sealed class VisorE2ETests(ITestOutputHelper output)
             Timeout = 30_000
         });
         await Assertions.Expect(panel).ToContainTextAsync("1 / 1 / 1");
+        var resaltadoClic = await ObtenerResaltadoAsync(page);
+        Assert.Equal(ResaltadoTriplete111, resaltadoClic);
 
         var captura = Path.Combine(
             directorioArtefactos,
@@ -161,6 +179,10 @@ public sealed class VisorE2ETests(ITestOutputHelper output)
         output.WriteLine($"ficha_click_200={new Uri(respuestaClic.Url).PathAndQuery}");
         output.WriteLine($"zoom_inicial={zoomInicial:F4}");
         output.WriteLine($"zoom_predio={zoomPredio:F4}");
+        output.WriteLine($"resaltado_busqueda={resaltadoBusqueda}");
+        output.WriteLine($"resaltado_zoom_out={resaltadoZoomOut}");
+        output.WriteLine($"resaltado_zoom_in={resaltadoZoomIn}");
+        output.WriteLine($"resaltado_clic={resaltadoClic}");
         output.WriteLine("triplete=1/1/1 fila=11883 declarada=238.3470 grafica=238.3466 version=3");
         output.WriteLine($"captura={Path.GetFullPath(captura)}");
     }
@@ -175,6 +197,44 @@ public sealed class VisorE2ETests(ITestOutputHelper output)
                 return modulo.obtenerCamara(contenedor.id)?.zoom ?? 0;
             }
             """);
+
+    private static Task<string> ObtenerResaltadoAsync(IPage page) =>
+        page.EvaluateAsync<string>(
+            """
+            async () => {
+                const contenedor = document.querySelector('.mapa');
+                if (!contenedor?.id) return "";
+                const modulo = await import('/js/mapa.js');
+                return JSON.stringify(modulo.obtenerResaltado(contenedor.id));
+            }
+            """);
+
+    private static async Task CambiarZoomAsync(
+        IPage page,
+        string selector,
+        int cantidad,
+        string comparacion)
+    {
+        var control = page.Locator(selector);
+        Assert.Equal(1, await control.CountAsync());
+        for (var indice = 0; indice < cantidad; indice++)
+        {
+            await control.ClickAsync(new() { Force = true });
+            await page.WaitForTimeoutAsync(350);
+        }
+
+        await page.WaitForFunctionAsync(
+            $$"""
+            async () => {
+                const contenedor = document.querySelector('.mapa');
+                if (!contenedor?.id) return false;
+                const modulo = await import('/js/mapa.js');
+                return (modulo.obtenerCamara(contenedor.id)?.zoom ?? 0) {{comparacion}};
+            }
+            """,
+            null,
+            new() { Timeout = 30_000 });
+    }
 
     private static Uri ObtenerBaseUrl()
     {

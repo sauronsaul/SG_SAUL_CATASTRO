@@ -44,6 +44,27 @@ public sealed class MapaInterop(IJSRuntime jsRuntime) : IAsyncDisposable
             await _modulo.InvokeVoidAsync("enfocarPredio", contenedorId, limites);
     }
 
+    public async Task ResaltarPredioAsync(
+        string contenedorId,
+        int distrito,
+        int manzana,
+        int predio)
+    {
+        if (_modulo is not null)
+            await _modulo.InvokeVoidAsync(
+                "resaltarPredio",
+                contenedorId,
+                distrito,
+                manzana,
+                predio);
+    }
+
+    public async Task LimpiarResaltadoAsync(string contenedorId)
+    {
+        if (_modulo is not null)
+            await _modulo.InvokeVoidAsync("limpiarResaltado", contenedorId);
+    }
+
     public async Task DestruirAsync(string contenedorId)
     {
         if (_modulo is not null)

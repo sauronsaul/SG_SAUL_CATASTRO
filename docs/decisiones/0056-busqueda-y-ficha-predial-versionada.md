@@ -33,6 +33,10 @@ formal del GAM.
 - El visor usa el triplete incluido en las propiedades MVT para solicitar la
   ficha completa. La búsqueda explícita encuadra el bbox calculado por PostGIS;
   el clic abre el mismo panel lateral sin introducir un segundo contrato.
+- Búsqueda y clic activan las mismas capas de resaltado predefinidas sobre la
+  fuente `parcelas`, filtradas por triplete. El filtro sobrevive la recarga de
+  tiles al cambiar de zoom y se limpia al cerrar la ficha, sin endpoint nuevo
+  ni dependencia de la estabilidad de `feature.id`.
 - La ficha muestra versión interna del dataset, fila de origen, códigos,
   ubicación, atributos de uso, servicios y superficies. No edita datos.
 

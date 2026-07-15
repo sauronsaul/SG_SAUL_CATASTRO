@@ -79,19 +79,23 @@ Resultado esperado:
 - respuesta 200 de
   `/api/predios/buscar?distrito=1&manzana=1&predio=1`;
 - encuadre del predio con zoom mayor que 17;
+- resaltado visible mediante relleno amarillo translúcido y contorno rojo
+  grueso, filtrado exactamente por el triplete `1/1/1`;
+- persistencia del filtro al bajar de zoom 15 y volver a zoom mayor que 17;
 - panel **Ficha del predio** visible con fila `11883`, código geográfico
   `04-12-05-01`, estado `Importado`, superficies declarada `238,3470 m²` y
   gráfica `238,3466 m²`, tipo `VIV`, vía `COLON Y SUCRE` y versión interna 3;
 - cierre del panel, clic en la parcela encuadrada y segunda respuesta 200 del
-  mismo endpoint, con la ficha nuevamente visible;
+  mismo endpoint, con la ficha nuevamente visible y el mismo resaltado;
+- limpieza del filtro de resaltado al cerrar la ficha;
 - una captura `visor-minimo-*.png` en `artifacts/e2e`;
 - `Total: 1, Failed: 0, Passed: 1`.
 
 Criterio de fallo: variable obligatoria ausente, login rechazado, falta de tile
 200 en 30 segundos, mapa no visible, zoom inicial menor o igual a 10, búsqueda
 sin 200, zoom al predio menor o igual a 17, campo distinto del valor esperado,
-panel ausente después de la búsqueda o el clic, ausencia de la captura o
-cualquier prueba roja.
+panel ausente después de la búsqueda o el clic, filtro de resaltado incorrecto
+o persistente tras cerrar, ausencia de la captura o cualquier prueba roja.
 
 ## 6. Contrastar la ficha con persistencia
 
