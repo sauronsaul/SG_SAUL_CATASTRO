@@ -67,3 +67,27 @@ igualdad de atributos entre v2 y v3 está probada sobre los 35.013 pares.
   verificación de avance de ambos lectores en cada registro.
 - La reconciliación de predios mantiene las reglas R-1..R-4 y no interpreta el
   re-apuntado de versión como una diferencia de atributos.
+
+## Fe de erratas — 2026-07-15
+
+La explicación anterior de `actualizadas=11985, sinCambio=0` como un simple
+re-apuntado es incorrecta. El contador `actualizadas` aumenta solamente cuando
+`Predio.ReconciliarDesdeDataset` devuelve `true`, es decir, cuando alguna de
+las condiciones de `cambioImportado` lleva al maestro por el camino de UPDATE.
+`UltimaVersionVistaId` se modifica como consecuencia de ese UPDATE; no es por
+sí solo una condición para generarlo.
+
+En la activación de v3, las 11.985 filas compararon una `superficie_sig`
+persistida como `numeric(14,4)` contra el área recién calculada sin redondear.
+La comparación decimal cruda resultó distinta en las 11.985, aunque a cuatro
+decimales hubo cero diferencias. Adicionalmente, 391 parcelas presentaron una
+geometría topológicamente distinta entre v2 y v3. Por tanto, la igualdad de
+atributos v2/v3 no demostraba que el dominio hubiera tomado el camino
+`sinCambio` ni que el único efecto fuese rotar el identificador de versión.
+
+La semántica demostrada de `UltimaVersionVistaId` es: última versión cuya
+reconciliación produjo un cambio de contenido según las comparaciones del
+dominio. No equivale necesariamente a la versión activa. La vigencia de un
+predio se determina por el triplete único, `presente_en_version_activa` y
+`NOT is_deleted`; la versión cartográfica se resuelve independientemente por
+`dataset_versiones.estado = 'Activa'`.
