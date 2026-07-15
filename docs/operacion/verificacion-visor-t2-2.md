@@ -97,13 +97,25 @@ revalidan después de cada despliegue aunque exista una copia en disco. Si
 `localhost:<puerto>` tanto en los `curl` como en el argumento de la sonda, y
 registrar el valor usado.
 
+La misma sonda debe listar siete valores `fuente_<capa>_template`, todos
+absolutos y same-origin, con los placeholders literales `/{z}/{x}/{y}.mvt`;
+debe cuadrar los rangos `minzoom` del catálogo y `maxzoom=22`. Además debe
+expandir un tile de `distritos` calculado desde el centro del bbox publicado y
+terminar con `transform_tile_autorizada=true` y
+`transform_no_tile_autorizada=false`. La sonda no realiza login ni expone el
+Bearer: ejerce directamente el callback publicado con un token ficticio para
+verificar que MapLibre recibe una URL absoluta y que el encabezado sólo se
+inyecta en `/api/tiles/`.
+
 Criterio de fallo: cualquier health distinto de `healthy`, Caddy distinto de
 `running`, reinicios continuos, respuesta HTTP distinta de 200, referencia
 literal sin fingerprint, runtime inexistente o fallback HTML entregado para un
 artefacto `_framework`, `mapa.js` servido como HTML, conteos de la sonda
 distintos de 7/7/16, inicialización antes de adquirir dimensiones, zoom final
 menor o igual que 10, ausencia de `Cache-Control: no-cache`/ETag, revalidación
-distinta de 304, o ausencia/diferencia del encuadre esperado.
+distinta de 304, ausencia/diferencia del encuadre esperado, plantilla de tile
+relativa o sin placeholders XYZ, rango de fuente distinto del catálogo, Bearer
+ausente en el tile ficticio o filtrado a un recurso que no sea tile.
 
 ## 4. Preparar la captura del navegador
 
@@ -153,8 +165,10 @@ refresh token persistido, token en URL o token en almacenamiento del navegador.
 4. Desactivar y volver a activar cada capa, una por una.
 5. En Console comprobar las trazas `[SG.Web mapa]`: creación con
    `cantidadCapas: 7` y el bbox configurado, `encuadre aplicado` con `center` y
-   `zoom`, `w` y `h`, inicialización, siete mensajes `addSource` y `capas
-   listas` con `fuentes: 7`.
+   `zoom`, `w` y `h`, inicialización, siete mensajes `addSource` con
+   `urlTemplate` absoluta y placeholders XYZ, `capas listas` con `fuentes: 7`,
+   y mensajes `transformRequest` con `resourceType: "Tile"`, URL absoluta y
+   `autenticada: true`.
 6. En Network o en la consola comprobar que existen recursos cuya URL contiene
    `/api/tiles/`:
 
@@ -178,13 +192,19 @@ Resultado esperado:
 - La traza demuestra que el catálogo serializado no está vacío y que el camino
   de inicialización aplicó el encuadre y llegó a `addSource` para las siete
   capas.
+- Cada `urlTemplate` empieza con el origen real abierto en el navegador y
+  termina en `/api/tiles/<capa>/{z}/{x}/{y}.mvt`; ninguna contiene un host
+  literal de desarrollo.
+- Las trazas `transformRequest` aparecen antes de las solicitudes de tiles y no
+  muestran el valor del token. No aparece `error MapLibre`.
 
 Criterio de fallo: falta un toggle, un toggle afecta otra capa, parcelas o
 edificaciones se solicitan a zoom bajo, falta una traza de inicialización,
 `cantidadCapas`/`fuentes` no vale 7, falta la traza `encuadre aplicado`, el
 centro queda fuera de Uyuni, `w`/`h` no son positivos, el zoom es menor o igual
 que 10, aparece el WARN de encuadre inválido, no hay solicitudes `/api/tiles/`,
-o hay errores MapLibre en consola.
+la plantilla es relativa o pierde placeholders, no aparece `transformRequest`
+para recursos `Tile`, o hay errores MapLibre en consola.
 
 ## 7. Capturar tile 200 y sus encabezados
 

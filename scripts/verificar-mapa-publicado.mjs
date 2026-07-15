@@ -79,6 +79,7 @@ const observadores = [];
 const framesPendientes = new Map();
 const contenedor = { clientWidth: 0, clientHeight: 0 };
 let siguienteFrame = 1;
+let opcionesMapa;
 
 class ResizeObserverFalso {
     constructor(callback) {
@@ -112,6 +113,7 @@ function ejecutarFramesPendientes() {
 
 class MapaFalso {
     constructor(opciones) {
+        opcionesMapa = opciones;
         this.eventos = new Map();
         this.centro = { lng: 0, lat: 0 };
         this.zoom = 0;
@@ -122,7 +124,9 @@ class MapaFalso {
     isStyleLoaded() { return true; }
     on(nombre, callback) { this.eventos.set(nombre, callback); }
     once(nombre, callback) { this.eventos.set(nombre, callback); }
-    addSource(nombre) { fuentes.push(nombre); }
+    addSource(nombre, configuracionFuente) {
+        fuentes.push({ nombre, configuracion: configuracionFuente });
+    }
     addLayer(capa) { capasDibujadas.push(capa.id); }
     getLayer() { return undefined; }
     resize() {}
@@ -222,6 +226,65 @@ console.log(`encuadres_aplicados=${encuadres.length}`);
 
 if (fuentes.length !== 7) {
     throw new Error(`Se esperaban 7 fuentes y se agregaron ${fuentes.length}.`);
+}
+
+const origenPublicado = new URL(urlModulo).origin;
+for (const fuente of fuentes) {
+    const plantilla = fuente.configuracion?.tiles?.[0];
+    const capa = capas.find(x => x.nombre === fuente.nombre);
+    const plantillaEsperada = `${origenPublicado}/api/tiles/${encodeURIComponent(fuente.nombre)}/{z}/{x}/{y}.mvt`;
+    console.log(`fuente_${fuente.nombre}_template=${plantilla}`);
+    console.log(`fuente_${fuente.nombre}_minzoom=${fuente.configuracion?.minzoom}`);
+    console.log(`fuente_${fuente.nombre}_maxzoom=${fuente.configuracion?.maxzoom}`);
+
+    if (plantilla !== plantillaEsperada) {
+        throw new Error(
+            `Plantilla inesperada para ${fuente.nombre}: ${plantilla}; esperada ${plantillaEsperada}.`);
+    }
+    if (!/^https?:\/\//.test(plantilla)
+        || !plantilla.includes("/{z}/{x}/{y}.mvt")) {
+        throw new Error(`La plantilla de ${fuente.nombre} no es absoluta o perdio placeholders XYZ.`);
+    }
+    if (fuente.configuracion?.minzoom !== capa.minZoom || fuente.configuracion?.maxzoom !== 22) {
+        throw new Error(
+            `Rango de fuente inesperado para ${fuente.nombre}: `
+            + `${fuente.configuracion?.minzoom}-${fuente.configuracion?.maxzoom}.`);
+    }
+}
+
+if (typeof opcionesMapa?.transformRequest !== "function") {
+    throw new Error("El mapa publicado no registro transformRequest.");
+}
+
+const [oeste, sur, este, norte] = limitesConfigurados;
+const centro = { longitud: (oeste + este) / 2, latitud: (sur + norte) / 2 };
+const zoomTile = 13;
+const escala = 2 ** zoomTile;
+const xTile = Math.floor(((centro.longitud + 180) / 360) * escala);
+const latitudRad = centro.latitud * Math.PI / 180;
+const yTile = Math.floor(
+    (1 - Math.asinh(Math.tan(latitudRad)) / Math.PI) / 2 * escala);
+const plantillaDistritos = fuentes.find(x => x.nombre === "distritos").configuracion.tiles[0];
+const urlTileEjemplo = plantillaDistritos
+    .replace("{z}", String(zoomTile))
+    .replace("{x}", String(xTile))
+    .replace("{y}", String(yTile));
+const solicitudTile = opcionesMapa.transformRequest(urlTileEjemplo, "Tile");
+console.log(`tile_url_ejemplo=${urlTileEjemplo}`);
+console.log(`transform_tile_url=${solicitudTile?.url}`);
+console.log(`transform_tile_autorizada=${solicitudTile?.headers?.Authorization === "Bearer token-sonda"}`);
+
+if (solicitudTile?.url !== urlTileEjemplo
+    || solicitudTile?.headers?.Authorization !== "Bearer token-sonda") {
+    throw new Error("transformRequest no conserva la URL absoluta o no agrega el Bearer al tile same-origin.");
+}
+
+const solicitudNoTile = opcionesMapa.transformRequest(
+    `${origenPublicado}/appsettings.json`,
+    "Source");
+console.log(`transform_no_tile_autorizada=${Boolean(solicitudNoTile?.headers?.Authorization)}`);
+if (solicitudNoTile?.headers?.Authorization) {
+    throw new Error("transformRequest filtro el Bearer a un recurso ajeno a /api/tiles/.");
 }
 
 if (capasDibujadas.length !== 16) {

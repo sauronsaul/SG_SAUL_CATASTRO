@@ -29,7 +29,7 @@ export function crearMapa(contenedorId, limites, camara, token, capas, referenci
         },
         attributionControl: false,
         maxZoom: 22,
-        transformRequest: (url) => transformarSolicitud(url, token)
+        transformRequest: (url, tipoRecurso) => transformarSolicitud(url, tipoRecurso, token)
     };
 
     const mapa = new window.maplibregl.Map(opciones);
@@ -60,10 +60,16 @@ export function crearMapa(contenedorId, limites, camara, token, capas, referenci
         console.info(`${prefijoLog} inicialización de capas`, { cantidadCapas: capas.length });
 
         for (const capa of capas) {
-            console.info(`${prefijoLog} addSource`, { capa: capa.nombre, minZoom: capa.minZoom });
+            const plantillaTile = crearPlantillaTile(capa.nombre);
+            console.info(`${prefijoLog} addSource`, {
+                capa: capa.nombre,
+                minZoom: capa.minZoom,
+                maxZoom: 22,
+                urlTemplate: plantillaTile
+            });
             mapa.addSource(capa.nombre, {
                 type: "vector",
-                tiles: [`/api/tiles/${capa.nombre}/{z}/{x}/{y}.mvt`],
+                tiles: [plantillaTile],
                 minzoom: capa.minZoom,
                 maxzoom: 22
             });
@@ -112,7 +118,14 @@ export function crearMapa(contenedorId, limites, camara, token, capas, referenci
         if (status === 401 && !estado.notificado401) {
             estado.notificado401 = true;
             void referenciaDotNet.invokeMethodAsync("NotificarNoAutorizadoAsync");
+            return;
         }
+
+        console.error(`${prefijoLog} error MapLibre`, {
+            status: status ?? null,
+            url: evento?.error?.url ?? null,
+            message: evento?.error?.message ?? "Error sin detalle"
+        });
     });
 }
 
@@ -232,10 +245,26 @@ export function destruirMapa(contenedorId) {
     mapas.delete(contenedorId);
 }
 
-function transformarSolicitud(url, token) {
+function crearPlantillaTile(nombreCapa) {
+    const baseTiles = new URL("/api/tiles/", window.location.origin).href;
+    return `${baseTiles}${encodeURIComponent(nombreCapa)}/{z}/{x}/{y}.mvt`;
+}
+
+function transformarSolicitud(url, tipoRecurso, token) {
     const destino = new URL(url, window.location.origin);
-    if (destino.origin === window.location.origin && destino.pathname.startsWith("/api/tiles/")) {
-        return { url, headers: { Authorization: `Bearer ${token}` } };
+    const esTileMismoOrigen = destino.origin === window.location.origin
+        && destino.pathname.startsWith("/api/tiles/");
+    console.info(`${prefijoLog} transformRequest`, {
+        resourceType: tipoRecurso ?? null,
+        url: destino.href,
+        autenticada: esTileMismoOrigen
+    });
+
+    if (esTileMismoOrigen) {
+        return {
+            url: destino.href,
+            headers: { Authorization: `Bearer ${token}` }
+        };
     }
     return { url };
 }

@@ -27,11 +27,18 @@ la revalidación HTTP mediante el ETag asociado a la versión activa.
 - Se usa MapLibre GL JS 5.24.0 mediante un módulo ES aislado e `IJSRuntime`.
   Sus archivos JS, CSS y licencia se vendorizan con SHA-256 registrado; no hay
   CDN, `package.json`, `node_modules` ni npm en build o runtime.
-- Las siete fuentes usan las rutas relativas de ADR 0054. Los rellenos se
-  dibujan antes de líneas y etiquetas. Parcelas empiezan en zoom 15;
-  edificaciones y predios no fotografiados, en zoom 16.
+- Las siete fuentes usan el contrato de rutas de ADR 0054, pero registran una
+  plantilla absoluta same-origin derivada de `window.location.origin`; no se
+  fija host ni puerto. Esto permite que el worker de MapLibre solicite el MVT
+  sin depender de la resolución de una URL relativa. Los rellenos se dibujan
+  antes de líneas y etiquetas. Parcelas empiezan en zoom 15; edificaciones y
+  predios no fotografiados, en zoom 16.
 - `transformRequest` agrega `Authorization: Bearer` sólo a solicitudes
-  same-origin cuya ruta comienza con `/api/tiles/`. El token no viaja en la URL.
+  same-origin cuya ruta comienza con `/api/tiles/`, devuelve la URL absoluta y
+  recibe también el tipo de recurso de MapLibre. El token no viaja en la URL.
+- Los errores MapLibre distintos de 401 se registran explícitamente sin token;
+  el manejador de expiración no debe convertir fallos de transporte o parseo
+  en una consola silenciosa.
 - La sesión conserva en memoria WASM únicamente access token, expiración y
   usuario. No persiste refresh token, `localStorage` ni `sessionStorage`.
 - Ante la primera respuesta 401 de una ráfaga, el módulo consolida eventos,
