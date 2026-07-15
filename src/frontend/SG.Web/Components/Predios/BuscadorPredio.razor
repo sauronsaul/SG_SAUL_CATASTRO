@@ -1,0 +1,71 @@
+<form class="buscador-predio" @onsubmit="BuscarAsync" @onsubmit:preventDefault>
+    <h2>Buscar predio</h2>
+    <div class="campos-triplete">
+        <label>
+            <span>Distrito</span>
+            <input aria-label="Distrito"
+                   type="number"
+                   min="1"
+                   inputmode="numeric"
+                   @bind="_distrito" />
+        </label>
+        <label>
+            <span>Manzana</span>
+            <input aria-label="Manzana"
+                   type="number"
+                   min="1"
+                   inputmode="numeric"
+                   @bind="_manzana" />
+        </label>
+        <label>
+            <span>Predio</span>
+            <input aria-label="Predio"
+                   type="number"
+                   min="1"
+                   inputmode="numeric"
+                   @bind="_predio" />
+        </label>
+    </div>
+    <button type="submit" disabled="@Buscando">
+        @(Buscando ? "Buscando..." : "Buscar predio")
+    </button>
+    @if (!string.IsNullOrWhiteSpace(_errorLocal ?? Error))
+    {
+        <p class="mensaje-error" role="alert">@(_errorLocal ?? Error)</p>
+    }
+</form>
+
+@code {
+    private int? _distrito;
+    private int? _manzana;
+    private int? _predio;
+    private string? _errorLocal;
+
+    [Parameter]
+    public bool Buscando { get; set; }
+
+    [Parameter]
+    public string? Error { get; set; }
+
+    [Parameter]
+    public EventCallback<CriterioBusquedaPredio> AlBuscar { get; set; }
+
+    protected override void OnParametersSet()
+    {
+        if (!string.IsNullOrWhiteSpace(Error))
+            _errorLocal = null;
+    }
+
+    private async Task BuscarAsync()
+    {
+        var resultado = CriterioBusquedaPredio.Crear(_distrito, _manzana, _predio);
+        if (!resultado.EsValido)
+        {
+            _errorLocal = resultado.Error;
+            return;
+        }
+
+        _errorLocal = null;
+        await AlBuscar.InvokeAsync(resultado.Criterio!);
+    }
+}

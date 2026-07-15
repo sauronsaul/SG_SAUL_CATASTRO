@@ -3,6 +3,7 @@
     grid-template-columns: 18rem 1fr;
     height: 100%;
     min-height: 0;
+    position: relative;
 }
 
 .panel-capas {

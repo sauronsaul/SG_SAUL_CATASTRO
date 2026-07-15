@@ -3,12 +3,16 @@
 @inject ConfiguracionVisor Configuracion
 @inject SesionAutenticacion Sesion
 @inject EstadoVisor Estado
+@inject PrediosService Predios
 @inject NavigationManager Navigation
 
 <section class="visor">
     <aside class="panel-capas" aria-label="Capas del mapa">
         <p class="sobrelinea">@Configuracion.MunicipioCodigo</p>
         <h1>Cartografía catastral</h1>
+        <BuscadorPredio Buscando="_buscandoPredio"
+                        Error="@_errorPredio"
+                        AlBuscar="BuscarPredioAsync" />
         <p class="ayuda">Active o desactive las capas disponibles.</p>
         @foreach (var capa in CatalogoCapasMapa.ObtenerTodas())
         {
@@ -24,12 +28,19 @@
     </aside>
 
     <div id="@_contenedorId" class="mapa" aria-label="Mapa catastral de @Configuracion.MunicipioCodigo"></div>
+    @if (_fichaPredio is not null)
+    {
+        <FichaPredioPanel Ficha="_fichaPredio" AlCerrar="CerrarFichaAsync" />
+    }
 </section>
 
 @code {
     private readonly string _contenedorId = $"mapa-{Guid.NewGuid():N}";
     private MapaInterop? _interop;
     private DotNetObjectReference<MapaCatastral>? _referenciaDotNet;
+    private FichaPredioDto? _fichaPredio;
+    private bool _buscandoPredio;
+    private string? _errorPredio;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -58,6 +69,70 @@
             return;
 
         await _interop.CambiarVisibilidadAsync(_contenedorId, nombre, visible);
+    }
+
+    private Task BuscarPredioAsync(CriterioBusquedaPredio criterio) =>
+        ConsultarPredioAsync(criterio, enfocar: true);
+
+    [JSInvokable]
+    public async Task SeleccionarPredioAsync(int distrito, int manzana, int predio)
+    {
+        await ConsultarPredioAsync(
+            new CriterioBusquedaPredio(distrito, manzana, predio),
+            enfocar: false);
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task ConsultarPredioAsync(
+        CriterioBusquedaPredio criterio,
+        bool enfocar)
+    {
+        if (_buscandoPredio)
+            return;
+
+        _buscandoPredio = true;
+        _errorPredio = null;
+        try
+        {
+            var resultado = await Predios.BuscarAsync(criterio);
+            if (resultado.Estado == EstadoConsultaPredio.NoAutorizado)
+            {
+                Navigation.NavigateTo("/login");
+                return;
+            }
+
+            if (resultado.Estado != EstadoConsultaPredio.Encontrado || resultado.Ficha is null)
+            {
+                _fichaPredio = null;
+                _errorPredio = resultado.Error;
+                if (_interop is not null)
+                    await _interop.LimpiarResaltadoAsync(_contenedorId);
+                return;
+            }
+
+            _fichaPredio = resultado.Ficha;
+            if (_interop is not null)
+            {
+                await _interop.ResaltarPredioAsync(
+                    _contenedorId,
+                    resultado.Ficha.Distrito,
+                    resultado.Ficha.Manzana,
+                    resultado.Ficha.Predio);
+                if (enfocar)
+                    await _interop.EnfocarPredioAsync(_contenedorId, resultado.Ficha.Limites);
+            }
+        }
+        finally
+        {
+            _buscandoPredio = false;
+        }
+    }
+
+    private async Task CerrarFichaAsync()
+    {
+        _fichaPredio = null;
+        if (_interop is not null)
+            await _interop.LimpiarResaltadoAsync(_contenedorId);
     }
 
     [JSInvokable]

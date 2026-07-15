@@ -1,5 +1,7 @@
 const mapas = new Map();
 const prefijoLog = "[SG.Web mapa]";
+const capaResaltadoRelleno = "parcelas-seleccion-relleno";
+const capaResaltadoLinea = "parcelas-seleccion-linea";
 
 export function crearMapa(contenedorId, limites, camara, token, capas, referenciaDotNet) {
     if (!window.maplibregl) {
@@ -87,12 +89,18 @@ export function crearMapa(contenedorId, limites, camara, token, capas, referenci
             mapa.addLayer(crearEtiqueta(capa));
         }
 
+        mapa.addLayer(crearResaltadoRelleno());
+        mapa.addLayer(crearResaltadoLinea());
+
         console.info(`${prefijoLog} capas listas`, {
             fuentes: capas.length,
             capasDibujadas: capas.filter(x => x.tieneRelleno).length
                 + capas.filter(x => x.tieneLinea).length
                 + capas.filter(x => x.campoEtiqueta).length
+                + 2
         });
+
+        mapa.on("click", evento => seleccionarParcela(mapa, evento, referenciaDotNet));
     };
 
     if (mapa.isStyleLoaded()) {
@@ -237,6 +245,52 @@ export function obtenerCamara(contenedorId) {
     return { longitud: centro.lng, latitud: centro.lat, zoom: mapa.getZoom() };
 }
 
+export function enfocarPredio(contenedorId, limites) {
+    const mapa = mapas.get(contenedorId)?.mapa;
+    if (!mapa) return;
+
+    const bbox = [limites.oeste, limites.sur, limites.este, limites.norte];
+    validarLimites(bbox);
+    mapa.fitBounds(
+        [[bbox[0], bbox[1]], [bbox[2], bbox[3]]],
+        { padding: 64, maxZoom: 19, duration: 500 });
+    console.info(`${prefijoLog} predio enfocado`, { bbox });
+}
+
+export function resaltarPredio(contenedorId, distrito, manzana, predio) {
+    const mapa = mapas.get(contenedorId)?.mapa;
+    if (!mapa) return;
+
+    const triplete = [distrito, manzana, predio];
+    if (!triplete.every(Number.isInteger) || triplete.some(valor => valor < 1)) {
+        throw new Error(`${prefijoLog} triplete inválido para resaltado.`);
+    }
+
+    const filtro = crearFiltroTriplete(distrito, manzana, predio);
+    mapa.setFilter(capaResaltadoRelleno, filtro);
+    mapa.setFilter(capaResaltadoLinea, filtro);
+    console.info(`${prefijoLog} predio resaltado`, { distrito, manzana, predio });
+}
+
+export function limpiarResaltado(contenedorId) {
+    const mapa = mapas.get(contenedorId)?.mapa;
+    if (!mapa) return;
+
+    const filtro = crearFiltroSinSeleccion();
+    mapa.setFilter(capaResaltadoRelleno, filtro);
+    mapa.setFilter(capaResaltadoLinea, filtro);
+    console.info(`${prefijoLog} resaltado limpiado`);
+}
+
+export function obtenerResaltado(contenedorId) {
+    const mapa = mapas.get(contenedorId)?.mapa;
+    if (!mapa) return null;
+    return {
+        relleno: mapa.getFilter(capaResaltadoRelleno),
+        linea: mapa.getFilter(capaResaltadoLinea)
+    };
+}
+
 export function destruirMapa(contenedorId) {
     const estado = mapas.get(contenedorId);
     if (!estado) return;
@@ -267,6 +321,79 @@ function transformarSolicitud(url, tipoRecurso, token) {
         };
     }
     return { url };
+}
+
+function seleccionarParcela(mapa, evento, referenciaDotNet) {
+    const features = mapa.queryRenderedFeatures(evento.point, {
+        layers: ["parcelas-relleno"]
+    });
+    const feature = features.find(item => item?.properties);
+    if (!feature) return;
+
+    const distrito = Number(feature.properties.cod_uv);
+    const manzana = Number(feature.properties.cod_man);
+    const predio = Number(feature.properties.cod_pred);
+    if (![distrito, manzana, predio].every(Number.isInteger)
+        || distrito < 1 || manzana < 1 || predio < 1) {
+        console.warn(`${prefijoLog} parcela sin triplete válido`, { featureId: feature.id ?? null });
+        return;
+    }
+
+    console.info(`${prefijoLog} parcela seleccionada`, {
+        featureId: feature.id ?? null,
+        distrito,
+        manzana,
+        predio
+    });
+    void referenciaDotNet.invokeMethodAsync(
+        "SeleccionarPredioAsync",
+        distrito,
+        manzana,
+        predio);
+}
+
+function crearFiltroTriplete(distrito, manzana, predio) {
+    return [
+        "all",
+        ["==", ["get", "cod_uv"], distrito],
+        ["==", ["get", "cod_man"], manzana],
+        ["==", ["get", "cod_pred"], predio]
+    ];
+}
+
+function crearFiltroSinSeleccion() {
+    return ["==", ["get", "cod_uv"], -1];
+}
+
+function crearResaltadoRelleno() {
+    return {
+        id: capaResaltadoRelleno,
+        type: "fill",
+        source: "parcelas",
+        "source-layer": "parcelas",
+        minzoom: 15,
+        filter: crearFiltroSinSeleccion(),
+        paint: {
+            "fill-color": "#FACC15",
+            "fill-opacity": 0.38
+        }
+    };
+}
+
+function crearResaltadoLinea() {
+    return {
+        id: capaResaltadoLinea,
+        type: "line",
+        source: "parcelas",
+        "source-layer": "parcelas",
+        minzoom: 15,
+        filter: crearFiltroSinSeleccion(),
+        paint: {
+            "line-color": "#DC2626",
+            "line-opacity": 1,
+            "line-width": 4
+        }
+    };
 }
 
 function crearRelleno(capa) {

@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using SG.Application.Catastro.Predios.AsignarCodigoOficial;
 using SG.Application.Catastro.Predios.AsignarGeometria;
 using SG.Application.Catastro.Predios.AsignarPropietario;
+using SG.Application.Catastro.Predios.BuscarPorTriplete;
 using SG.Application.Catastro.Predios.CambioEstado;
 using SG.Application.Catastro.Predios.EliminarDocumento;
 using SG.Application.Catastro.Predios.Listar;
@@ -58,6 +59,20 @@ public sealed class PrediosController(ISender sender) : ControllerBase
         CancellationToken ct = default)
     {
         var result = await sender.Send(new ListarPrediosQuery(page, pageSize), ct);
+        return result.IsSuccess ? Ok(result.Value) : MapError(result.Error);
+    }
+
+    [HttpGet("buscar")]
+    [Authorize(Roles = "Admin,Tecnico")]
+    public async Task<IActionResult> Buscar(
+        [FromQuery] int distrito,
+        [FromQuery] int manzana,
+        [FromQuery] int predio,
+        CancellationToken ct)
+    {
+        var result = await sender.Send(
+            new BuscarFichaPredioQuery(distrito, manzana, predio),
+            ct);
         return result.IsSuccess ? Ok(result.Value) : MapError(result.Error);
     }
 

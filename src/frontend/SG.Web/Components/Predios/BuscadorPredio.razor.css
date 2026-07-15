@@ -1,0 +1,60 @@
+.buscador-predio {
+    border-bottom: 1px solid #cbd5e1;
+    margin-bottom: 1rem;
+    padding-bottom: 1rem;
+}
+
+.buscador-predio h2 {
+    font-size: 1rem;
+    margin: 0 0 .75rem;
+}
+
+.campos-triplete {
+    display: grid;
+    gap: .5rem;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.campos-triplete label span {
+    color: #475569;
+    display: block;
+    font-size: .72rem;
+    font-weight: 700;
+    margin-bottom: .2rem;
+}
+
+.campos-triplete input {
+    border: 1px solid #94a3b8;
+    border-radius: .3rem;
+    min-width: 0;
+    padding: .4rem;
+    width: 100%;
+}
+
+.campos-triplete input:focus {
+    border-color: #0f766e;
+    outline: 2px solid rgb(15 118 110 / 18%);
+}
+
+.buscador-predio button {
+    background: #0f766e;
+    border: 0;
+    border-radius: .3rem;
+    color: #fff;
+    cursor: pointer;
+    font-weight: 700;
+    margin-top: .7rem;
+    padding: .5rem .75rem;
+    width: 100%;
+}
+
+.buscador-predio button:disabled {
+    cursor: wait;
+    opacity: .65;
+}
+
+.mensaje-error {
+    color: #991b1b;
+    font-size: .78rem;
+    margin: .6rem 0 0;
+}

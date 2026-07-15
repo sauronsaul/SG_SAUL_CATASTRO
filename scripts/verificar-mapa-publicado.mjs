@@ -146,6 +146,8 @@ class MapaFalso {
     constructor(opciones) {
         opcionesMapa = opciones;
         this.eventos = new Map();
+        this.capas = new Map();
+        this.filtros = new Map();
         this.centro = { lng: 0, lat: 0 };
         this.zoom = 0;
         this.contenedor = contenedor;
@@ -158,8 +160,20 @@ class MapaFalso {
     addSource(nombre, configuracionFuente) {
         fuentes.push({ nombre, configuracion: configuracionFuente });
     }
-    addLayer(capa) { capasDibujadas.push(capa.id); }
-    getLayer() { return undefined; }
+    addLayer(capa) {
+        capasDibujadas.push(capa.id);
+        this.capas.set(capa.id, capa);
+        if (capa.filter) this.filtros.set(capa.id, capa.filter);
+    }
+    getLayer(id) { return this.capas.get(id); }
+    setFilter(id, filtro) {
+        if (!this.capas.has(id)) {
+            throw new Error(`No existe la capa ${id} para aplicar el filtro.`);
+        }
+        this.filtros.set(id, filtro);
+    }
+    getFilter(id) { return this.filtros.get(id); }
+    setLayoutProperty() {}
     resize() {
         redimensionados.push({
             w: this.contenedor.clientWidth,
@@ -342,8 +356,38 @@ if (solicitudNoTile?.headers?.Authorization) {
     throw new Error("transformRequest filtro el Bearer a un recurso ajeno a /api/tiles/.");
 }
 
-if (capasDibujadas.length !== 16) {
-    throw new Error(`Se esperaban 16 capas de dibujo y se agregaron ${capasDibujadas.length}.`);
+if (capasDibujadas.length !== 18) {
+    throw new Error(`Se esperaban 18 capas de dibujo y se agregaron ${capasDibujadas.length}.`);
+}
+
+const resaltadoInicial = modulo.obtenerResaltado("mapa-sonda");
+const filtroVacioEsperado = ["==", ["get", "cod_uv"], -1];
+console.log(`resaltado_inicial=${JSON.stringify(resaltadoInicial)}`);
+if (JSON.stringify(resaltadoInicial?.relleno) !== JSON.stringify(filtroVacioEsperado)
+    || JSON.stringify(resaltadoInicial?.linea) !== JSON.stringify(filtroVacioEsperado)) {
+    throw new Error(`El resaltado no inicia vacio: ${JSON.stringify(resaltadoInicial)}.`);
+}
+
+modulo.resaltarPredio("mapa-sonda", 1, 2, 3);
+const resaltadoTriplete = modulo.obtenerResaltado("mapa-sonda");
+const filtroTripleteEsperado = [
+    "all",
+    ["==", ["get", "cod_uv"], 1],
+    ["==", ["get", "cod_man"], 2],
+    ["==", ["get", "cod_pred"], 3]
+];
+console.log(`resaltado_triplete=${JSON.stringify(resaltadoTriplete)}`);
+if (JSON.stringify(resaltadoTriplete?.relleno) !== JSON.stringify(filtroTripleteEsperado)
+    || JSON.stringify(resaltadoTriplete?.linea) !== JSON.stringify(filtroTripleteEsperado)) {
+    throw new Error(`El resaltado no conserva el triplete: ${JSON.stringify(resaltadoTriplete)}.`);
+}
+
+modulo.limpiarResaltado("mapa-sonda");
+const resaltadoLimpio = modulo.obtenerResaltado("mapa-sonda");
+console.log(`resaltado_limpiado=${JSON.stringify(resaltadoLimpio)}`);
+if (JSON.stringify(resaltadoLimpio?.relleno) !== JSON.stringify(filtroVacioEsperado)
+    || JSON.stringify(resaltadoLimpio?.linea) !== JSON.stringify(filtroVacioEsperado)) {
+    throw new Error(`El resaltado no se limpio: ${JSON.stringify(resaltadoLimpio)}.`);
 }
 
 if (encuadres.length !== 1) {

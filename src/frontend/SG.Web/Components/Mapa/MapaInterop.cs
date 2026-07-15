@@ -1,4 +1,5 @@
 using Microsoft.JSInterop;
+using SG.Contracts.Catastro;
 using SG.Web.Models;
 
 namespace SG.Web.Components.Mapa;
@@ -36,6 +37,33 @@ public sealed class MapaInterop(IJSRuntime jsRuntime) : IAsyncDisposable
         _modulo is null
             ? null
             : await _modulo.InvokeAsync<CamaraMapa?>("obtenerCamara", contenedorId);
+
+    public async Task EnfocarPredioAsync(string contenedorId, LimitesPredioDto limites)
+    {
+        if (_modulo is not null)
+            await _modulo.InvokeVoidAsync("enfocarPredio", contenedorId, limites);
+    }
+
+    public async Task ResaltarPredioAsync(
+        string contenedorId,
+        int distrito,
+        int manzana,
+        int predio)
+    {
+        if (_modulo is not null)
+            await _modulo.InvokeVoidAsync(
+                "resaltarPredio",
+                contenedorId,
+                distrito,
+                manzana,
+                predio);
+    }
+
+    public async Task LimpiarResaltadoAsync(string contenedorId)
+    {
+        if (_modulo is not null)
+            await _modulo.InvokeVoidAsync("limpiarResaltado", contenedorId);
+    }
 
     public async Task DestruirAsync(string contenedorId)
     {

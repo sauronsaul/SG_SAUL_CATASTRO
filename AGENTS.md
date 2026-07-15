@@ -457,6 +457,9 @@ La normativa debe convertirse en: reglas, validaciones, estructuras de datos, pr
 - Los commits se crean con `scripts/commit.sh` mediante
   `'C:\Program Files\Git\bin\bash.exe'`. Los archivos de mensaje deben ubicarse
   fuera del repositorio y fuera de `.git/`.
+- Falsos positivos de gitleaks: solo excepción inline `gitleaks:allow` con
+  justificación en comentario, previa aprobación del planificador con el
+  hallazgo redactado. Nunca exclusiones de archivo ni reglas.
 - Está prohibido ofuscar, fragmentar o codificar nombres de variables para
   evadir filtros de secretos. Un filtro o guarda activado exige detenerse y
   reportar el bloqueo.

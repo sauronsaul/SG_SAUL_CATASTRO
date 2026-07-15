@@ -81,7 +81,7 @@ Los tres recursos HTTP deben devolver `HTTP/1.1 200`. La raíz debe incluir
 `Content-Type: text/html`; el artefacto fingerprinted extraído del `index.html`
 debe incluir `Content-Type: text/javascript` o `application/javascript`, nunca
 `text/html`. La sonda JavaScript debe terminar con `capas_entrada=7`,
-`fuentes_agregadas=7`, `capas_dibujadas=16`, `encuadres_aplicados=1`, el bbox
+`fuentes_agregadas=7`, `capas_dibujadas=18`, `encuadres_aplicados=1`, el bbox
 esperado en `encuadre_limites` y las opciones `padding: 40, maxZoom: 14` en
 `encuadre_opciones`. También debe mostrar `dimensiones_iniciales=0x0`,
 `encuadres_antes_layout=0`, `fuentes_antes_layout=0`,
@@ -107,6 +107,11 @@ Bearer: ejerce directamente el callback publicado con un token ficticio para
 verificar que MapLibre recibe una URL absoluta y que el encabezado sólo se
 inyecta en `/api/tiles/`.
 
+La sonda debe registrar además `resaltado_inicial`, `resaltado_triplete` y
+`resaltado_limpiado`. Las dos capas adicionales, relleno y línea de selección,
+deben iniciar con un filtro imposible, aceptar exactamente el triplete `1/2/3`
+y volver al filtro vacío al limpiar la ficha.
+
 La sonda también debe registrar seis contratos `css_layout_*=true`, sin un
 selector `:deep(...)` residual en el CSS aislado publicado. Para un viewport
 simulado de `1366x768`, debe mostrar `alto_disponible_mapa=712`,
@@ -120,13 +125,14 @@ Criterio de fallo: cualquier health distinto de `healthy`, Caddy distinto de
 `running`, reinicios continuos, respuesta HTTP distinta de 200, referencia
 literal sin fingerprint, runtime inexistente o fallback HTML entregado para un
 artefacto `_framework`, `mapa.js` servido como HTML, conteos de la sonda
-distintos de 7/7/16, inicialización antes de adquirir dimensiones, zoom final
+distintos de 7/7/18, inicialización antes de adquirir dimensiones, zoom final
 menor o igual que 10, ausencia de `Cache-Control: no-cache`/ETag, revalidación
 distinta de 304, ausencia/diferencia del encuadre esperado, plantilla de tile
 relativa o sin placeholders XYZ, rango de fuente distinto del catálogo, Bearer
 ausente en el tile ficticio, filtrado a un recurso que no sea tile, contrato CSS
 en `false`, selector `:deep(...)` residual, proporción de alto menor o igual a
-0,70 o ausencia del reajuste del mapa.
+0,70, ausencia del reajuste del mapa o filtros de resaltado distintos de los
+esperados.
 
 ## 4. Preparar la captura del navegador
 
