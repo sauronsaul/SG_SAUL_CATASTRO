@@ -41,10 +41,11 @@
         var capas = CatalogoCapasMapa.ObtenerTodas()
             .Select(capa => CapaMapaInterop.Crear(capa, Estado.EsVisible(capa.Nombre)))
             .ToArray();
+        var limites = Configuracion.ObtenerLimitesMapa();
 
         await _interop.CrearAsync(
             _contenedorId,
-            Configuracion.Limites,
+            limites,
             Estado.Camara,
             Sesion.AccessToken,
             capas,

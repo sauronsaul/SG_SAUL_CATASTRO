@@ -7,10 +7,11 @@ export function crearMapa(contenedorId, limites, camara, token, capas, referenci
     }
 
     const cantidadCapas = Array.isArray(capas) ? capas.length : -1;
-    console.info(`${prefijoLog} creación`, { contenedorId, cantidadCapas });
+    console.info(`${prefijoLog} creación`, { contenedorId, cantidadCapas, bbox: limites });
     if (!Array.isArray(capas) || capas.length !== 7) {
         throw new Error(`${prefijoLog} se esperaban 7 capas y llegaron ${cantidadCapas}.`);
     }
+    validarLimites(limites);
 
     destruirMapa(contenedorId);
 
@@ -26,14 +27,6 @@ export function crearMapa(contenedorId, limites, camara, token, capas, referenci
         transformRequest: (url) => transformarSolicitud(url, token)
     };
 
-    if (camara) {
-        opciones.center = [camara.longitud, camara.latitud];
-        opciones.zoom = camara.zoom;
-    } else {
-        opciones.bounds = [[limites[0], limites[1]], [limites[2], limites[3]]];
-        opciones.fitBoundsOptions = { padding: 40, maxZoom: 14 };
-    }
-
     const mapa = new window.maplibregl.Map(opciones);
     mapa.addControl(new window.maplibregl.NavigationControl({ showCompass: false }), "top-right");
 
@@ -47,6 +40,7 @@ export function crearMapa(contenedorId, limites, camara, token, capas, referenci
     const agregarCapas = () => {
         if (estado.capasInicializadas) return;
         estado.capasInicializadas = true;
+        aplicarEncuadre(mapa, limites, camara);
         console.info(`${prefijoLog} inicialización de capas`, { cantidadCapas: capas.length });
 
         for (const capa of capas) {
@@ -93,6 +87,37 @@ export function crearMapa(contenedorId, limites, camara, token, capas, referenci
             estado.notificado401 = true;
             void referenciaDotNet.invokeMethodAsync("NotificarNoAutorizadoAsync");
         }
+    });
+}
+
+function validarLimites(limites) {
+    if (!Array.isArray(limites)
+        || limites.length !== 4
+        || limites.some(limite => !Number.isFinite(limite))
+        || limites[0] >= limites[2]
+        || limites[1] >= limites[3]) {
+        throw new Error(`${prefijoLog} bbox inválido; se esperaba [oeste, sur, este, norte].`);
+    }
+}
+
+function aplicarEncuadre(mapa, limites, camara) {
+    mapa.resize();
+
+    if (camara) {
+        mapa.jumpTo({
+            center: [camara.longitud, camara.latitud],
+            zoom: camara.zoom
+        });
+    } else {
+        mapa.fitBounds(
+            [[limites[0], limites[1]], [limites[2], limites[3]]],
+            { padding: 40, maxZoom: 14 });
+    }
+
+    const centro = mapa.getCenter();
+    console.info(`${prefijoLog} encuadre aplicado`, {
+        center: [centro.lng, centro.lat],
+        zoom: mapa.getZoom()
     });
 }
 

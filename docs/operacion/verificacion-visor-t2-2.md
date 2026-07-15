@@ -81,16 +81,19 @@ Los tres recursos HTTP deben devolver `HTTP/1.1 200`. La raíz debe incluir
 `Content-Type: text/html`; el artefacto fingerprinted extraído del `index.html`
 debe incluir `Content-Type: text/javascript` o `application/javascript`, nunca
 `text/html`. La sonda JavaScript debe terminar con `capas_entrada=7`,
-`fuentes_agregadas=7` y `capas_dibujadas=16`; reproduce el caso donde el estilo
-ya estaba cargado antes de registrar eventos. Si `CADDY_HTTP_PORT` no es 80,
-sustituir `localhost` por `localhost:<puerto>` tanto en los `curl` como en el
-argumento de la sonda, y registrar el valor usado.
+`fuentes_agregadas=7`, `capas_dibujadas=16`, `encuadres_aplicados=1`, el bbox
+esperado en `encuadre_limites` y las opciones `padding: 40, maxZoom: 14` en
+`encuadre_opciones`. Reproduce el caso donde el estilo ya estaba cargado antes
+de registrar eventos y demuestra que el encuadre no depende solamente de las
+opciones del constructor. Si `CADDY_HTTP_PORT` no es 80, sustituir `localhost`
+por `localhost:<puerto>` tanto en los `curl` como en el argumento de la sonda,
+y registrar el valor usado.
 
 Criterio de fallo: cualquier health distinto de `healthy`, Caddy distinto de
 `running`, reinicios continuos, respuesta HTTP distinta de 200, referencia
 literal sin fingerprint, runtime inexistente o fallback HTML entregado para un
-artefacto `_framework`, `mapa.js` servido como HTML, o conteos de la sonda
-distintos de 7/7/16.
+artefacto `_framework`, `mapa.js` servido como HTML, conteos de la sonda
+distintos de 7/7/16, o ausencia/diferencia del encuadre esperado.
 
 ## 4. Preparar la captura del navegador
 
@@ -136,8 +139,9 @@ refresh token persistido, token en URL o token en almacenamiento del navegador.
 3. Acercar el mapa hasta zoom 16 sobre el centro urbano.
 4. Desactivar y volver a activar cada capa, una por una.
 5. En Console comprobar las trazas `[SG.Web mapa]`: creación con
-   `cantidadCapas: 7`, inicialización, siete mensajes `addSource` y `capas
-   listas` con `fuentes: 7`.
+   `cantidadCapas: 7` y el bbox configurado, `encuadre aplicado` con `center` y
+   `zoom`, inicialización, siete mensajes `addSource` y `capas listas` con
+   `fuentes: 7`.
 6. En Network o en la consola comprobar que existen recursos cuya URL contiene
    `/api/tiles/`:
 
@@ -154,13 +158,17 @@ Resultado esperado:
   final del orden visual.
 - En zoom 16 aparecen solicitudes para las capas de detalle.
 - No hay solicitudes a nombres de capa distintos de la lista blanca.
+- La vista inicial queda centrada dentro del bbox de Uyuni, con zoom no mayor
+  a 14 y suficiente para solicitar al menos las capas cuyo `minzoom` sea 9.
 - La traza demuestra que el catálogo serializado no está vacío y que el camino
-  de inicialización llegó a `addSource` para las siete capas.
+  de inicialización aplicó el encuadre y llegó a `addSource` para las siete
+  capas.
 
 Criterio de fallo: falta un toggle, un toggle afecta otra capa, parcelas o
 edificaciones se solicitan a zoom bajo, falta una traza de inicialización,
-`cantidadCapas`/`fuentes` no vale 7, no hay solicitudes `/api/tiles/`, o hay
-errores MapLibre en consola.
+`cantidadCapas`/`fuentes` no vale 7, falta la traza `encuadre aplicado`, el
+centro queda fuera de Uyuni, no hay solicitudes `/api/tiles/`, o hay errores
+MapLibre en consola.
 
 ## 7. Capturar tile 200 y sus encabezados
 
