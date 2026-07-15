@@ -85,7 +85,7 @@ debe incluir `Content-Type: text/javascript` o `application/javascript`, nunca
 esperado en `encuadre_limites` y las opciones `padding: 40, maxZoom: 14` en
 `encuadre_opciones`. También debe mostrar `dimensiones_iniciales=0x0`,
 `encuadres_antes_layout=0`, `fuentes_antes_layout=0`,
-`encuadre_dimensiones=1024x768` y un `zoom_final` mayor que 10. La sonda
+`encuadre_dimensiones=1078x712` y un `zoom_final` mayor que 10. La sonda
 reproduce un estilo ya cargado y un contenedor que adquiere dimensiones después
 del primer frame; demuestra que fuentes, capas y encuadre esperan el layout y
 que la cámara final no depende de una animación pendiente. Antes de esas
@@ -107,6 +107,15 @@ Bearer: ejerce directamente el callback publicado con un token ficticio para
 verificar que MapLibre recibe una URL absoluta y que el encabezado sólo se
 inyecta en `/api/tiles/`.
 
+La sonda también debe registrar seis contratos `css_layout_*=true`, sin un
+selector `:deep(...)` residual en el CSS aislado publicado. Para un viewport
+simulado de `1366x768`, debe mostrar `alto_disponible_mapa=712`,
+`proporcion_alto_mapa=0.9271` y `mapa_resize_aplicados=1`. Esto comprueba que la
+cadena `html/body/#app -> .aplicacion -> main -> .pagina-visor -> .visor`
+propaga el alto disponible, que el mapa supera el 70% del viewport y que el
+`ResizeObserver` llama a `map.resize()` cuando el contenedor pasa de `0x0` a su
+alto definitivo.
+
 Criterio de fallo: cualquier health distinto de `healthy`, Caddy distinto de
 `running`, reinicios continuos, respuesta HTTP distinta de 200, referencia
 literal sin fingerprint, runtime inexistente o fallback HTML entregado para un
@@ -115,7 +124,9 @@ distintos de 7/7/16, inicialización antes de adquirir dimensiones, zoom final
 menor o igual que 10, ausencia de `Cache-Control: no-cache`/ETag, revalidación
 distinta de 304, ausencia/diferencia del encuadre esperado, plantilla de tile
 relativa o sin placeholders XYZ, rango de fuente distinto del catálogo, Bearer
-ausente en el tile ficticio o filtrado a un recurso que no sea tile.
+ausente en el tile ficticio, filtrado a un recurso que no sea tile, contrato CSS
+en `false`, selector `:deep(...)` residual, proporción de alto menor o igual a
+0,70 o ausencia del reajuste del mapa.
 
 ## 4. Preparar la captura del navegador
 
@@ -189,6 +200,9 @@ Resultado esperado:
   a 14 y mayor que 10, suficiente para solicitar las capas de escala urbana.
 - La traza `encuadre aplicado` registra `w > 0` y `h > 0`; no aparece el WARN
   `encuadre municipal inválido: zoom <= 1`.
+- El valor `h` ocupa más del 70% de `window.innerHeight` y el borde inferior del
+  lienzo coincide visualmente con el borde inferior del viewport, sin una zona
+  en blanco posterior al mapa.
 - La traza demuestra que el catálogo serializado no está vacío y que el camino
   de inicialización aplicó el encuadre y llegó a `addSource` para las siete
   capas.
@@ -204,7 +218,9 @@ edificaciones se solicitan a zoom bajo, falta una traza de inicialización,
 centro queda fuera de Uyuni, `w`/`h` no son positivos, el zoom es menor o igual
 que 10, aparece el WARN de encuadre inválido, no hay solicitudes `/api/tiles/`,
 la plantilla es relativa o pierde placeholders, no aparece `transformRequest`
-para recursos `Tile`, o hay errores MapLibre en consola.
+para recursos `Tile`, el alto del mapa es menor o igual al 70% del viewport,
+queda un corte horizontal con espacio en blanco, o hay errores MapLibre en
+consola.
 
 ## 7. Capturar tile 200 y sus encabezados
 

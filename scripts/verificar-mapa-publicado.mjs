@@ -57,6 +57,36 @@ console.log(`app_css_cache_control=${respuestaCss.headers.get("cache-control") ?
 if (!respuestaCss.ok || !(respuestaCss.headers.get("cache-control") ?? "").includes("no-cache")) {
     throw new Error("app.css no está disponible con revalidación HTTP obligatoria.");
 }
+const cssAplicacion = await respuestaCss.text();
+
+const urlCssAislado = new URL("../SG.Web.styles.css", urlModulo);
+const respuestaCssAislado = await fetch(urlCssAislado);
+console.log(`css_aislado_status=${respuestaCssAislado.status}`);
+console.log(`css_aislado_content_type=${respuestaCssAislado.headers.get("content-type") ?? ""}`);
+console.log(`css_aislado_cache_control=${respuestaCssAislado.headers.get("cache-control") ?? ""}`);
+if (!respuestaCssAislado.ok
+    || !(respuestaCssAislado.headers.get("cache-control") ?? "").includes("no-cache")) {
+    throw new Error("SG.Web.styles.css no está disponible con revalidación HTTP obligatoria.");
+}
+const cssAislado = await respuestaCssAislado.text();
+const contratosLayout = [
+    ["raiz_100_por_ciento", /html,\s*body,\s*#app\s*\{[^}]*height:\s*100%;/s, cssAplicacion],
+    ["aplicacion_flex", /\.aplicacion\[b-[^\]]+\]\s*\{[^}]*display:\s*flex;[^}]*flex-direction:\s*column;[^}]*height:\s*100%;/s, cssAislado],
+    ["main_flexible", /main\[b-[^\]]+\]\s*\{[^}]*flex:\s*1\s+1\s+auto;[^}]*min-height:\s*0;/s, cssAislado],
+    ["pagina_visor_100_por_ciento", /\.pagina-visor\[b-[^\]]+\]\s*\{[^}]*height:\s*100%;[^}]*min-height:\s*0;/s, cssAislado],
+    ["deep_visor_valido", /\.pagina-visor\[b-[^\]]+\]\s+\.visor\s*\{[^}]*height:\s*100%;/s, cssAislado],
+    ["visor_100_por_ciento", /\.visor\[b-[^\]]+\]\s*\{[^}]*height:\s*100%;[^}]*min-height:\s*0;/s, cssAislado],
+];
+for (const [nombre, patron, css] of contratosLayout) {
+    const cumple = patron.test(css);
+    console.log(`css_layout_${nombre}=${cumple}`);
+    if (!cumple) {
+        throw new Error(`El CSS publicado incumple el contrato de layout ${nombre}.`);
+    }
+}
+if (cssAislado.includes(":deep(")) {
+    throw new Error("El CSS publicado conserva un selector :deep(...) sin transformar.");
+}
 
 const urlIndice = new URL("../", urlModulo);
 const respuestaIndice = await fetch(urlIndice);
@@ -75,6 +105,7 @@ if (!Array.isArray(limitesConfigurados) || limitesConfigurados.length !== 4) {
 const fuentes = [];
 const capasDibujadas = [];
 const encuadres = [];
+const redimensionados = [];
 const observadores = [];
 const framesPendientes = new Map();
 const contenedor = { clientWidth: 0, clientHeight: 0 };
@@ -129,7 +160,12 @@ class MapaFalso {
     }
     addLayer(capa) { capasDibujadas.push(capa.id); }
     getLayer() { return undefined; }
-    resize() {}
+    resize() {
+        redimensionados.push({
+            w: this.contenedor.clientWidth,
+            h: this.contenedor.clientHeight
+        });
+    }
     fitBounds(limites, opciones) {
         const w = this.contenedor.clientWidth;
         const h = this.contenedor.clientHeight;
@@ -211,8 +247,12 @@ if (encuadres.length !== 0) {
     throw new Error("El mapa se encuadró durante un frame que todavía tenía dimensiones 0x0.");
 }
 
-contenedor.clientWidth = 1024;
-contenedor.clientHeight = 768;
+const viewportSonda = { w: 1366, h: 768 };
+const altoBarraSuperior = 56;
+const altoDisponibleMapa = viewportSonda.h - altoBarraSuperior;
+const proporcionAltoMapa = altoDisponibleMapa / viewportSonda.h;
+contenedor.clientWidth = viewportSonda.w - 288;
+contenedor.clientHeight = altoDisponibleMapa;
 for (const observador of observadores) {
     observador.notificar();
 }
@@ -223,6 +263,21 @@ console.log(`fuentes_agregadas=${fuentes.length}`);
 console.log(`capas_dibujadas=${capasDibujadas.length}`);
 console.log(`bbox_sonda=${JSON.stringify(limitesConfigurados)}`);
 console.log(`encuadres_aplicados=${encuadres.length}`);
+console.log(`viewport_sonda=${viewportSonda.w}x${viewportSonda.h}`);
+console.log(`alto_disponible_mapa=${altoDisponibleMapa}`);
+console.log(`proporcion_alto_mapa=${proporcionAltoMapa.toFixed(4)}`);
+console.log(`mapa_resize_aplicados=${redimensionados.length}`);
+
+if (proporcionAltoMapa <= 0.7) {
+    throw new Error(
+        `El contenedor simulado ocupa sólo ${(proporcionAltoMapa * 100).toFixed(2)}% del viewport.`);
+}
+if (redimensionados.length !== 1
+    || redimensionados[0].w !== contenedor.clientWidth
+    || redimensionados[0].h !== altoDisponibleMapa) {
+    throw new Error(
+        `ResizeObserver no reajustó el mapa al alto disponible: ${JSON.stringify(redimensionados)}.`);
+}
 
 if (fuentes.length !== 7) {
     throw new Error(`Se esperaban 7 fuentes y se agregaron ${fuentes.length}.`);
@@ -314,7 +369,9 @@ if (encuadre.opciones.padding !== 40
     throw new Error(`Opciones de encuadre inesperadas: ${JSON.stringify(encuadre.opciones)}.`);
 }
 
-if (encuadre.w !== 1024 || encuadre.h !== 768 || encuadre.zoom <= 10) {
+if (encuadre.w !== contenedor.clientWidth
+    || encuadre.h !== altoDisponibleMapa
+    || encuadre.zoom <= 10) {
     throw new Error(
         `Encuadre inválido tras adquirir layout: ${encuadre.w}x${encuadre.h}, zoom=${encuadre.zoom}.`);
 }
