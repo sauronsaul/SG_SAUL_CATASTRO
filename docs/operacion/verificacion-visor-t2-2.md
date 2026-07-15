@@ -83,17 +83,22 @@ debe incluir `Content-Type: text/javascript` o `application/javascript`, nunca
 `text/html`. La sonda JavaScript debe terminar con `capas_entrada=7`,
 `fuentes_agregadas=7`, `capas_dibujadas=16`, `encuadres_aplicados=1`, el bbox
 esperado en `encuadre_limites` y las opciones `padding: 40, maxZoom: 14` en
-`encuadre_opciones`. Reproduce el caso donde el estilo ya estaba cargado antes
-de registrar eventos y demuestra que el encuadre no depende solamente de las
-opciones del constructor. Si `CADDY_HTTP_PORT` no es 80, sustituir `localhost`
-por `localhost:<puerto>` tanto en los `curl` como en el argumento de la sonda,
-y registrar el valor usado.
+`encuadre_opciones`. También debe mostrar `dimensiones_iniciales=0x0`,
+`encuadres_antes_layout=0`, `fuentes_antes_layout=0`,
+`encuadre_dimensiones=1024x768` y un `zoom_final` mayor que 10. La sonda
+reproduce un estilo ya cargado y un contenedor que adquiere dimensiones después
+del primer frame; demuestra que fuentes, capas y encuadre esperan el layout y
+que la cámara final no depende de una animación pendiente. Si
+`CADDY_HTTP_PORT` no es 80, sustituir `localhost` por
+`localhost:<puerto>` tanto en los `curl` como en el argumento de la sonda, y
+registrar el valor usado.
 
 Criterio de fallo: cualquier health distinto de `healthy`, Caddy distinto de
 `running`, reinicios continuos, respuesta HTTP distinta de 200, referencia
 literal sin fingerprint, runtime inexistente o fallback HTML entregado para un
 artefacto `_framework`, `mapa.js` servido como HTML, conteos de la sonda
-distintos de 7/7/16, o ausencia/diferencia del encuadre esperado.
+distintos de 7/7/16, inicialización antes de adquirir dimensiones, zoom final
+menor o igual que 10, o ausencia/diferencia del encuadre esperado.
 
 ## 4. Preparar la captura del navegador
 
@@ -140,8 +145,8 @@ refresh token persistido, token en URL o token en almacenamiento del navegador.
 4. Desactivar y volver a activar cada capa, una por una.
 5. En Console comprobar las trazas `[SG.Web mapa]`: creación con
    `cantidadCapas: 7` y el bbox configurado, `encuadre aplicado` con `center` y
-   `zoom`, inicialización, siete mensajes `addSource` y `capas listas` con
-   `fuentes: 7`.
+   `zoom`, `w` y `h`, inicialización, siete mensajes `addSource` y `capas
+   listas` con `fuentes: 7`.
 6. En Network o en la consola comprobar que existen recursos cuya URL contiene
    `/api/tiles/`:
 
@@ -159,7 +164,9 @@ Resultado esperado:
 - En zoom 16 aparecen solicitudes para las capas de detalle.
 - No hay solicitudes a nombres de capa distintos de la lista blanca.
 - La vista inicial queda centrada dentro del bbox de Uyuni, con zoom no mayor
-  a 14 y suficiente para solicitar al menos las capas cuyo `minzoom` sea 9.
+  a 14 y mayor que 10, suficiente para solicitar las capas de escala urbana.
+- La traza `encuadre aplicado` registra `w > 0` y `h > 0`; no aparece el WARN
+  `encuadre municipal inválido: zoom <= 1`.
 - La traza demuestra que el catálogo serializado no está vacío y que el camino
   de inicialización aplicó el encuadre y llegó a `addSource` para las siete
   capas.
@@ -167,8 +174,9 @@ Resultado esperado:
 Criterio de fallo: falta un toggle, un toggle afecta otra capa, parcelas o
 edificaciones se solicitan a zoom bajo, falta una traza de inicialización,
 `cantidadCapas`/`fuentes` no vale 7, falta la traza `encuadre aplicado`, el
-centro queda fuera de Uyuni, no hay solicitudes `/api/tiles/`, o hay errores
-MapLibre en consola.
+centro queda fuera de Uyuni, `w`/`h` no son positivos, el zoom es menor o igual
+que 10, aparece el WARN de encuadre inválido, no hay solicitudes `/api/tiles/`,
+o hay errores MapLibre en consola.
 
 ## 7. Capturar tile 200 y sus encabezados
 

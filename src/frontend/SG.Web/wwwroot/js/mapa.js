@@ -13,6 +13,11 @@ export function crearMapa(contenedorId, limites, camara, token, capas, referenci
     }
     validarLimites(limites);
 
+    const contenedor = document.getElementById(contenedorId);
+    if (!contenedor) {
+        throw new Error(`${prefijoLog} no existe el contenedor ${contenedorId}.`);
+    }
+
     destruirMapa(contenedorId);
 
     const opciones = {
@@ -30,7 +35,15 @@ export function crearMapa(contenedorId, limites, camara, token, capas, referenci
     const mapa = new window.maplibregl.Map(opciones);
     mapa.addControl(new window.maplibregl.NavigationControl({ showCompass: false }), "top-right");
 
-    const estado = { mapa, notificado401: false, capasInicializadas: false, referenciaDotNet };
+    const estado = {
+        mapa,
+        notificado401: false,
+        capasInicializadas: false,
+        estiloListo: false,
+        dimensiones: null,
+        cancelarEsperaDimensiones: null,
+        referenciaDotNet
+    };
     mapas.set(contenedorId, estado);
 
     mapa.on("load", () => {
@@ -38,9 +51,12 @@ export function crearMapa(contenedorId, limites, camara, token, capas, referenci
     });
 
     const agregarCapas = () => {
-        if (estado.capasInicializadas) return;
+        if (estado.capasInicializadas || !estado.estiloListo || !estado.dimensiones) return;
+
+        estado.cancelarEsperaDimensiones?.();
+        estado.cancelarEsperaDimensiones = null;
+        aplicarEncuadre(mapa, limites, camara, estado.dimensiones);
         estado.capasInicializadas = true;
-        aplicarEncuadre(mapa, limites, camara);
         console.info(`${prefijoLog} inicialización de capas`, { cantidadCapas: capas.length });
 
         for (const capa of capas) {
@@ -74,12 +90,22 @@ export function crearMapa(contenedorId, limites, camara, token, capas, referenci
     };
 
     if (mapa.isStyleLoaded()) {
-        console.info(`${prefijoLog} estilo ya cargado; inicialización inmediata`);
+        console.info(`${prefijoLog} estilo ya cargado`);
+        estado.estiloListo = true;
         agregarCapas();
     } else {
         console.info(`${prefijoLog} esperando evento style.load`);
-        mapa.once("style.load", agregarCapas);
+        mapa.once("style.load", () => {
+            console.info(`${prefijoLog} evento style.load`);
+            estado.estiloListo = true;
+            agregarCapas();
+        });
     }
+
+    estado.cancelarEsperaDimensiones = esperarDimensiones(contenedor, (dimensiones) => {
+        estado.dimensiones = dimensiones;
+        agregarCapas();
+    });
 
     mapa.on("error", (evento) => {
         const status = evento?.error?.status;
@@ -100,7 +126,54 @@ function validarLimites(limites) {
     }
 }
 
-function aplicarEncuadre(mapa, limites, camara) {
+function esperarDimensiones(contenedor, alEstarListo) {
+    let terminado = false;
+    let frameId = null;
+    let observador = null;
+
+    const comprobar = () => {
+        if (terminado) return true;
+
+        const w = contenedor.clientWidth;
+        const h = contenedor.clientHeight;
+        if (w <= 0 || h <= 0) return false;
+
+        terminado = true;
+        observador?.disconnect();
+        if (frameId !== null) {
+            window.cancelAnimationFrame(frameId);
+            frameId = null;
+        }
+
+        alEstarListo({ w, h });
+        return true;
+    };
+
+    if (typeof window.ResizeObserver === "function") {
+        observador = new window.ResizeObserver(comprobar);
+        observador.observe(contenedor);
+    }
+
+    const programarFrame = () => {
+        frameId = window.requestAnimationFrame(() => {
+            frameId = null;
+            if (!comprobar() && !observador) {
+                programarFrame();
+            }
+        });
+    };
+    programarFrame();
+
+    return () => {
+        terminado = true;
+        observador?.disconnect();
+        if (frameId !== null) {
+            window.cancelAnimationFrame(frameId);
+        }
+    };
+}
+
+function aplicarEncuadre(mapa, limites, camara, dimensiones) {
     mapa.resize();
 
     if (camara) {
@@ -111,14 +184,25 @@ function aplicarEncuadre(mapa, limites, camara) {
     } else {
         mapa.fitBounds(
             [[limites[0], limites[1]], [limites[2], limites[3]]],
-            { padding: 40, maxZoom: 14 });
+            { padding: 40, maxZoom: 14, duration: 0 });
     }
 
     const centro = mapa.getCenter();
-    console.info(`${prefijoLog} encuadre aplicado`, {
+    const detalle = {
         center: [centro.lng, centro.lat],
-        zoom: mapa.getZoom()
-    });
+        zoom: mapa.getZoom(),
+        w: dimensiones.w,
+        h: dimensiones.h
+    };
+    console.info(`${prefijoLog} encuadre aplicado`, detalle);
+
+    if (!camara && detalle.zoom <= 1) {
+        console.warn(`${prefijoLog} encuadre municipal inválido: zoom <= 1`, {
+            ...detalle,
+            bbox: limites
+        });
+        throw new Error(`${prefijoLog} no se pudo encuadrar el bbox municipal.`);
+    }
 }
 
 export function cambiarVisibilidad(contenedorId, nombreCapa, visible) {
@@ -143,6 +227,7 @@ export function obtenerCamara(contenedorId) {
 export function destruirMapa(contenedorId) {
     const estado = mapas.get(contenedorId);
     if (!estado) return;
+    estado.cancelarEsperaDimensiones?.();
     estado.mapa.remove();
     mapas.delete(contenedorId);
 }

@@ -34,12 +34,47 @@ if (!Array.isArray(limitesConfigurados) || limitesConfigurados.length !== 4) {
 const fuentes = [];
 const capasDibujadas = [];
 const encuadres = [];
+const observadores = [];
+const framesPendientes = new Map();
+const contenedor = { clientWidth: 0, clientHeight: 0 };
+let siguienteFrame = 1;
+
+class ResizeObserverFalso {
+    constructor(callback) {
+        this.callback = callback;
+        this.desconectado = false;
+        observadores.push(this);
+    }
+
+    observe(elemento) {
+        this.elemento = elemento;
+    }
+
+    disconnect() {
+        this.desconectado = true;
+    }
+
+    notificar() {
+        if (!this.desconectado) {
+            this.callback([{ target: this.elemento }]);
+        }
+    }
+}
+
+function ejecutarFramesPendientes() {
+    const frames = [...framesPendientes.values()];
+    framesPendientes.clear();
+    for (const callback of frames) {
+        callback(0);
+    }
+}
 
 class MapaFalso {
     constructor(opciones) {
         this.eventos = new Map();
         this.centro = { lng: 0, lat: 0 };
         this.zoom = 0;
+        this.contenedor = contenedor;
     }
 
     addControl() {}
@@ -51,12 +86,14 @@ class MapaFalso {
     getLayer() { return undefined; }
     resize() {}
     fitBounds(limites, opciones) {
-        encuadres.push({ limites, opciones });
+        const w = this.contenedor.clientWidth;
+        const h = this.contenedor.clientHeight;
         this.centro = {
             lng: (limites[0][0] + limites[1][0]) / 2,
             lat: (limites[0][1] + limites[1][1]) / 2,
         };
-        this.zoom = opciones.maxZoom;
+        this.zoom = w > 0 && h > 0 ? Math.min(opciones.maxZoom, 13) : 0;
+        encuadres.push({ limites, opciones, w, h, zoom: this.zoom });
     }
     jumpTo(opciones) {
         this.centro = { lng: opciones.center[0], lat: opciones.center[1] };
@@ -69,10 +106,20 @@ class MapaFalso {
 
 globalThis.window = {
     location: { origin: "http://localhost" },
+    ResizeObserver: ResizeObserverFalso,
+    requestAnimationFrame: (callback) => {
+        const id = siguienteFrame++;
+        framesPendientes.set(id, callback);
+        return id;
+    },
+    cancelAnimationFrame: (id) => framesPendientes.delete(id),
     maplibregl: {
         Map: MapaFalso,
         NavigationControl: class {},
     },
+};
+globalThis.document = {
+    getElementById: (id) => id === "mapa-sonda" ? contenedor : null,
 };
 
 const urlDatos = `data:text/javascript;base64,${Buffer.from(codigo).toString("base64")}`;
@@ -104,6 +151,28 @@ modulo.crearMapa(
     capas,
     { invokeMethodAsync() {} });
 
+console.log(`dimensiones_iniciales=${contenedor.clientWidth}x${contenedor.clientHeight}`);
+console.log(`encuadres_antes_layout=${encuadres.length}`);
+console.log(`fuentes_antes_layout=${fuentes.length}`);
+
+if (encuadres.length !== 0 || fuentes.length !== 0 || capasDibujadas.length !== 0) {
+    throw new Error(
+        `El mapa se inicializó antes del layout: encuadres=${encuadres.length}, `
+        + `fuentes=${fuentes.length}, capas=${capasDibujadas.length}.`);
+}
+
+ejecutarFramesPendientes();
+if (encuadres.length !== 0) {
+    throw new Error("El mapa se encuadró durante un frame que todavía tenía dimensiones 0x0.");
+}
+
+contenedor.clientWidth = 1024;
+contenedor.clientHeight = 768;
+for (const observador of observadores) {
+    observador.notificar();
+}
+ejecutarFramesPendientes();
+
 console.log(`capas_entrada=${capas.length}`);
 console.log(`fuentes_agregadas=${fuentes.length}`);
 console.log(`capas_dibujadas=${capasDibujadas.length}`);
@@ -129,10 +198,19 @@ const limitesEsperados = [
 ];
 console.log(`encuadre_limites=${JSON.stringify(encuadre.limites)}`);
 console.log(`encuadre_opciones=${JSON.stringify(encuadre.opciones)}`);
+console.log(`encuadre_dimensiones=${encuadre.w}x${encuadre.h}`);
+console.log(`zoom_final=${encuadre.zoom}`);
 if (JSON.stringify(encuadre.limites) !== JSON.stringify(limitesEsperados)) {
     throw new Error(`Bbox inesperado: ${JSON.stringify(encuadre.limites)}.`);
 }
 
-if (encuadre.opciones.padding !== 40 || encuadre.opciones.maxZoom !== 14) {
+if (encuadre.opciones.padding !== 40
+    || encuadre.opciones.maxZoom !== 14
+    || encuadre.opciones.duration !== 0) {
     throw new Error(`Opciones de encuadre inesperadas: ${JSON.stringify(encuadre.opciones)}.`);
+}
+
+if (encuadre.w !== 1024 || encuadre.h !== 768 || encuadre.zoom <= 10) {
+    throw new Error(
+        `Encuadre inválido tras adquirir layout: ${encuadre.w}x${encuadre.h}, zoom=${encuadre.zoom}.`);
 }
