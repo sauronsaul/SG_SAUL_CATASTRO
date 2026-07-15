@@ -1,0 +1,377 @@
+const urlModulo = process.argv[2] ?? "http://localhost/js/mapa.js";
+const respuesta = await fetch(urlModulo);
+const tipoContenido = respuesta.headers.get("content-type") ?? "";
+const cacheControlModulo = respuesta.headers.get("cache-control") ?? "";
+const etagModulo = respuesta.headers.get("etag") ?? "";
+
+console.log(`mapa_js_status=${respuesta.status}`);
+console.log(`mapa_js_content_type=${tipoContenido}`);
+console.log(`mapa_js_cache_control=${cacheControlModulo}`);
+console.log(`mapa_js_etag=${etagModulo}`);
+
+if (!respuesta.ok) {
+    throw new Error(`No se pudo descargar ${urlModulo}: HTTP ${respuesta.status}.`);
+}
+
+if (tipoContenido.includes("text/html")) {
+    throw new Error("mapa.js recibio el fallback HTML.");
+}
+
+if (!/(text|application)\/javascript/i.test(tipoContenido)) {
+    throw new Error(`Content-Type inesperado para mapa.js: ${tipoContenido}.`);
+}
+
+if (!cacheControlModulo.split(",").map(x => x.trim()).includes("no-cache")) {
+    throw new Error(`mapa.js no exige revalidación HTTP: Cache-Control=${cacheControlModulo}.`);
+}
+
+if (!etagModulo) {
+    throw new Error("mapa.js no incluye ETag para revalidación condicional.");
+}
+
+const respuestaRevalidada = await fetch(urlModulo, {
+    headers: { "If-None-Match": etagModulo },
+});
+console.log(`mapa_js_revalidacion_status=${respuestaRevalidada.status}`);
+if (respuestaRevalidada.status !== 304) {
+    throw new Error(`La revalidación de mapa.js devolvió HTTP ${respuestaRevalidada.status}, no 304.`);
+}
+
+const codigo = await respuesta.text();
+const urlConfiguracion = new URL("../appsettings.json", urlModulo);
+const respuestaConfiguracion = await fetch(urlConfiguracion);
+console.log(`appsettings_status=${respuestaConfiguracion.status}`);
+console.log(`appsettings_cache_control=${respuestaConfiguracion.headers.get("cache-control") ?? ""}`);
+if (!respuestaConfiguracion.ok) {
+    throw new Error(`No se pudo descargar ${urlConfiguracion}: HTTP ${respuestaConfiguracion.status}.`);
+}
+if (!(respuestaConfiguracion.headers.get("cache-control") ?? "").includes("no-cache")) {
+    throw new Error("appsettings.json no exige revalidación HTTP.");
+}
+
+const urlCss = new URL("../css/app.css", urlModulo);
+const respuestaCss = await fetch(urlCss);
+console.log(`app_css_status=${respuestaCss.status}`);
+console.log(`app_css_content_type=${respuestaCss.headers.get("content-type") ?? ""}`);
+console.log(`app_css_cache_control=${respuestaCss.headers.get("cache-control") ?? ""}`);
+if (!respuestaCss.ok || !(respuestaCss.headers.get("cache-control") ?? "").includes("no-cache")) {
+    throw new Error("app.css no está disponible con revalidación HTTP obligatoria.");
+}
+const cssAplicacion = await respuestaCss.text();
+
+const urlCssAislado = new URL("../SG.Web.styles.css", urlModulo);
+const respuestaCssAislado = await fetch(urlCssAislado);
+console.log(`css_aislado_status=${respuestaCssAislado.status}`);
+console.log(`css_aislado_content_type=${respuestaCssAislado.headers.get("content-type") ?? ""}`);
+console.log(`css_aislado_cache_control=${respuestaCssAislado.headers.get("cache-control") ?? ""}`);
+if (!respuestaCssAislado.ok
+    || !(respuestaCssAislado.headers.get("cache-control") ?? "").includes("no-cache")) {
+    throw new Error("SG.Web.styles.css no está disponible con revalidación HTTP obligatoria.");
+}
+const cssAislado = await respuestaCssAislado.text();
+const contratosLayout = [
+    ["raiz_100_por_ciento", /html,\s*body,\s*#app\s*\{[^}]*height:\s*100%;/s, cssAplicacion],
+    ["aplicacion_flex", /\.aplicacion\[b-[^\]]+\]\s*\{[^}]*display:\s*flex;[^}]*flex-direction:\s*column;[^}]*height:\s*100%;/s, cssAislado],
+    ["main_flexible", /main\[b-[^\]]+\]\s*\{[^}]*flex:\s*1\s+1\s+auto;[^}]*min-height:\s*0;/s, cssAislado],
+    ["pagina_visor_100_por_ciento", /\.pagina-visor\[b-[^\]]+\]\s*\{[^}]*height:\s*100%;[^}]*min-height:\s*0;/s, cssAislado],
+    ["deep_visor_valido", /\.pagina-visor\[b-[^\]]+\]\s+\.visor\s*\{[^}]*height:\s*100%;/s, cssAislado],
+    ["visor_100_por_ciento", /\.visor\[b-[^\]]+\]\s*\{[^}]*height:\s*100%;[^}]*min-height:\s*0;/s, cssAislado],
+];
+for (const [nombre, patron, css] of contratosLayout) {
+    const cumple = patron.test(css);
+    console.log(`css_layout_${nombre}=${cumple}`);
+    if (!cumple) {
+        throw new Error(`El CSS publicado incumple el contrato de layout ${nombre}.`);
+    }
+}
+if (cssAislado.includes(":deep(")) {
+    throw new Error("El CSS publicado conserva un selector :deep(...) sin transformar.");
+}
+
+const urlIndice = new URL("../", urlModulo);
+const respuestaIndice = await fetch(urlIndice);
+console.log(`index_status=${respuestaIndice.status}`);
+console.log(`index_cache_control=${respuestaIndice.headers.get("cache-control") ?? ""}`);
+if (!respuestaIndice.ok || !(respuestaIndice.headers.get("cache-control") ?? "").includes("no-cache")) {
+    throw new Error("La respuesta SPA no exige revalidación HTTP.");
+}
+
+const configuracion = await respuestaConfiguracion.json();
+const limitesConfigurados = configuracion?.Visor?.Mapa?.Limites;
+if (!Array.isArray(limitesConfigurados) || limitesConfigurados.length !== 4) {
+    throw new Error("appsettings.json no contiene Visor:Mapa:Limites con cuatro valores.");
+}
+
+const fuentes = [];
+const capasDibujadas = [];
+const encuadres = [];
+const redimensionados = [];
+const observadores = [];
+const framesPendientes = new Map();
+const contenedor = { clientWidth: 0, clientHeight: 0 };
+let siguienteFrame = 1;
+let opcionesMapa;
+
+class ResizeObserverFalso {
+    constructor(callback) {
+        this.callback = callback;
+        this.desconectado = false;
+        observadores.push(this);
+    }
+
+    observe(elemento) {
+        this.elemento = elemento;
+    }
+
+    disconnect() {
+        this.desconectado = true;
+    }
+
+    notificar() {
+        if (!this.desconectado) {
+            this.callback([{ target: this.elemento }]);
+        }
+    }
+}
+
+function ejecutarFramesPendientes() {
+    const frames = [...framesPendientes.values()];
+    framesPendientes.clear();
+    for (const callback of frames) {
+        callback(0);
+    }
+}
+
+class MapaFalso {
+    constructor(opciones) {
+        opcionesMapa = opciones;
+        this.eventos = new Map();
+        this.centro = { lng: 0, lat: 0 };
+        this.zoom = 0;
+        this.contenedor = contenedor;
+    }
+
+    addControl() {}
+    isStyleLoaded() { return true; }
+    on(nombre, callback) { this.eventos.set(nombre, callback); }
+    once(nombre, callback) { this.eventos.set(nombre, callback); }
+    addSource(nombre, configuracionFuente) {
+        fuentes.push({ nombre, configuracion: configuracionFuente });
+    }
+    addLayer(capa) { capasDibujadas.push(capa.id); }
+    getLayer() { return undefined; }
+    resize() {
+        redimensionados.push({
+            w: this.contenedor.clientWidth,
+            h: this.contenedor.clientHeight
+        });
+    }
+    fitBounds(limites, opciones) {
+        const w = this.contenedor.clientWidth;
+        const h = this.contenedor.clientHeight;
+        this.centro = {
+            lng: (limites[0][0] + limites[1][0]) / 2,
+            lat: (limites[0][1] + limites[1][1]) / 2,
+        };
+        this.zoom = w > 0 && h > 0 ? Math.min(opciones.maxZoom, 13) : 0;
+        encuadres.push({ limites, opciones, w, h, zoom: this.zoom });
+    }
+    jumpTo(opciones) {
+        this.centro = { lng: opciones.center[0], lat: opciones.center[1] };
+        this.zoom = opciones.zoom;
+    }
+    getCenter() { return this.centro; }
+    getZoom() { return this.zoom; }
+    remove() {}
+}
+
+globalThis.window = {
+    location: { origin: "http://localhost" },
+    ResizeObserver: ResizeObserverFalso,
+    requestAnimationFrame: (callback) => {
+        const id = siguienteFrame++;
+        framesPendientes.set(id, callback);
+        return id;
+    },
+    cancelAnimationFrame: (id) => framesPendientes.delete(id),
+    maplibregl: {
+        Map: MapaFalso,
+        NavigationControl: class {},
+    },
+};
+globalThis.document = {
+    getElementById: (id) => id === "mapa-sonda" ? contenedor : null,
+};
+
+const urlDatos = `data:text/javascript;base64,${Buffer.from(codigo).toString("base64")}`;
+const modulo = await import(urlDatos);
+const capas = [
+    ["distritos", 9, true, true, "nombre"],
+    ["zonas", 11, true, true, "nombre_zona"],
+    ["manzanas", 13, true, true, null],
+    ["parcelas", 15, true, true, null],
+    ["predios-no-fotografiados", 16, true, true, null],
+    ["edificaciones", 16, true, true, null],
+    ["vias", 13, false, true, "nombre"],
+].map(([nombre, minZoom, tieneRelleno, tieneLinea, campoEtiqueta]) => ({
+    nombre,
+    minZoom,
+    color: "#000000",
+    tieneRelleno,
+    tieneLinea,
+    campoEtiqueta,
+    minZoomEtiqueta: minZoom,
+    visible: true,
+}));
+
+modulo.crearMapa(
+    "mapa-sonda",
+    limitesConfigurados,
+    null,
+    "token-sonda",
+    capas,
+    { invokeMethodAsync() {} });
+
+console.log(`dimensiones_iniciales=${contenedor.clientWidth}x${contenedor.clientHeight}`);
+console.log(`encuadres_antes_layout=${encuadres.length}`);
+console.log(`fuentes_antes_layout=${fuentes.length}`);
+
+if (encuadres.length !== 0 || fuentes.length !== 0 || capasDibujadas.length !== 0) {
+    throw new Error(
+        `El mapa se inicializó antes del layout: encuadres=${encuadres.length}, `
+        + `fuentes=${fuentes.length}, capas=${capasDibujadas.length}.`);
+}
+
+ejecutarFramesPendientes();
+if (encuadres.length !== 0) {
+    throw new Error("El mapa se encuadró durante un frame que todavía tenía dimensiones 0x0.");
+}
+
+const viewportSonda = { w: 1366, h: 768 };
+const altoBarraSuperior = 56;
+const altoDisponibleMapa = viewportSonda.h - altoBarraSuperior;
+const proporcionAltoMapa = altoDisponibleMapa / viewportSonda.h;
+contenedor.clientWidth = viewportSonda.w - 288;
+contenedor.clientHeight = altoDisponibleMapa;
+for (const observador of observadores) {
+    observador.notificar();
+}
+ejecutarFramesPendientes();
+
+console.log(`capas_entrada=${capas.length}`);
+console.log(`fuentes_agregadas=${fuentes.length}`);
+console.log(`capas_dibujadas=${capasDibujadas.length}`);
+console.log(`bbox_sonda=${JSON.stringify(limitesConfigurados)}`);
+console.log(`encuadres_aplicados=${encuadres.length}`);
+console.log(`viewport_sonda=${viewportSonda.w}x${viewportSonda.h}`);
+console.log(`alto_disponible_mapa=${altoDisponibleMapa}`);
+console.log(`proporcion_alto_mapa=${proporcionAltoMapa.toFixed(4)}`);
+console.log(`mapa_resize_aplicados=${redimensionados.length}`);
+
+if (proporcionAltoMapa <= 0.7) {
+    throw new Error(
+        `El contenedor simulado ocupa sólo ${(proporcionAltoMapa * 100).toFixed(2)}% del viewport.`);
+}
+if (redimensionados.length !== 1
+    || redimensionados[0].w !== contenedor.clientWidth
+    || redimensionados[0].h !== altoDisponibleMapa) {
+    throw new Error(
+        `ResizeObserver no reajustó el mapa al alto disponible: ${JSON.stringify(redimensionados)}.`);
+}
+
+if (fuentes.length !== 7) {
+    throw new Error(`Se esperaban 7 fuentes y se agregaron ${fuentes.length}.`);
+}
+
+const origenPublicado = new URL(urlModulo).origin;
+for (const fuente of fuentes) {
+    const plantilla = fuente.configuracion?.tiles?.[0];
+    const capa = capas.find(x => x.nombre === fuente.nombre);
+    const plantillaEsperada = `${origenPublicado}/api/tiles/${encodeURIComponent(fuente.nombre)}/{z}/{x}/{y}.mvt`;
+    console.log(`fuente_${fuente.nombre}_template=${plantilla}`);
+    console.log(`fuente_${fuente.nombre}_minzoom=${fuente.configuracion?.minzoom}`);
+    console.log(`fuente_${fuente.nombre}_maxzoom=${fuente.configuracion?.maxzoom}`);
+
+    if (plantilla !== plantillaEsperada) {
+        throw new Error(
+            `Plantilla inesperada para ${fuente.nombre}: ${plantilla}; esperada ${plantillaEsperada}.`);
+    }
+    if (!/^https?:\/\//.test(plantilla)
+        || !plantilla.includes("/{z}/{x}/{y}.mvt")) {
+        throw new Error(`La plantilla de ${fuente.nombre} no es absoluta o perdio placeholders XYZ.`);
+    }
+    if (fuente.configuracion?.minzoom !== capa.minZoom || fuente.configuracion?.maxzoom !== 22) {
+        throw new Error(
+            `Rango de fuente inesperado para ${fuente.nombre}: `
+            + `${fuente.configuracion?.minzoom}-${fuente.configuracion?.maxzoom}.`);
+    }
+}
+
+if (typeof opcionesMapa?.transformRequest !== "function") {
+    throw new Error("El mapa publicado no registro transformRequest.");
+}
+
+const [oeste, sur, este, norte] = limitesConfigurados;
+const centro = { longitud: (oeste + este) / 2, latitud: (sur + norte) / 2 };
+const zoomTile = 13;
+const escala = 2 ** zoomTile;
+const xTile = Math.floor(((centro.longitud + 180) / 360) * escala);
+const latitudRad = centro.latitud * Math.PI / 180;
+const yTile = Math.floor(
+    (1 - Math.asinh(Math.tan(latitudRad)) / Math.PI) / 2 * escala);
+const plantillaDistritos = fuentes.find(x => x.nombre === "distritos").configuracion.tiles[0];
+const urlTileEjemplo = plantillaDistritos
+    .replace("{z}", String(zoomTile))
+    .replace("{x}", String(xTile))
+    .replace("{y}", String(yTile));
+const solicitudTile = opcionesMapa.transformRequest(urlTileEjemplo, "Tile");
+console.log(`tile_url_ejemplo=${urlTileEjemplo}`);
+console.log(`transform_tile_url=${solicitudTile?.url}`);
+console.log(`transform_tile_autorizada=${solicitudTile?.headers?.Authorization === "Bearer token-sonda"}`);
+
+if (solicitudTile?.url !== urlTileEjemplo
+    || solicitudTile?.headers?.Authorization !== "Bearer token-sonda") {
+    throw new Error("transformRequest no conserva la URL absoluta o no agrega el Bearer al tile same-origin.");
+}
+
+const solicitudNoTile = opcionesMapa.transformRequest(
+    `${origenPublicado}/appsettings.json`,
+    "Source");
+console.log(`transform_no_tile_autorizada=${Boolean(solicitudNoTile?.headers?.Authorization)}`);
+if (solicitudNoTile?.headers?.Authorization) {
+    throw new Error("transformRequest filtro el Bearer a un recurso ajeno a /api/tiles/.");
+}
+
+if (capasDibujadas.length !== 16) {
+    throw new Error(`Se esperaban 16 capas de dibujo y se agregaron ${capasDibujadas.length}.`);
+}
+
+if (encuadres.length !== 1) {
+    throw new Error(`Se esperaba 1 encuadre explícito y se aplicaron ${encuadres.length}.`);
+}
+
+const encuadre = encuadres[0];
+const limitesEsperados = [
+    [limitesConfigurados[0], limitesConfigurados[1]],
+    [limitesConfigurados[2], limitesConfigurados[3]],
+];
+console.log(`encuadre_limites=${JSON.stringify(encuadre.limites)}`);
+console.log(`encuadre_opciones=${JSON.stringify(encuadre.opciones)}`);
+console.log(`encuadre_dimensiones=${encuadre.w}x${encuadre.h}`);
+console.log(`zoom_final=${encuadre.zoom}`);
+if (JSON.stringify(encuadre.limites) !== JSON.stringify(limitesEsperados)) {
+    throw new Error(`Bbox inesperado: ${JSON.stringify(encuadre.limites)}.`);
+}
+
+if (encuadre.opciones.padding !== 40
+    || encuadre.opciones.maxZoom !== 14
+    || encuadre.opciones.duration !== 0) {
+    throw new Error(`Opciones de encuadre inesperadas: ${JSON.stringify(encuadre.opciones)}.`);
+}
+
+if (encuadre.w !== contenedor.clientWidth
+    || encuadre.h !== altoDisponibleMapa
+    || encuadre.zoom <= 10) {
+    throw new Error(
+        `Encuadre inválido tras adquirir layout: ${encuadre.w}x${encuadre.h}, zoom=${encuadre.zoom}.`);
+}

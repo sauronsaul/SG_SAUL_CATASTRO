@@ -1,0 +1,8 @@
+.pagina-visor {
+    height: 100%;
+    min-height: 0;
+}
+
+.pagina-visor ::deep .visor {
+    height: 100%;
+}

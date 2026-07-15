@@ -1,0 +1,33 @@
+@inherits LayoutComponentBase
+@implements IDisposable
+@inject SesionAutenticacion Sesion
+@inject NavigationManager Navigation
+
+<div class="aplicacion">
+    <header class="barra-superior">
+        <a class="marca" href="/">SG Catastro</a>
+        <span class="municipio">Visor institucional</span>
+        @if (!Sesion.RequiereAutenticacion)
+        {
+            <span class="usuario">@Sesion.Usuario?.NombreCompleto</span>
+            <button class="boton-secundario" @onclick="CerrarSesion">Cerrar sesión</button>
+        }
+    </header>
+    <main>
+        @Body
+    </main>
+</div>
+
+@code {
+    protected override void OnInitialized() => Sesion.Cambio += Actualizar;
+
+    private void Actualizar() => InvokeAsync(StateHasChanged);
+
+    private void CerrarSesion()
+    {
+        Sesion.Cerrar();
+        Navigation.NavigateTo("/login");
+    }
+
+    public void Dispose() => Sesion.Cambio -= Actualizar;
+}

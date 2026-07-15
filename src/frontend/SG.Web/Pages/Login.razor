@@ -1,0 +1,91 @@
+@page "/"
+@page "/login"
+@inject AutenticacionService Autenticacion
+@inject SesionAutenticacion Sesion
+@inject NavigationManager Navigation
+
+<PageTitle>Ingreso - SG Catastro</PageTitle>
+
+<section class="login-contenedor">
+    <div class="panel login-panel">
+        <p class="sobrelinea">Gobierno Autónomo Municipal</p>
+        <h1>Ingreso al visor catastral</h1>
+        <p class="descripcion">Acceso exclusivo para personal autorizado.</p>
+
+        @if (Sesion.SesionExpiro)
+        {
+            <div class="alerta error" role="alert">
+                La sesión expiró. Inicie sesión nuevamente para continuar cargando el mapa.
+            </div>
+        }
+
+        @if (!string.IsNullOrWhiteSpace(_error))
+        {
+            <div class="alerta error" role="alert">@_error</div>
+        }
+
+        <EditForm Model="_credenciales" OnValidSubmit="IngresarAsync">
+            <DataAnnotationsValidator />
+            <div class="campo">
+                <label for="email">Correo electrónico</label>
+                <InputText id="email"
+                           @bind-Value="_credenciales.Email"
+                           autocomplete="username"
+                           placeholder="tecnico@municipio.gob.bo" />
+                <ValidationMessage For="@(() => _credenciales.Email)" />
+            </div>
+            <div class="campo">
+                <label for="password">Contraseña</label>
+                <InputText id="password" type="password" @bind-Value="_credenciales.Password" autocomplete="current-password" />
+                <ValidationMessage For="@(() => _credenciales.Password)" />
+            </div>
+            <button class="boton-primario" type="submit" disabled="@_enviando">
+                @(_enviando ? "Verificando…" : "Ingresar")
+            </button>
+        </EditForm>
+    </div>
+</section>
+
+@code {
+    private readonly CredencialesFormulario _credenciales = new();
+    private bool _enviando;
+    private string? _error;
+
+    protected override void OnInitialized()
+    {
+        if (!Sesion.RequiereAutenticacion && !Sesion.EstaExpirada(DateTime.UtcNow))
+            Navigation.NavigateTo("/visor");
+    }
+
+    private async Task IngresarAsync()
+    {
+        _enviando = true;
+        _error = null;
+        try
+        {
+            var resultado = await Autenticacion.IniciarSesionAsync(_credenciales.Email, _credenciales.Password);
+            if (resultado.EsExitoso)
+                Navigation.NavigateTo("/visor");
+            else
+                _error = resultado.Error;
+        }
+        catch (HttpRequestException)
+        {
+            _error = "No se pudo conectar con la API.";
+        }
+        finally
+        {
+            _enviando = false;
+        }
+    }
+
+    private sealed class CredencialesFormulario
+    {
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Ingrese el correo electrónico.")]
+        [System.ComponentModel.DataAnnotations.EmailAddress(ErrorMessage = "Ingrese un correo válido.")]
+        public string Email { get; set; } = string.Empty;
+
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Ingrese la contraseña.")]
+        public string Password { get; set; } = string.Empty;
+    }
+}
