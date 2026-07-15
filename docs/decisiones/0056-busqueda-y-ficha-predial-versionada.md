@@ -127,4 +127,3 @@ Uyuni](https://anda.ine.gob.bo/index.php/catalog/28/variable/F5/V1418?name=Ms01_
   semántica institucional pendiente queda visible como deuda de diccionario,
   no como transformación de datos.
 - El alcance público de `PropietarioReferencia` queda bloqueado por DP-04.
-
