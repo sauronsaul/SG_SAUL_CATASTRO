@@ -21,8 +21,9 @@ documentales y de trazabilidad que este entregable no posee.
 ## Decisión
 
 - El croquis se genera en Blazor WebAssembly como una vista previa en la misma
-  pestaña y se imprime con `window.print()` y CSS `@media print`. Se usa A4
-  horizontal y no se incorpora una dependencia nueva.
+  pestaña y se imprime con `window.print()` y CSS `@media print`. Se usa Carta
+  horizontal por defecto, formato administrativo habitual del GAM, y no se
+  incorpora una dependencia nueva ni un selector de formatos.
 - `GET /api/predios/buscar` conserva su selección server-side de la versión
   `Activa` y agrega `GeometriaPlanar`. El contrato transporta `srid = 32719`,
   `tipo = "Polygon"` y anillos con posiciones métricas `[este, norte]`.
@@ -36,15 +37,22 @@ documentales y de trazabilidad que este entregable no posee.
   metros mediante el mismo factor `unidades SVG por metro` usado para proyectar
   el polígono. Por ello polígono, barra y rótulo sobreviven juntos a cualquier
   reescalado de impresión. La referencia nominal `1:N`, calculada para el ancho
-  esperado en A4 al 100 %, es secundaria; prevalece la barra gráfica.
+  esperado en Carta al 100 %, es secundaria; prevalece la barra gráfica.
 - La flecha `N - UTM 19S` representa norte de cuadrícula, coherente con las
   coordenadas EPSG:32719. No se rota artificialmente hacia norte geográfico.
 - La fecha se obtiene desde UTC y se convierte explícitamente al offset fijo de
-  Bolivia `UTC-4`; el croquis muestra `dd/MM/yyyy HH:mm UTC-4`.
+  Bolivia `UTC-4`; el croquis muestra el formato inequívoco
+  `dd/MM/yyyy HH:mm (hora de Bolivia, UTC-4)`. La decoración opcional de fecha,
+  URL y número de página que añade el navegador no forma parte del croquis.
 - El membrete es textual porque el repositorio no contiene un logotipo oficial
   aprobado. Se muestran triplete, códigos, propietario de referencia,
   ubicación, uso, estado, superficies, versión interna del dataset y la
   advertencia de que no constituye certificado oficial.
+- Tipo y uso conservan los códigos municipales sin reinterpretarlos. Los 15
+  códigos observados se reconocen en una configuración de presentación; hasta
+  recibir el diccionario oficial se muestran como `COD — código de origen` con
+  ayuda contextual. Completar una etiqueta futura no modifica el dato
+  persistido.
 
 ## Convergencia de meridianos en Uyuni
 

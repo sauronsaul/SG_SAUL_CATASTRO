@@ -96,12 +96,15 @@ Resultado esperado:
 - botón **Imprimir croquis** abre **Vista previa del croquis** sin perder la
   sesión ni abrir una segunda pestaña;
 - membrete `GOBIERNO AUTÓNOMO MUNICIPAL DE UYUNI`, triplete `1 / 1 / 1`, fecha
-  con sufijo `UTC-4`, datos esenciales, versión interna 3 y advertencia de que
-  no constituye certificado oficial;
+  en formato `dd/MM/yyyy HH:mm (hora de Bolivia, UTC-4)`, códigos de tipo y uso
+  presentados como `COD — código de origen`, datos esenciales, versión interna
+  3 y advertencia de que no constituye certificado oficial;
 - SVG con `data-srid="32719"`, trayectoria Polygon, una barra de escala gráfica
   rotulada en metros y flecha `N - UTM 19S`;
 - captura `croquis-simple-*.png` y retorno a la ficha mediante
   **Volver a la ficha**;
+- PDF `croquis-simple-*.pdf` generado sin encabezados ni pies del navegador y
+  comprobado automáticamente como una sola página Carta horizontal;
 - cierre del panel, clic en la parcela encuadrada y segunda respuesta 200 del
   mismo endpoint, con la ficha nuevamente visible y el mismo resaltado;
 - limpieza del filtro de resaltado al cerrar la ficha;
@@ -124,25 +127,31 @@ nativo de impresión. Con el stack desplegado y la sesión autenticada:
 1. buscar el predio `1/1/1` y abrir **Imprimir croquis**;
 2. pulsar **Imprimir**;
 3. imprimir una hoja física o elegir **Guardar como PDF** en el navegador;
-4. usar A4 horizontal, escala del navegador `100 %` y sin encabezados ni pies
-   automáticos del navegador;
-5. verificar visualmente que:
+4. seleccionar **Carta**, orientación horizontal y escala `100 %`;
+5. desmarcar explícitamente **Encabezados y pies de página** en **Más ajustes**.
+   Chrome puede añadir fecha/hora, `localhost/visor`, título y numeración como
+   decoración externa; esos textos no pertenecen al croquis y pueden confundirse
+   con la fecha institucional si no se desactiva la opción;
+6. verificar visualmente que:
    - el documento ocupa una sola página y no muestra barra superior, mapa,
      panel de capas ni botones de la aplicación;
    - membrete, triplete, códigos, propietario de referencia, ubicación,
      superficies, versión y advertencia son legibles;
+   - en la vista previa anterior al diálogo de impresión, el panel derecho está
+     completo y no queda cortado horizontalmente;
    - la geometría está completa, mantiene proporción y no queda recortada;
    - la flecha `N - UTM 19S` y su rótulo son legibles;
    - la barra gráfica está dentro del SVG, tiene extremos visibles y su valor en
      metros puede leerse; la referencia `1:N` aparece sólo como dato secundario;
    - la fecha termina en `UTC-4` y corresponde a la fecha/hora boliviana;
-6. registrar en la evidencia: navegador y versión, destino papel/PDF, tamaño,
+7. registrar en la evidencia: navegador y versión, destino papel/PDF, tamaño,
    orientación, escala seleccionada y resultado de cada punto anterior.
 
 El PDF o escaneo puede conservarse como artefacto del orquestador, pero no debe
 commitearse: contiene datos del predio y propietario de referencia. Cualquier
-recorte, segunda página, barra ilegible o sustitución por norte geográfico falla
-el cierre aunque el E2E automatizado esté verde.
+recorte, segunda página, repetición del croquis, barra ilegible, encabezados o
+pies automáticos visibles o sustitución por norte geográfico falla el cierre
+aunque el E2E automatizado esté verde.
 
 ## 7. Contrastar la ficha y la geometría con persistencia
 
