@@ -124,4 +124,11 @@ public static class FechaEmisionBolivia
 
     public static DateTimeOffset DesdeUtc(DateTimeOffset fechaUtc) =>
         fechaUtc.ToUniversalTime().ToOffset(Offset);
+
+    public static string Formatear(DateTimeOffset fechaUtc, CultureInfo cultura)
+    {
+        var fechaBolivia = DesdeUtc(fechaUtc);
+        return $"{fechaBolivia.ToString("dd/MM/yyyy HH:mm", cultura)} " +
+            "(hora de Bolivia, UTC-4)";
+    }
 }

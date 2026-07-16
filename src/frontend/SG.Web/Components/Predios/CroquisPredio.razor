@@ -17,7 +17,7 @@
             </div>
             <p class="fecha-emision">
                 Fecha de emisión<br />
-                <strong>@_fechaEmision.ToString("dd/MM/yyyy HH:mm", CulturaBolivia) UTC-4</strong>
+                <strong>@_fechaEmision</strong>
             </p>
         </header>
 
@@ -87,7 +87,7 @@
 @code {
     private static readonly CultureInfo CulturaBolivia = CultureInfo.GetCultureInfo("es-BO");
     private CroquisSvgResultado _svg = null!;
-    private DateTimeOffset _fechaEmision;
+    private string _fechaEmision = string.Empty;
 
     [Parameter, EditorRequired]
     public FichaPredioDto Ficha { get; set; } = null!;
@@ -98,7 +98,7 @@
     protected override void OnParametersSet()
     {
         _svg = CroquisSvg.Crear(Ficha.GeometriaPlanar);
-        _fechaEmision = FechaEmisionBolivia.DesdeUtc(DateTimeOffset.UtcNow);
+        _fechaEmision = FechaEmisionBolivia.Formatear(DateTimeOffset.UtcNow, CulturaBolivia);
     }
 
     private async Task ImprimirAsync() => await JS.InvokeVoidAsync("window.print");

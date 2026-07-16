@@ -73,6 +73,18 @@ public sealed class CroquisSvgTests
         bolivia.Minute.Should().Be(30);
     }
 
+    [Fact]
+    public void FechaEmisionBolivia_FormateaHoraInequivocaYCruceDeDia()
+    {
+        var utc = new DateTimeOffset(2026, 7, 16, 0, 7, 0, TimeSpan.Zero);
+
+        var texto = FechaEmisionBolivia.Formatear(
+            utc,
+            System.Globalization.CultureInfo.GetCultureInfo("es-BO"));
+
+        texto.Should().Be("15/07/2026 20:07 (hora de Bolivia, UTC-4)");
+    }
+
     private static GeometriaPlanarDto CrearGeometria(params double[][][] anillos) =>
         new(32719, "Polygon", anillos);
 }
