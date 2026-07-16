@@ -59,6 +59,7 @@ public sealed class PrediosServiceTests
               "usoTerreno":"VIVIENDA","topografiaTerreno":"PLANO",
               "servicioAgua":"SI","servicioLuz":"SI",
               "servicioAlcantarillado":"NO","servicioTelefonia":"NO",
+              "geometriaPlanar":{"srid":32719,"tipo":"Polygon","coordenadas":[[[500000,7700000],[500010,7700000],[500010,7700010],[500000,7700000]]]},
               "limites":{"oeste":-67,"sur":-21,"este":-66,"norte":-20}
             }
             """;
@@ -73,6 +74,8 @@ public sealed class PrediosServiceTests
         resultado.Estado.Should().Be(EstadoConsultaPredio.Encontrado);
         resultado.Ficha.Should().NotBeNull();
         resultado.Ficha!.MunicipioCodigo.Should().Be("UYUNI");
+        resultado.Ficha.GeometriaPlanar.Srid.Should().Be(32719);
+        resultado.Ficha.GeometriaPlanar.Coordenadas.Should().ContainSingle();
         resultado.Ficha.Limites.Oeste.Should().Be(-67);
     }
 

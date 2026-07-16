@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Microsoft.Playwright;
 using Xunit.Abstractions;
 
@@ -136,6 +137,45 @@ public sealed class VisorE2ETests(ITestOutputHelper output)
 
         await page.GetByRole(
             AriaRole.Button,
+            new() { Name = "Imprimir croquis", Exact = true }).ClickAsync();
+        var vistaCroquis = page.GetByLabel("Vista previa del croquis", new() { Exact = true });
+        await vistaCroquis.WaitForAsync(new()
+        {
+            State = WaitForSelectorState.Visible,
+            Timeout = 30_000
+        });
+        await Assertions.Expect(vistaCroquis)
+            .ToContainTextAsync("GOBIERNO AUTÓNOMO MUNICIPAL DE UYUNI");
+        await Assertions.Expect(vistaCroquis).ToContainTextAsync("1 / 1 / 1");
+        await Assertions.Expect(vistaCroquis).ToContainTextAsync("UTC-4");
+        await Assertions.Expect(vistaCroquis)
+            .ToContainTextAsync("Dataset UYUNI — versión interna 3");
+        await Assertions.Expect(vistaCroquis)
+            .ToContainTextAsync("no constituye certificado catastral oficial");
+        var svgCroquis = vistaCroquis.Locator("svg.geometria-croquis");
+        await Assertions.Expect(svgCroquis).ToHaveAttributeAsync("data-srid", "32719");
+        await Assertions.Expect(svgCroquis.Locator("path").First).ToHaveAttributeAsync("d", new Regex("^M "));
+        Assert.Equal(1, await svgCroquis.Locator(".barra-escala").CountAsync());
+        Assert.Equal(1, await svgCroquis.Locator(".norte-cuadricula").CountAsync());
+        var escalaMetros = await svgCroquis.GetAttributeAsync("data-escala-metros");
+        Assert.False(string.IsNullOrWhiteSpace(escalaMetros));
+
+        var capturaCroquis = Path.Combine(
+            directorioArtefactos,
+            $"croquis-simple-{DateTime.UtcNow:yyyyMMdd-HHmmss}.png");
+        await vistaCroquis.ScreenshotAsync(new() { Path = capturaCroquis });
+
+        await page.GetByRole(
+            AriaRole.Button,
+            new() { Name = "Volver a la ficha", Exact = true }).ClickAsync();
+        await panel.WaitForAsync(new()
+        {
+            State = WaitForSelectorState.Visible,
+            Timeout = 30_000
+        });
+
+        await page.GetByRole(
+            AriaRole.Button,
             new() { Name = "Cerrar ficha", Exact = true }).ClickAsync();
         await panel.WaitForAsync(new() { State = WaitForSelectorState.Hidden });
         Assert.Equal(ResaltadoVacio, await ObtenerResaltadoAsync(page));
@@ -184,6 +224,8 @@ public sealed class VisorE2ETests(ITestOutputHelper output)
         output.WriteLine($"resaltado_zoom_in={resaltadoZoomIn}");
         output.WriteLine($"resaltado_clic={resaltadoClic}");
         output.WriteLine("triplete=1/1/1 fila=11883 declarada=238.3470 grafica=238.3466 version=3");
+        output.WriteLine($"croquis_srid=32719 escala_grafica_m={escalaMetros} fecha=UTC-4");
+        output.WriteLine($"captura_croquis={Path.GetFullPath(capturaCroquis)}");
         output.WriteLine($"captura={Path.GetFullPath(captura)}");
     }
 

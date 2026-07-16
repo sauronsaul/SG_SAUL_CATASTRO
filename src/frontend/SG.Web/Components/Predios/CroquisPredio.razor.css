@@ -1,0 +1,180 @@
+.vista-croquis {
+    background: rgb(15 23 42 / 72%);
+    inset: 0;
+    overflow: auto;
+    padding: 1.5rem;
+    position: fixed;
+    z-index: 1000;
+}
+
+.acciones-croquis {
+    display: flex;
+    gap: .75rem;
+    justify-content: flex-end;
+    margin: 0 auto .75rem;
+    max-width: 297mm;
+}
+
+.acciones-croquis button {
+    border: 1px solid #0f766e;
+    border-radius: .35rem;
+    cursor: pointer;
+    font-weight: 700;
+    padding: .55rem 1rem;
+}
+
+.boton-primario {
+    background: #0f766e;
+    color: #fff;
+}
+
+.boton-secundario {
+    background: #fff;
+    color: #0f766e;
+}
+
+.croquis-documento {
+    background: #fff;
+    color: #0f172a;
+    display: flex;
+    flex-direction: column;
+    margin: 0 auto;
+    min-height: 190mm;
+    padding: 10mm;
+    width: min(297mm, 100%);
+}
+
+.membrete-croquis {
+    align-items: center;
+    border-bottom: 2px solid #0f766e;
+    display: flex;
+    justify-content: space-between;
+    padding-bottom: 4mm;
+}
+
+.membrete-croquis p,
+.membrete-croquis h1 {
+    margin: 0;
+}
+
+.membrete-croquis p:first-child {
+    font-size: 10pt;
+    font-weight: 800;
+    letter-spacing: .04em;
+}
+
+.membrete-croquis h1 {
+    font-size: 19pt;
+    text-transform: uppercase;
+}
+
+.fecha-emision {
+    font-size: 9pt;
+    text-align: right;
+}
+
+.contenido-croquis {
+    display: grid;
+    flex: 1;
+    gap: 7mm;
+    grid-template-columns: minmax(0, 2fr) minmax(62mm, 1fr);
+    padding: 6mm 0;
+}
+
+figure {
+    border: 1px solid #94a3b8;
+    display: flex;
+    flex-direction: column;
+    margin: 0;
+    min-width: 0;
+    padding: 3mm;
+}
+
+.geometria-croquis {
+    display: block;
+    flex: 1;
+    min-height: 115mm;
+    width: 100%;
+}
+
+.norte-cuadricula text {
+    fill: #0f172a;
+    font-size: 18px;
+    font-weight: 800;
+}
+
+.norte-cuadricula text:last-child {
+    font-size: 13px;
+}
+
+.barra-escala line {
+    stroke: #0f172a;
+    stroke-width: 4;
+}
+
+.barra-escala text {
+    fill: #0f172a;
+    font-size: 17px;
+    font-weight: 800;
+}
+
+figcaption {
+    color: #475569;
+    font-size: 8pt;
+    text-align: center;
+}
+
+.datos-croquis {
+    border: 1px solid #94a3b8;
+    padding: 4mm;
+}
+
+.datos-croquis h2 {
+    border-bottom: 1px solid #cbd5e1;
+    font-size: 16pt;
+    margin: 0 0 3mm;
+    padding-bottom: 2mm;
+}
+
+.datos-croquis dl {
+    margin: 0;
+}
+
+.datos-croquis dl div {
+    border-bottom: 1px solid #e2e8f0;
+    display: grid;
+    gap: 3mm;
+    grid-template-columns: 1fr 1.2fr;
+    padding: 1.6mm 0;
+}
+
+.datos-croquis dt {
+    color: #475569;
+    font-size: 8pt;
+}
+
+.datos-croquis dd {
+    font-size: 8.5pt;
+    font-weight: 700;
+    margin: 0;
+    overflow-wrap: anywhere;
+    text-align: right;
+}
+
+.croquis-documento > footer {
+    border-top: 1px solid #0f766e;
+    display: flex;
+    font-size: 8pt;
+    justify-content: space-between;
+    padding-top: 3mm;
+}
+
+@media (max-width: 800px) {
+    .vista-croquis {
+        padding: .5rem;
+    }
+
+    .croquis-documento {
+        min-width: 270mm;
+    }
+}

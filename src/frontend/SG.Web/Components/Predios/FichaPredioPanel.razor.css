@@ -69,9 +69,25 @@
 }
 
 .ficha-predio footer {
+    align-items: center;
     color: #64748b;
+    display: flex;
     font-size: .72rem;
+    gap: .75rem;
+    justify-content: space-between;
     margin-top: 1rem;
+}
+
+.ficha-predio footer button {
+    background: #0f766e;
+    border: 1px solid #0f766e;
+    border-radius: .3rem;
+    color: #fff;
+    cursor: pointer;
+    flex: 0 0 auto;
+    font-size: .78rem;
+    font-weight: 700;
+    padding: .45rem .65rem;
 }
 
 @media (max-width: 720px) {

@@ -43,7 +43,8 @@
     </section>
 
     <footer>
-        Dataset @Ficha.MunicipioCodigo — versión interna @Ficha.NumeroVersion
+        <span>Dataset @Ficha.MunicipioCodigo — versión interna @Ficha.NumeroVersion</span>
+        <button type="button" @onclick="AlImprimirCroquis">Imprimir croquis</button>
     </footer>
 </aside>
 
@@ -55,6 +56,9 @@
 
     [Parameter]
     public EventCallback AlCerrar { get; set; }
+
+    [Parameter]
+    public EventCallback AlImprimirCroquis { get; set; }
 
     private static string Valor(string? valor) =>
         string.IsNullOrWhiteSpace(valor) ? "No registrado" : valor;
