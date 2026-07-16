@@ -26,7 +26,18 @@ public sealed record FichaPredioDto(
     string? ServicioLuz,
     string? ServicioAlcantarillado,
     string? ServicioTelefonia,
+    GeometriaPlanarDto GeometriaPlanar,
     LimitesPredioDto Limites);
+
+/// <summary>
+/// Poligono expresado en coordenadas planas metricas EPSG:32719. Cada anillo
+/// contiene posiciones [este, norte]; el primer anillo es exterior. El SRID
+/// viaja explicitamente para impedir que se interprete como GeoJSON RFC 7946.
+/// </summary>
+public sealed record GeometriaPlanarDto(
+    int Srid,
+    string Tipo,
+    double[][][] Coordenadas);
 
 public sealed record LimitesPredioDto(
     double Oeste,

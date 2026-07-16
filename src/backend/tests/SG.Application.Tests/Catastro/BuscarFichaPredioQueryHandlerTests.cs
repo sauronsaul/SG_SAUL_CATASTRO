@@ -85,5 +85,9 @@ public sealed class BuscarFichaPredioQueryHandlerTests
         "SI",
         "SI",
         "NO",
+        new GeometriaPlanarDto(
+            32719,
+            "Polygon",
+            [[[500000, 7700000], [500010, 7700000], [500010, 7700010], [500000, 7700000]]]),
         new LimitesPredioDto(-66.9, -20.5, -66.8, -20.4));
 }
