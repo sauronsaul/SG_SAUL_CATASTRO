@@ -469,8 +469,12 @@ La normativa debe convertirse en: reglas, validaciones, estructuras de datos, pr
 - La suite canónica se ejecuta desde la raíz mediante
   `dotnet test src\backend\SG.slnx`. La solución real es `SG.slnx` y no está en
   la raíz; ejecutar `dotnet test` sin ruta desde la raíz falla con `MSB1003`.
-  La suite estándar actual contiene 288 pruebas. `SG.Web.E2E` es una suite
+  La suite estándar actual contiene 308 pruebas. `SG.Web.E2E` es una suite
   Playwright independiente y no se incluye en ese total.
+- El cierre posterior a cambios de paquetes exige un restore fresco con
+  `dotnet restore src\backend\SG.slnx`; no se acepta inferir el estado de
+  dependencias desde un build ejecutado con `--no-restore`. Después del restore
+  aprobado se ejecutan build con `--no-restore` y tests con `--no-build`.
 - Antes de reportar una herramienta como rota, verificar en este archivo y en
   el historial de la fase si existe un mecanismo canónico para el shell y el
   entorno propios. El caso de referencia es SQL: PowerShell usa `sql.ps1`, no
@@ -489,6 +493,17 @@ La normativa debe convertirse en: reglas, validaciones, estructuras de datos, pr
   evadir filtros de secretos. Un filtro o guarda activado exige detenerse y
   reportar el bloqueo.
 - Todos los scripts `.ps1` del repositorio deben mantenerse en ASCII puro.
+- El backup canónico de `sg_catastro` usa `pg_dump` dentro de `sg_postgres`,
+  con las credenciales expandidas dentro del contenedor siguiendo el patrón de
+  `scripts/sql.sh`; nunca se interpolan ni imprimen secretos desde PowerShell.
+  El archivo se escribe fuera del repositorio, bajo
+  `C:\Backups\sg_catastro`, y antes de aceptarlo se comprueba que su tamaño sea
+  mayor que cero y que `pg_restore --list` pueda listar su contenido.
+- Para leer documentación UTF-8 desde PowerShell se establece
+  `[Console]::OutputEncoding = [System.Text.Encoding]::UTF8` o se usa Git Bash.
+  Una salida con caracteres de árbol como `├` o `│` corruptos es un defecto de
+  decodificación de la terminal, no evidencia suficiente de corrupción del
+  archivo.
 - El Compose local canónico incluye siempre el archivo de entorno y ambos
   archivos Compose:
 
@@ -502,6 +517,10 @@ La normativa debe convertirse en: reglas, validaciones, estructuras de datos, pr
   a credenciales en blanco y no constituye una prueba válida del despliegue.
 - Desplegar cambios de código requiere reconstruir la imagen del servicio
   `api`; `docker start` solo revive el contenedor con el código viejo.
+- Si `docker compose build` falla, un `up` posterior puede revivir la imagen
+  anterior. Tras un build correcto se usa `up --force-recreate` con el Compose
+  canónico y se verifica la antigüedad del contenedor con `docker ps` antes de
+  atribuirle el código nuevo.
 - `numero_version` es el consecutivo interno del dataset y no debe confundirse
   con su etiqueta comercial. Toda línea base operativa se selecciona por
   `estado = 'Activa'`, nunca suponiendo un número de versión.
