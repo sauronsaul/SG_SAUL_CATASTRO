@@ -375,6 +375,22 @@ public bool IsDeleted { get; private set; }    // soft delete
 | `feature/sprint-NN-<descripcion>` | Cada sprint o feature aislada. |
 | `hotfix/<descripcion>` | Solo parches urgentes desde `main`. |
 
+### Política de integración y releases
+
+- `develop` es la rama de integración continua. Todo PR de una fase debe tener
+  `develop` como base.
+- Al crear un PR, verificar **siempre** visualmente que la base sea `develop`
+  antes de crearlo y volver a verificarla antes de mergearlo. La rama por
+  defecto del repositorio ya es `develop`, pero esa preselección no sustituye
+  la verificación.
+- `main` representa el último release estable. No recibe PRs de features ni
+  commits directos.
+- El release del mantenedor único se cosecha con fast-forward desde `develop`,
+  se etiqueta sobre `main` y se publica según ADR 0058. Si `--ff-only` falla,
+  detenerse y diagnosticar la divergencia.
+- Política completa, antecedente de los PR #7 y #12 y evolución futura:
+  `docs/decisiones/0058-politica-de-ramas-y-releases.md`.
+
 ### Convención de commits
 
 Formato: `<tipo>(<alcance>): <descripción corta>`
@@ -450,6 +466,15 @@ La normativa debe convertirse en: reglas, validaciones, estructuras de datos, pr
 - El ejecutor Codex opera en **PowerShell**. Antes de declarar un bloqueo de
   herramientas, debe verificar el mecanismo canónico correspondiente al shell
   actual contra este archivo y el historial de la fase.
+- La suite canónica se ejecuta desde la raíz mediante
+  `dotnet test src\backend\SG.slnx`. La solución real es `SG.slnx` y no está en
+  la raíz; ejecutar `dotnet test` sin ruta desde la raíz falla con `MSB1003`.
+  La suite estándar actual contiene 288 pruebas. `SG.Web.E2E` es una suite
+  Playwright independiente y no se incluye en ese total.
+- Antes de reportar una herramienta como rota, verificar en este archivo y en
+  el historial de la fase si existe un mecanismo canónico para el shell y el
+  entorno propios. El caso de referencia es SQL: PowerShell usa `sql.ps1`, no
+  el `sql.sh` destinado al orquestador Git Bash.
 - El acceso SQL canónico del ejecutor es
   `powershell -ExecutionPolicy Bypass -File scripts\sql.ps1 -Sql "<SQL>"`.
   `scripts/sql.sh` pertenece al orquestador que opera con Git Bash; no debe
