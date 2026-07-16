@@ -15,7 +15,8 @@ public sealed record ValidacionPreviewVersionDto(
     IReadOnlyList<GeometriasInvalidasCapaDto> GeometriasInvalidas,
     IReadOnlyList<ObservacionPreviewVersionDto> Observaciones,
     IReadOnlyList<DiferenciaConteoCapaDto> DiferenciasContraActiva,
-    ProyeccionReconciliacionDto ProyeccionReconciliacion)
+    ProyeccionReconciliacionDto ProyeccionReconciliacion,
+    EsquemaEvaluadoVersionDto? EsquemaEvaluado = null)
 {
     public bool TieneBloqueantes => Bloqueantes.Count > 0;
 }
@@ -29,7 +30,19 @@ public sealed record BloqueantePreviewVersionDto(
 public sealed record GeometriasInvalidasCapaDto(
     string Capa,
     int Conteo,
-    IReadOnlyList<GeometriaInvalidaPreviewDto> Ejemplos);
+    IReadOnlyList<GeometriaInvalidaPreviewDto> Ejemplos,
+    string Codigo = "O1");
+
+public sealed record EsquemaEvaluadoVersionDto(
+    string MunicipioCodigo,
+    IReadOnlyList<CapaEsquemaEvaluadaDto> Capas);
+
+public sealed record CapaEsquemaEvaluadaDto(
+    string TipoCapa,
+    string NombrePerfil,
+    string NombreArchivoShp,
+    string TablaDestino,
+    bool Obligatoria);
 
 public sealed record GeometriaInvalidaPreviewDto(
     int FilaOrigen,
@@ -59,13 +72,17 @@ public sealed record ProyeccionReconciliacionDto(
     int AusenciasEstimadas,
     decimal PorcentajeCambio,
     decimal UmbralAdvertenciaPorcentaje,
-    bool PosibleRenumeracion);
+    bool PosibleRenumeracion,
+    bool Omitida = false,
+    string? MotivoOmision = null);
 
 public sealed record ResumenReconciliacionDto(
     int Altas,
     int Actualizadas,
     int SinCambio,
-    int Ausencias);
+    int Ausencias,
+    bool Omitida = false,
+    string? MotivoOmision = null);
 
 public sealed record ActivarVersionImportacionDto(
     Guid DatasetVersionId,

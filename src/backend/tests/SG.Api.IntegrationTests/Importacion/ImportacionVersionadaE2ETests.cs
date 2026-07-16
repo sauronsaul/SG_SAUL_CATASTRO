@@ -37,6 +37,13 @@ public sealed class ImportacionVersionadaE2ETests : IDisposable
         new(TipoCapa.Vias, "VIA_INFO_UYU.shp"),
     ];
 
+    private static readonly IReadOnlyList<DefinicionCapaPrueba> CapasCaranavi =
+    [
+        new(TipoCapa.Manzanas, "MANZANOS_PROY.shp"),
+        new(TipoCapa.AreasUrbanas, "AREA_URBANA.shp"),
+        new(TipoCapa.PuntosGeodesicos, "puntos_geodesicos.shp"),
+    ];
+
     private static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
     private readonly SgApiFactory _factory;
     private readonly HttpClient _clientAdmin;
@@ -331,6 +338,7 @@ SELECT (
     {
         var versionesAntes = await ContarVersionesAsync();
         using var content = new MultipartFormDataContent();
+        content.Add(new StringContent("051201"), "municipio_codigo");
 
         var response = await _clientAdmin.PostAsync("/api/importaciones/versiones", content);
 
@@ -374,6 +382,7 @@ SELECT (
     private async Task<HttpResponseMessage> PostPaqueteAsync(byte[] paquete, string nombre)
     {
         using var content = new MultipartFormDataContent();
+        content.Add(new StringContent("051201"), "municipio_codigo");
         var archivo = new ByteArrayContent(paquete);
         archivo.Headers.ContentType = new MediaTypeHeaderValue("application/zip");
         content.Add(archivo, "paquete", nombre);
@@ -425,14 +434,32 @@ SELECT (
     internal static byte[] CrearPaqueteSieteCapas(
         bool corromperEdificaciones,
         TipoCapa? omitirPrjDe = null,
-        EscenarioGeometria escenarioGeometria = EscenarioGeometria.Normal)
+        EscenarioGeometria escenarioGeometria = EscenarioGeometria.Normal) =>
+        CrearPaquete(
+            CapasUyuni,
+            corromperEdificaciones,
+            omitirPrjDe,
+            escenarioGeometria);
+
+    internal static byte[] CrearPaqueteTresCapasCaranavi() =>
+        CrearPaquete(
+            CapasCaranavi,
+            corromperEdificaciones: false,
+            omitirPrjDe: null,
+            EscenarioGeometria.Caranavi);
+
+    private static byte[] CrearPaquete(
+        IReadOnlyList<DefinicionCapaPrueba> capas,
+        bool corromperEdificaciones,
+        TipoCapa? omitirPrjDe,
+        EscenarioGeometria escenarioGeometria)
     {
         var directorio = Path.Combine(Path.GetTempPath(), $"sg_shp_test_{Guid.NewGuid():N}");
         var zip = Path.Combine(Path.GetTempPath(), $"sg_shp_test_{Guid.NewGuid():N}.zip");
         Directory.CreateDirectory(directorio);
         try
         {
-            foreach (var definicion in CapasUyuni)
+            foreach (var definicion in capas)
             {
                 CrearShapefile(directorio, definicion, corromperEdificaciones, escenarioGeometria);
                 if (definicion.TipoCapa == omitirPrjDe)
@@ -463,10 +490,13 @@ SELECT (
         var geometrias = CrearGeometrias(definicion.TipoCapa, escenarioGeometria);
         var features = geometrias
             .Select((geometria, indice) => new Feature(
-                geometria ?? (definicion.TipoCapa == TipoCapa.Vias
-                    ? CrearLinea(indice + 1)
-                    : CrearPoligono(indice + 1)),
-                CrearAtributos(definicion.TipoCapa, indice + 1)))
+                geometria ?? definicion.TipoCapa switch
+                {
+                    TipoCapa.Vias => CrearLinea(indice + 1),
+                    TipoCapa.PuntosGeodesicos => CrearPunto(indice + 1),
+                    _ => CrearPoligono(indice + 1),
+                },
+                CrearAtributos(definicion.TipoCapa, indice + 1, escenarioGeometria)))
             .ToList();
         Shapefile.WriteAllFeatures(features, rutaShp);
         foreach (var indiceNulo in geometrias
@@ -512,6 +542,12 @@ SELECT (
             [CrearPoligono(1), CrearPoligonoAutoIntersectado(2)],
         (TipoCapa.Vias, EscenarioGeometria.InvalidasRecuperablesConNulosGenuinos) =>
             [CrearLinea(1), null],
+        (TipoCapa.Manzanas, EscenarioGeometria.Caranavi) =>
+            [CrearPoligono(1), CrearPoligonoAutoIntersectado(2)],
+        (TipoCapa.AreasUrbanas, EscenarioGeometria.Caranavi) =>
+            [CrearPoligono(1), CrearPoligonoAutoIntersectado(2)],
+        (TipoCapa.PuntosGeodesicos, EscenarioGeometria.Caranavi) =>
+            [CrearPunto(1), null],
         (TipoCapa.Predios, EscenarioGeometria.ParcelaNula) =>
             [CrearPoligono(1), null],
         (TipoCapa.Predios, EscenarioGeometria.ParcelaMultiParte) =>
@@ -534,6 +570,9 @@ SELECT (
     private static LineString CrearLinea(int indice) => new(
         [new Coordinate(500000 + indice, 8000000), new Coordinate(500100 + indice, 8000100)]) { SRID = 32719 };
 
+    private static Point CrearPunto(int indice) => new(
+        new Coordinate(500000 + indice * 10, 8000000 + indice * 10)) { SRID = 32719 };
+
     private static Polygon CrearPoligonoAutoIntersectado(int indice)
     {
         var x = 500000 + indice * 100;
@@ -552,26 +591,43 @@ SELECT (
     private static MultiLineString CrearMultiLinea(int indice) => new(
         [CrearLinea(indice), CrearLinea(indice + 100)]) { SRID = 32719 };
 
-    private static AttributesTable CrearAtributos(TipoCapa capa, int indice) => capa switch
+    private static AttributesTable CrearAtributos(
+        TipoCapa capa,
+        int indice,
+        EscenarioGeometria escenario) => (capa, escenario) switch
     {
-        TipoCapa.Predios => new AttributesTable
+        (TipoCapa.Manzanas, EscenarioGeometria.Caranavi) => new AttributesTable
+        {
+            { "Layer", "MANZANOS_PROY" }, { "No_MANZANO", (long)(100 + indice) },
+        },
+        (TipoCapa.AreasUrbanas, EscenarioGeometria.Caranavi) => new AttributesTable
+        {
+            { "Layer", "AREA_URBANA" },
+        },
+        (TipoCapa.PuntosGeodesicos, EscenarioGeometria.Caranavi) => new AttributesTable
+        {
+            { "PUNTOS", $"PG-{indice:000}" },
+            { "ESTE", 500000d + indice * 10 },
+            { "NORTE", 8000000d + indice * 10 },
+        },
+        (TipoCapa.Predios, _) => new AttributesTable
         {
             { "cod_uv", 1L }, { "cod_man", 2L }, { "cod_pred", (long)indice },
             { "cod_geo", $"0102{indice:000}" }, { "superficie", 100d }, { "nompro", "****" },
         },
-        TipoCapa.Construcciones => new AttributesTable
+        (TipoCapa.Construcciones, _) => new AttributesTable
         {
             { "id_edif", (long)indice }, { "cod_geo", $"0102{indice:000}" }, { "cod_uv", 1L },
             { "cod_man", 2L }, { "cod_pred", (long)indice }, { "edi_num", 1L }, { "edi_piso", 1L }, { "edi_are", 50d },
         },
-        TipoCapa.PrediosNoFotografiados => new AttributesTable
+        (TipoCapa.PrediosNoFotografiados, _) => new AttributesTable
         {
             { "id_predio", (long)indice }, { "cod_geo", $"0102{indice:000}" }, { "cod_uv", 1L }, { "cod_man", 2L }, { "cod_pred", (long)indice },
         },
-        TipoCapa.Manzanas => new AttributesTable { { "cod_geo", "010200001" }, { "cod_uv", 1L }, { "cod_man", 2L }, { "Coordenada", 1d } },
-        TipoCapa.Distritos => new AttributesTable { { "cod_geo", "01020000001" }, { "cod_uv", 1L }, { "nombre", "Distrito prueba" } },
-        TipoCapa.ZonasValuacion => new AttributesTable { { "zona", "Zona prueba" }, { "id_zona", 1L }, { "cod_geo", "01020000001" } },
-        TipoCapa.Vias => new AttributesTable { { "MATERIAL", "Asfalto" }, { "NOMBRE", "Vía prueba" }, { "TIPO", "Local" }, { "Distancia", 100d } },
+        (TipoCapa.Manzanas, _) => new AttributesTable { { "cod_geo", "010200001" }, { "cod_uv", 1L }, { "cod_man", 2L }, { "Coordenada", 1d } },
+        (TipoCapa.Distritos, _) => new AttributesTable { { "cod_geo", "01020000001" }, { "cod_uv", 1L }, { "nombre", "Distrito prueba" } },
+        (TipoCapa.ZonasValuacion, _) => new AttributesTable { { "zona", "Zona prueba" }, { "id_zona", 1L }, { "cod_geo", "01020000001" } },
+        (TipoCapa.Vias, _) => new AttributesTable { { "MATERIAL", "Asfalto" }, { "NOMBRE", "Vía prueba" }, { "TIPO", "Local" }, { "Distancia", 100d } },
         _ => throw new InvalidOperationException("Tipo de capa no soportado."),
     };
 
@@ -582,5 +638,6 @@ SELECT (
         InvalidasRecuperablesConNulosGenuinos,
         ParcelaNula,
         ParcelaMultiParte,
+        Caranavi,
     }
 }

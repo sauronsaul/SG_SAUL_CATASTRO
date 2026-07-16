@@ -133,6 +133,7 @@ public sealed class TilesE2ETests : IDisposable
             corromperEdificaciones: false,
             escenarioGeometria: escenario);
         using var content = new MultipartFormDataContent();
+        content.Add(new StringContent("051201"), "municipio_codigo");
         var archivo = new ByteArrayContent(paquete);
         archivo.Headers.ContentType = new MediaTypeHeaderValue("application/zip");
         content.Add(archivo, "paquete", nombre);

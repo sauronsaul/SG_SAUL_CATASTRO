@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using SG.Application.Abstractions.Importacion;
@@ -22,12 +23,28 @@ internal sealed class ReportePreviewVersionServicio(
         var version = await db.DatasetVersiones.AsNoTracking()
             .SingleAsync(x => x.Id == datasetVersionId, ct);
         var esquemaMunicipal = await esquemas.ListarAsync(version.MunicipioCodigo, ct);
+        var tienePredios = esquemaMunicipal.Any(x => x.TipoCapa == TipoCapa.Predios);
         var conteos = await ContarCapasAsync(datasetVersionId, ct);
         var bloqueantes = await ObtenerBloqueantesAsync(datasetVersionId, conteos, esquemaMunicipal, ct);
         var invalidas = await ObtenerGeometriasInvalidasAsync(datasetVersionId, esquemaMunicipal, ct);
-        var observaciones = await ObtenerObservacionesAsync(datasetVersionId, ct);
+        var observaciones = await ObtenerObservacionesAsync(datasetVersionId, esquemaMunicipal, ct);
         var diferencias = await ObtenerDiferenciasContraActivaAsync(datasetVersionId, conteos, ct);
-        var proyeccion = await ProyectarReconciliacionAsync(datasetVersionId, ct);
+        var proyeccion = tienePredios
+            ? await ProyectarReconciliacionAsync(datasetVersionId, ct)
+            : new ProyeccionReconciliacionDto(
+                0, 0, 0, 0m,
+                configuration.GetValue<decimal?>("Importacion:UmbralRenumeracionPorcentaje") ?? UmbralPredeterminado,
+                false,
+                true,
+                "Esquema municipal sin capa de predios.");
+        var esquemaEvaluado = new EsquemaEvaluadoVersionDto(
+            version.MunicipioCodigo,
+            esquemaMunicipal.Select(x => new CapaEsquemaEvaluadaDto(
+                x.TipoCapa.ToString(),
+                x.NombrePerfil,
+                x.NombreArchivoShp,
+                x.TablaDestino,
+                x.Obligatoria)).ToList());
 
         var validacion = new ValidacionPreviewVersionDto(
             DateTime.UtcNow,
@@ -35,7 +52,8 @@ internal sealed class ReportePreviewVersionServicio(
             invalidas,
             observaciones,
             diferencias,
-            proyeccion);
+            proyeccion,
+            esquemaEvaluado);
         return new ReportePreliminarVersionDto(null, conteos, validacion);
     }
 
@@ -46,37 +64,41 @@ internal sealed class ReportePreviewVersionServicio(
         CancellationToken ct)
     {
         var resultado = new List<BloqueantePreviewVersionDto>();
-        var duplicados = await db.CapasParcelas
-            .AsNoTracking()
-            .Where(x => x.DatasetVersionId == datasetVersionId)
-            .GroupBy(x => new { x.CodUv, x.CodMan, x.CodPred })
-            .Where(x => x.Count() > 1)
-            .Select(x => new { x.Key.CodUv, x.Key.CodMan, x.Key.CodPred, Conteo = x.Count() })
-            .ToListAsync(ct);
-        if (duplicados.Count > 0)
+        var tienePredios = esquemaMunicipal.Any(x => x.TipoCapa == TipoCapa.Predios);
+        if (tienePredios)
         {
-            resultado.Add(new BloqueantePreviewVersionDto(
-                "B1",
-                "La capa de parcelas contiene tripletes duplicados.",
-                duplicados.Count,
-                duplicados.Take(100)
-                    .Select(x => $"{x.CodUv}-{x.CodMan}-{x.CodPred} ({x.Conteo} filas)")
-                    .ToList()));
-        }
+            var duplicados = await db.CapasParcelas
+                .AsNoTracking()
+                .Where(x => x.DatasetVersionId == datasetVersionId)
+                .GroupBy(x => new { x.CodUv, x.CodMan, x.CodPred })
+                .Where(x => x.Count() > 1)
+                .Select(x => new { x.Key.CodUv, x.Key.CodMan, x.Key.CodPred, Conteo = x.Count() })
+                .ToListAsync(ct);
+            if (duplicados.Count > 0)
+            {
+                resultado.Add(new BloqueantePreviewVersionDto(
+                    "B1",
+                    "La capa de parcelas contiene tripletes duplicados.",
+                    duplicados.Count,
+                    duplicados.Take(100)
+                        .Select(x => $"{x.CodUv}-{x.CodMan}-{x.CodPred} ({x.Conteo} filas)")
+                        .ToList()));
+            }
 
-        var componentesNulos = await db.Database.SqlQuery<int>($"""
-            SELECT COUNT(*)::int AS "Value"
-            FROM dominio.capa_parcelas
-            WHERE dataset_version_id = {datasetVersionId}
-              AND (cod_uv IS NULL OR cod_man IS NULL OR cod_pred IS NULL)
-            """).SingleAsync(ct);
-        if (componentesNulos > 0)
-        {
-            resultado.Add(new BloqueantePreviewVersionDto(
-                "B2",
-                "Existen parcelas con componentes nulos en el triplete catastral.",
-                componentesNulos,
-                []));
+            var componentesNulos = await db.Database.SqlQuery<int>($"""
+                SELECT COUNT(*)::int AS "Value"
+                FROM dominio.capa_parcelas
+                WHERE dataset_version_id = {datasetVersionId}
+                  AND (cod_uv IS NULL OR cod_man IS NULL OR cod_pred IS NULL)
+                """).SingleAsync(ct);
+            if (componentesNulos > 0)
+            {
+                resultado.Add(new BloqueantePreviewVersionDto(
+                    "B2",
+                    "Existen parcelas con componentes nulos en el triplete catastral.",
+                    componentesNulos,
+                    []));
+            }
         }
 
         var obligatorias = esquemaMunicipal.Where(x => x.Obligatoria).ToList();
@@ -85,27 +107,29 @@ internal sealed class ReportePreviewVersionServicio(
         {
             resultado.Add(new BloqueantePreviewVersionDto(
                 "B3",
-                "La version no contiene filas en todas las capas obligatorias del municipio.",
+                "La versión no contiene filas en todas las capas obligatorias del municipio.",
                 faltantes.Count,
-                faltantes.Select(x => x.TablaDestino).ToList()));
+                faltantes.Select(x => $"{x.TipoCapa} ({x.TablaDestino})").ToList()));
         }
 
-        // TODO 3.A.2b: B1, B2 y B4 solo aplican cuando el esquema municipal contiene parcelas.
-        var superficiesInvalidas = await db.CapasParcelas
-            .AsNoTracking()
-            .Where(x => x.DatasetVersionId == datasetVersionId &&
-                        (x.Superficie == null || x.Superficie <= 0))
-            .Select(x => x.FilaOrigen)
-            .ToListAsync(ct);
-        if (superficiesInvalidas.Count > 0)
+        if (tienePredios)
         {
-            resultado.Add(new BloqueantePreviewVersionDto(
-                "B4",
-                "Existen parcelas con superficie declarada nula o no positiva.",
-                superficiesInvalidas.Count,
-                superficiesInvalidas.Take(100)
-                    .Select(x => x.ToString(CultureInfo.InvariantCulture))
-                    .ToList()));
+            var superficiesInvalidas = await db.CapasParcelas
+                .AsNoTracking()
+                .Where(x => x.DatasetVersionId == datasetVersionId &&
+                            (x.Superficie == null || x.Superficie <= 0))
+                .Select(x => x.FilaOrigen)
+                .ToListAsync(ct);
+            if (superficiesInvalidas.Count > 0)
+            {
+                resultado.Add(new BloqueantePreviewVersionDto(
+                    "B4",
+                    "Existen parcelas con superficie declarada nula o no positiva.",
+                    superficiesInvalidas.Count,
+                    superficiesInvalidas.Take(100)
+                        .Select(x => x.ToString(CultureInfo.InvariantCulture))
+                        .ToList()));
+            }
         }
 
         return resultado;
@@ -147,144 +171,51 @@ internal sealed class ReportePreviewVersionServicio(
 
     private async Task<IReadOnlyList<ObservacionPreviewVersionDto>> ObtenerObservacionesAsync(
         Guid datasetVersionId,
+        IReadOnlyList<EsquemaCapaMunicipio> esquemaMunicipal,
         CancellationToken ct)
     {
         var resultado = new List<ObservacionPreviewVersionDto>();
 
-        var edificaciones = await db.CapasEdificaciones.AsNoTracking()
-            .Where(x => x.DatasetVersionId == datasetVersionId && x.Geometria == null)
-            .OrderBy(x => x.FilaOrigen)
-            .Select(x => new
-            {
-                x.FilaOrigen,
-                x.IdEdificacionOrigen,
-                x.CodUv,
-                x.CodMan,
-                x.CodPred,
-                x.CodigoBloque,
-            })
-            .ToListAsync(ct);
-        AgregarO4(resultado, "capa_edificaciones", edificaciones.Count,
-            edificaciones.Take(100).Select(x => new ObservacionPreviewEjemploDto(
-                x.FilaOrigen,
-                new Dictionary<string, string?>
-                {
-                    ["id_edificacion_origen"] = Formatear(x.IdEdificacionOrigen),
-                    ["cod_uv"] = Formatear(x.CodUv),
-                    ["cod_man"] = Formatear(x.CodMan),
-                    ["cod_pred"] = Formatear(x.CodPred),
-                    ["codigo_bloque"] = Formatear(x.CodigoBloque),
-                })));
+        foreach (var definicion in esquemaMunicipal)
+        {
+            var sql = """
+                SELECT fila_origen AS fila_origen,
+                       ((to_jsonb(c) - 'id' - 'dataset_version_id' - 'geometria' - 'atributos_extra')
+                         || atributos_extra)::text AS identificadores,
+                       COUNT(*) OVER()::int AS total
+                FROM dominio.__TABLA__ c
+                WHERE dataset_version_id = {0}
+                  AND geometria IS NULL
+                ORDER BY fila_origen
+                LIMIT 100
+                """.Replace("__TABLA__", definicion.TablaDestino, StringComparison.Ordinal);
+            var filas = await db.Database
+                .SqlQueryRaw<GeometriaNulaSql>(sql, datasetVersionId)
+                .ToListAsync(ct);
+            if (filas.Count == 0)
+                continue;
 
-        var noFotografiados = await db.CapasPrediosNoFotografiados.AsNoTracking()
-            .Where(x => x.DatasetVersionId == datasetVersionId && x.Geometria == null)
-            .OrderBy(x => x.FilaOrigen)
-            .Select(x => new
-            {
-                x.FilaOrigen,
-                x.IdPredioOrigen,
-                x.CodUv,
-                x.CodMan,
-                x.CodPred,
-            })
-            .ToListAsync(ct);
-        AgregarO4(resultado, "capa_predios_no_fotografiados", noFotografiados.Count,
-            noFotografiados.Take(100).Select(x => new ObservacionPreviewEjemploDto(
-                x.FilaOrigen,
-                new Dictionary<string, string?>
-                {
-                    ["id_predio_origen"] = Formatear(x.IdPredioOrigen),
-                    ["cod_uv"] = Formatear(x.CodUv),
-                    ["cod_man"] = Formatear(x.CodMan),
-                    ["cod_pred"] = Formatear(x.CodPred),
-                })));
-
-        var manzanas = await db.CapasManzanas.AsNoTracking()
-            .Where(x => x.DatasetVersionId == datasetVersionId && x.Geometria == null)
-            .OrderBy(x => x.FilaOrigen)
-            .Select(x => new { x.FilaOrigen, x.CodigoGeografico, x.CodUv, x.CodMan })
-            .ToListAsync(ct);
-        AgregarO4(resultado, "capa_manzanas", manzanas.Count,
-            manzanas.Take(100).Select(x => new ObservacionPreviewEjemploDto(
-                x.FilaOrigen,
-                new Dictionary<string, string?>
-                {
-                    ["codigo_geografico"] = x.CodigoGeografico,
-                    ["cod_uv"] = Formatear(x.CodUv),
-                    ["cod_man"] = Formatear(x.CodMan),
-                })));
-
-        var distritos = await db.CapasDistritos.AsNoTracking()
-            .Where(x => x.DatasetVersionId == datasetVersionId && x.Geometria == null)
-            .OrderBy(x => x.FilaOrigen)
-            .Select(x => new { x.FilaOrigen, x.CodigoGeografico, x.CodUv, x.Nombre })
-            .ToListAsync(ct);
-        AgregarO4(resultado, "capa_distritos", distritos.Count,
-            distritos.Take(100).Select(x => new ObservacionPreviewEjemploDto(
-                x.FilaOrigen,
-                new Dictionary<string, string?>
-                {
-                    ["codigo_geografico"] = x.CodigoGeografico,
-                    ["cod_uv"] = Formatear(x.CodUv),
-                    ["nombre"] = x.Nombre,
-                })));
-
-        var zonas = await db.CapasZonas.AsNoTracking()
-            .Where(x => x.DatasetVersionId == datasetVersionId && x.Geometria == null)
-            .OrderBy(x => x.FilaOrigen)
-            .Select(x => new { x.FilaOrigen, x.IdZonaOrigen, x.CodigoGeografico, x.NombreZona })
-            .ToListAsync(ct);
-        AgregarO4(resultado, "capa_zonas", zonas.Count,
-            zonas.Take(100).Select(x => new ObservacionPreviewEjemploDto(
-                x.FilaOrigen,
-                new Dictionary<string, string?>
-                {
-                    ["id_zona_origen"] = Formatear(x.IdZonaOrigen),
-                    ["codigo_geografico"] = x.CodigoGeografico,
-                    ["nombre_zona"] = x.NombreZona,
-                })));
-
-        var vias = await db.CapasVias.AsNoTracking()
-            .Where(x => x.DatasetVersionId == datasetVersionId && x.Geometria == null)
-            .OrderBy(x => x.FilaOrigen)
-            .Select(x => new { x.FilaOrigen, x.Nombre, x.Material, x.Tipo })
-            .ToListAsync(ct);
-        AgregarO4(resultado, "capa_vias", vias.Count,
-            vias.Take(100).Select(x => new ObservacionPreviewEjemploDto(
-                x.FilaOrigen,
-                new Dictionary<string, string?>
-                {
-                    ["nombre"] = x.Nombre,
-                    ["material"] = x.Material,
-                    ["tipo"] = x.Tipo,
-                })));
+            resultado.Add(new ObservacionPreviewVersionDto(
+                "O4",
+                definicion.TablaDestino,
+                "La capa contiene geometrías nulas; las filas se conservaron con sus atributos para revisión del GAM.",
+                filas[0].Total,
+                filas.Select(x => new ObservacionPreviewEjemploDto(
+                    x.FilaOrigen,
+                    DeserializarIdentificadores(x.Identificadores))).ToList()));
+        }
 
         return resultado;
     }
 
-    private static void AgregarO4(
-        List<ObservacionPreviewVersionDto> resultado,
-        string capa,
-        int conteo,
-        IEnumerable<ObservacionPreviewEjemploDto> ejemplos)
+    private static Dictionary<string, string?> DeserializarIdentificadores(string json)
     {
-        if (conteo == 0)
-            return;
-
-        resultado.Add(new ObservacionPreviewVersionDto(
-            "O4",
-            capa,
-            "La capa contiene geometrías nulas; las filas se conservaron con sus atributos para revisión del GAM.",
-            conteo,
-            ejemplos.ToList()));
+        using var documento = JsonDocument.Parse(json);
+        return documento.RootElement.EnumerateObject().ToDictionary(
+            x => x.Name,
+            x => x.Value.ValueKind == JsonValueKind.Null ? null : x.Value.ToString(),
+            StringComparer.OrdinalIgnoreCase);
     }
-
-    private static string? Formatear(object? valor) => valor switch
-    {
-        null => null,
-        IFormattable formateable => formateable.ToString(null, CultureInfo.InvariantCulture),
-        _ => valor.ToString(),
-    };
 
     private async Task<IReadOnlyList<DiferenciaConteoCapaDto>> ObtenerDiferenciasContraActivaAsync(
         Guid datasetVersionId,
@@ -382,6 +313,13 @@ internal sealed class ReportePreviewVersionServicio(
     {
         public int FilaOrigen { get; init; }
         public string Razon { get; init; } = string.Empty;
+        public int Total { get; init; }
+    }
+
+    private sealed class GeometriaNulaSql
+    {
+        public int FilaOrigen { get; init; }
+        public string Identificadores { get; init; } = "{}";
         public int Total { get; init; }
     }
 }

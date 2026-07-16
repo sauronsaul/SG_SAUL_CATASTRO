@@ -20,6 +20,7 @@ internal sealed class CargaVersionadaServicio(
     IShapefileReader shapefileReader,
     IReportePreviewVersionServicio reportePreview,
     IEsquemaCapasMunicipioRepositorio esquemas,
+    IInspectorPaqueteVersionado inspectorPaquete,
     IConfiguration configuration) : ICargaVersionadaServicio
 {
     private const int TamanoLote = 1000;
@@ -42,6 +43,9 @@ internal sealed class CargaVersionadaServicio(
         await using var paqueteStream = await minio.DescargarAsync(version.RutaMinioPaquete, ct);
         using var paquete = new MemoryStream();
         await paqueteStream.CopyToAsync(paquete, ct);
+        var inspeccion = inspectorPaquete.Inspeccionar(paquete, esquemaMunicipal);
+        if (!inspeccion.EsValido)
+            throw new InvalidOperationException($"El paquete almacenado no coincide con el esquema: {string.Join(" ", inspeccion.Errores)}");
 
         var directorioTemporal = Path.Combine(Path.GetTempPath(), $"sg_version_{datasetVersionId:N}");
         Directory.CreateDirectory(directorioTemporal);
@@ -49,14 +53,15 @@ internal sealed class CargaVersionadaServicio(
 
         try
         {
-            foreach (var definicion in esquemaMunicipal)
+            foreach (var definicion in esquemaMunicipal.Where(x =>
+                         inspeccion.PerfilesPresentes.Contains(x.NombrePerfil)))
             {
                 var perfil = perfilesVersionados[definicion.NombrePerfil];
                 version.RegistrarProgreso(SerializarReporte(definicion.TablaDestino, conteos));
                 await versiones.GuardarCambiosAsync(ct);
 
                 paquete.Position = 0;
-                var rutas = zipExtractor.Extraer(paquete, directorioTemporal, perfil.NombreArchivoShp);
+                var rutas = zipExtractor.Extraer(paquete, directorioTemporal, definicion.NombreArchivoShp);
                 var registros = shapefileReader.Leer(rutas.RutaShp).ToList();
                 await using var contextoCarga = CrearContextoCargaSinInterceptors();
                 await InsertarCapaAsync(contextoCarga, version.Id, definicion, perfil, registros, ct);
@@ -113,6 +118,8 @@ internal sealed class CargaVersionadaServicio(
         await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM dominio.capa_distritos WHERE dataset_version_id = {datasetVersionId}", ct);
         await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM dominio.capa_zonas WHERE dataset_version_id = {datasetVersionId}", ct);
         await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM dominio.capa_vias WHERE dataset_version_id = {datasetVersionId}", ct);
+        await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM dominio.capa_areas_urbanas WHERE dataset_version_id = {datasetVersionId}", ct);
+        await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM dominio.capa_puntos_geodesicos WHERE dataset_version_id = {datasetVersionId}", ct);
     }
 
     private async Task<Dictionary<string, PerfilImportacion>> ObtenerPerfilesVersionadosAsync(
@@ -125,6 +132,9 @@ internal sealed class CargaVersionadaServicio(
         {
             var perfil = disponibles.FirstOrDefault(x => x.Nombre == definicion.NombrePerfil)
                 ?? throw new InvalidOperationException($"No existe el perfil '{definicion.NombrePerfil}'.");
+            if (perfil.TipoCapa != definicion.TipoCapa)
+                throw new InvalidOperationException(
+                    $"El perfil '{definicion.NombrePerfil}' no corresponde a {definicion.TipoCapa}.");
             resultado.Add(definicion.NombrePerfil, perfil);
         }
         return resultado;
@@ -161,10 +171,12 @@ internal sealed class CargaVersionadaServicio(
             case TipoCapa.Vias:
                 await InsertarEnLotesAsync(contextoCarga, contextoCarga.CapasVias, registros.Select((r, i) => CrearVia(datasetVersionId, perfil, r, i + 1)), ct);
                 break;
-            // TODO 3.A.2b: implementar lectura e insercion de las capas propias de Caranavi.
             case TipoCapa.AreasUrbanas:
+                await InsertarEnLotesAsync(contextoCarga, contextoCarga.CapasAreasUrbanas, registros.Select((r, i) => CrearAreaUrbana(datasetVersionId, perfil, r, i + 1)), ct);
+                break;
             case TipoCapa.PuntosGeodesicos:
-                throw new InvalidOperationException($"La carga de {definicion.TipoCapa} corresponde a 3.A.2b.");
+                await InsertarEnLotesAsync(contextoCarga, contextoCarga.CapasPuntosGeodesicos, registros.Select((r, i) => CrearPuntoGeodesico(datasetVersionId, perfil, r, i + 1)), ct);
+                break;
             default:
                 throw new InvalidOperationException($"Tipo de capa no soportado: {definicion.TipoCapa}.");
         }
@@ -192,6 +204,8 @@ internal sealed class CargaVersionadaServicio(
             TipoCapa.Distritos => contextoCarga.CapasDistritos.CountAsync(x => x.DatasetVersionId == datasetVersionId, ct),
             TipoCapa.ZonasValuacion => contextoCarga.CapasZonas.CountAsync(x => x.DatasetVersionId == datasetVersionId, ct),
             TipoCapa.Vias => contextoCarga.CapasVias.CountAsync(x => x.DatasetVersionId == datasetVersionId, ct),
+            TipoCapa.AreasUrbanas => contextoCarga.CapasAreasUrbanas.CountAsync(x => x.DatasetVersionId == datasetVersionId, ct),
+            TipoCapa.PuntosGeodesicos => contextoCarga.CapasPuntosGeodesicos.CountAsync(x => x.DatasetVersionId == datasetVersionId, ct),
             _ => throw new InvalidOperationException($"Tipo de capa no soportado: {tipoCapa}."),
         };
 
@@ -255,6 +269,28 @@ internal sealed class CargaVersionadaServicio(
             Texto(r, perfil, "CapaVia.Material"), Texto(r, perfil, "CapaVia.Nombre"),
             Texto(r, perfil, "CapaVia.Tipo"), ADecimal(r, perfil, "CapaVia.DistanciaOrigen"));
 
+    private static CapaAreaUrbana CrearAreaUrbana(
+        Guid versionId,
+        PerfilImportacion perfil,
+        RegistroCrudoShapefile r,
+        int fila) =>
+        CapaAreaUrbana.Crear(
+            versionId,
+            GeometriaPoligonalAuxiliar(r, "capa_areas_urbanas", fila),
+            Extra(r, perfil),
+            fila);
+
+    private static CapaPuntoGeodesico CrearPuntoGeodesico(
+        Guid versionId,
+        PerfilImportacion perfil,
+        RegistroCrudoShapefile r,
+        int fila) =>
+        CapaPuntoGeodesico.Crear(
+            versionId,
+            PuntoAuxiliar(r, "capa_puntos_geodesicos", fila),
+            Extra(r, perfil),
+            fila);
+
     private static Polygon PoligonoParcela(RegistroCrudoShapefile registro, string capa, int fila) =>
         registro.Geometria switch
         {
@@ -288,6 +324,29 @@ internal sealed class CargaVersionadaServicio(
             MultiLineString multiLinea => multiLinea,
             Geometry geometria => throw new InvalidOperationException(
                 $"Capa '{capa}', fila {fila}: llegó {DescribirTipo(geometria)}; se esperaba LineString o MultiLineString."),
+        };
+
+    private static Geometry? GeometriaPoligonalAuxiliar(
+        RegistroCrudoShapefile registro,
+        string capa,
+        int fila) => registro.Geometria switch
+        {
+            null => null,
+            Polygon poligono => poligono,
+            MultiPolygon multipoligono => multipoligono,
+            Geometry geometria => throw new InvalidOperationException(
+                $"Capa '{capa}', fila {fila}: llegó {DescribirTipo(geometria)}; se esperaba Polygon o MultiPolygon."),
+        };
+
+    private static Point? PuntoAuxiliar(
+        RegistroCrudoShapefile registro,
+        string capa,
+        int fila) => registro.Geometria switch
+        {
+            null => null,
+            Point punto => punto,
+            Geometry geometria => throw new InvalidOperationException(
+                $"Capa '{capa}', fila {fila}: llegó {DescribirTipo(geometria)}; se esperaba Point."),
         };
 
     private static string DescribirTipo(Geometry geometria) => geometria switch

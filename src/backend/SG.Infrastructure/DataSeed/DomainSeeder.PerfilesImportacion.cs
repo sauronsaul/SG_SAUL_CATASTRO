@@ -24,6 +24,13 @@ public static partial class DomainSeeder
         new("uyuni-versionado-vias", TipoCapa.Vias, "VIA_INFO_UYU.shp", "capa_vias"),
     ];
 
+    private static readonly IReadOnlyList<DefinicionCapaSeed> CapasVersionadasCaranavi =
+    [
+        new("caranavi-versionado-manzanas", TipoCapa.Manzanas, "MANZANOS_PROY.shp", "capa_manzanas"),
+        new("caranavi-versionado-areas-urbanas", TipoCapa.AreasUrbanas, "AREA_URBANA.shp", "capa_areas_urbanas"),
+        new("caranavi-versionado-puntos-geodesicos", TipoCapa.PuntosGeodesicos, "puntos_geodesicos.shp", "capa_puntos_geodesicos"),
+    ];
+
     public static async Task SeedPerfilesImportacionAsync(ApplicationDbContext db, ILogger logger)
     {
         var existentes = await db.PerfilesImportacion
@@ -36,6 +43,7 @@ public static partial class DomainSeeder
             SeedPerfilConstruccionesUyuni(),
         };
         perfiles.AddRange(SeedPerfilesVersionadosUyuni());
+        perfiles.AddRange(SeedPerfilesVersionadosCaranavi());
 
         var nuevos = perfiles
             .Where(x => !existentes.Contains(x.Nombre, StringComparer.Ordinal))
@@ -162,6 +170,21 @@ public static partial class DomainSeeder
         ];
     }
 
+    private static IReadOnlyList<PerfilImportacion> SeedPerfilesVersionadosCaranavi()
+    {
+        var definiciones = CapasVersionadasCaranavi.ToDictionary(x => x.NombrePerfil);
+
+        return
+        [
+            CrearPerfilVersionado(definiciones["caranavi-versionado-manzanas"],
+            [
+                ("No_MANZANO", "CapaManzana.CodMan", false),
+            ]),
+            CrearPerfilVersionado(definiciones["caranavi-versionado-areas-urbanas"], []),
+            CrearPerfilVersionado(definiciones["caranavi-versionado-puntos-geodesicos"], []),
+        ];
+    }
+
     private static PerfilImportacion CrearPerfilVersionado(
         DefinicionCapaSeed definicion,
         IReadOnlyList<(string Origen, string Destino, bool Obligatorio)> mapeos)
@@ -170,7 +193,7 @@ public static partial class DomainSeeder
             definicion.NombrePerfil,
             definicion.TipoCapa,
             definicion.NombreArchivoShp,
-            $"Perfil versionado para {definicion.TablaDestino} de Uyuni.");
+            $"Perfil versionado para {definicion.TablaDestino}.");
 
         foreach (var (origen, destino, obligatorio) in mapeos)
             perfil.AgregarMapeo(origen, destino, obligatorio);

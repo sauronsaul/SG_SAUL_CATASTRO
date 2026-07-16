@@ -2,6 +2,7 @@ using System.Data;
 using System.Globalization;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using SG.Application.Abstractions.Importacion;
 using SG.Application.Importacion.Versiones;
 using SG.Contracts.Importacion;
@@ -13,7 +14,10 @@ using SG.Infrastructure.Persistencia;
 
 namespace SG.Infrastructure.Importacion;
 
-internal sealed class ActivacionVersionServicio(ApplicationDbContext db)
+internal sealed partial class ActivacionVersionServicio(
+    ApplicationDbContext db,
+    IEsquemaCapasMunicipioRepositorio esquemas,
+    ILogger<ActivacionVersionServicio> logger)
     : IActivacionVersionServicio
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
@@ -58,6 +62,15 @@ internal sealed class ActivacionVersionServicio(ApplicationDbContext db)
                         reporte.Validacion.Bloqueantes.Select(x => x.Codigo)));
             }
 
+            var esquemaMunicipal = await esquemas.ListarAsync(version.MunicipioCodigo, ct);
+            if (esquemaMunicipal.Count == 0)
+            {
+                await transaccion.RollbackAsync(ct);
+                return Result.Failure<ActivarVersionImportacionDto>(
+                    VersionImportacionErrores.EsquemaMunicipalNoConfigurado(version.MunicipioCodigo));
+            }
+            var tienePredios = esquemaMunicipal.Any(x => x.TipoCapa == TipoCapa.Predios);
+
             var activaActual = await db.DatasetVersiones
                 .SingleOrDefaultAsync(x =>
                     x.MunicipioCodigo == version.MunicipioCodigo &&
@@ -76,7 +89,17 @@ internal sealed class ActivacionVersionServicio(ApplicationDbContext db)
             else
                 version.Activar(usuarioId);
 
-            var resumen = await ReconciliarAsync(version, usuarioId, ct);
+            ResumenReconciliacionDto resumen;
+            if (tienePredios)
+            {
+                resumen = await ReconciliarAsync(version, usuarioId, ct);
+            }
+            else
+            {
+                const string motivo = "Esquema municipal sin capa de predios.";
+                resumen = new ResumenReconciliacionDto(0, 0, 0, 0, true, motivo);
+                LogReconciliacionOmitida(logger, version.Id, version.MunicipioCodigo, motivo);
+            }
             version.RegistrarResumenReconciliacion(JsonSerializer.Serialize(resumen, JsonOptions));
 
             await db.SaveChangesAsync(ct);
@@ -237,4 +260,13 @@ internal sealed class ActivacionVersionServicio(ApplicationDbContext db)
         public int FilaOrigen { get; init; }
         public string Razon { get; init; } = string.Empty;
     }
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        Message = "Reconciliación de predios omitida para versión {DatasetVersionId}, municipio {MunicipioCodigo}: {Motivo}")]
+    private static partial void LogReconciliacionOmitida(
+        ILogger logger,
+        Guid datasetVersionId,
+        string municipioCodigo,
+        string motivo);
 }

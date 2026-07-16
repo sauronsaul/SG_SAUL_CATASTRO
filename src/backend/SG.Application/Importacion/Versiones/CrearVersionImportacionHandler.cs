@@ -1,10 +1,9 @@
-using System.IO.Compression;
 using MediatR;
-using Microsoft.Extensions.Options;
 using SG.Application.Abstractions;
+using SG.Application.Abstractions.Catalogos;
 using SG.Application.Abstractions.Importacion;
-using SG.Application.Catastro.Config;
 using SG.Contracts.Importacion;
+using SG.Domain.Catalogos;
 using SG.Domain.Importacion;
 using SG.Domain.Common;
 
@@ -16,7 +15,8 @@ public sealed class CrearVersionImportacionHandler(
     IMinioService minio,
     IColaCargaVersionada cola,
     IEsquemaCapasMunicipioRepositorio esquemas,
-    IOptions<CatastroConfig> config)
+    IMunicipioRepositorio municipios,
+    IInspectorPaqueteVersionado inspectorPaquete)
     : IRequestHandler<CrearVersionImportacionCommand, Result<CrearVersionImportacionDto>>
 {
     private const long TamanoMaximoBytes = 110L * 1024 * 1024;
@@ -25,22 +25,36 @@ public sealed class CrearVersionImportacionHandler(
         CrearVersionImportacionCommand request,
         CancellationToken cancellationToken)
     {
+        if (!Municipio.EsCodigoIneValido(request.MunicipioCodigo))
+            return Result.Failure<CrearVersionImportacionDto>(MunicipioErrores.CodigoIneInvalido);
+
         if (request.TamanoBytes is <= 0 or > TamanoMaximoBytes ||
             string.IsNullOrWhiteSpace(request.NombreArchivo) ||
             !Path.GetExtension(request.NombreArchivo).Equals(".zip", StringComparison.OrdinalIgnoreCase))
-            return Result.Failure<CrearVersionImportacionDto>(VersionImportacionErrores.PaqueteInvalido);
+            return Result.Failure<CrearVersionImportacionDto>(
+                VersionImportacionErrores.PaqueteInvalido("nombre, extensión o tamaño no permitido"));
+
+        if (!await municipios.ExistePorCodigoIneAsync(request.MunicipioCodigo, cancellationToken))
+            return Result.Failure<CrearVersionImportacionDto>(
+                VersionImportacionErrores.MunicipioNoEncontrado(request.MunicipioCodigo));
+
+        var esquemaMunicipal = await esquemas.ListarAsync(request.MunicipioCodigo, cancellationToken);
+        if (esquemaMunicipal.Count == 0)
+            return Result.Failure<CrearVersionImportacionDto>(
+                VersionImportacionErrores.EsquemaMunicipalNoConfigurado(request.MunicipioCodigo));
+
+        var perfilesVersionados = await ObtenerPerfilesVersionadosAsync(esquemaMunicipal, cancellationToken);
+        if (perfilesVersionados is null)
+            return Result.Failure<CrearVersionImportacionDto>(
+                VersionImportacionErrores.EsquemaMunicipalInconsistente(
+                    "falta un perfil o su tipo de capa no coincide"));
 
         using var paquete = new MemoryStream();
         await request.PaqueteStream.CopyToAsync(paquete, cancellationToken);
-
-        // TODO 3.A.2b: el municipio objetivo debe llegar en el contrato de importacion.
-        var municipioCodigo = config.Value.MunicipioCodigo;
-        var esquemaMunicipal = await esquemas.ListarAsync(municipioCodigo, cancellationToken);
-        if (esquemaMunicipal.Count == 0)
-            return Result.Failure<CrearVersionImportacionDto>(VersionImportacionErrores.PaqueteInvalido);
-        var perfilesVersionados = await ObtenerPerfilesVersionadosAsync(esquemaMunicipal, cancellationToken);
-        if (perfilesVersionados is null || !ContieneArchivosEsperados(paquete, perfilesVersionados))
-            return Result.Failure<CrearVersionImportacionDto>(VersionImportacionErrores.PaqueteInvalido);
+        var inspeccion = inspectorPaquete.Inspeccionar(paquete, esquemaMunicipal);
+        if (!inspeccion.EsValido)
+            return Result.Failure<CrearVersionImportacionDto>(
+                VersionImportacionErrores.PaqueteInvalido(string.Join(" ", inspeccion.Errores)));
 
         paquete.Position = 0;
         var claveMinio = $"importaciones/versiones/{Guid.NewGuid():N}/{SanitizarNombre(request.NombreArchivo)}.zip";
@@ -52,13 +66,16 @@ public sealed class CrearVersionImportacionHandler(
             cancellationToken);
 
         var numeroVersion = await versiones.ObtenerSiguienteNumeroAsync(
-            municipioCodigo,
+            request.MunicipioCodigo,
             cancellationToken);
+        var descripcionCapas = esquemaMunicipal.Count == 1
+            ? "1 capa"
+            : $"{esquemaMunicipal.Count} capas";
         var version = DatasetVersion.Crear(
             numeroVersion,
-            municipioCodigo,
+            request.MunicipioCodigo,
             importacionId: null,
-            origenDescripcion: $"Paquete de {esquemaMunicipal.Count} capas: {request.NombreArchivo}",
+            origenDescripcion: $"Paquete de {descripcionCapas}: {request.NombreArchivo}",
             rutaMinioPaquete: claveMinio);
 
         versiones.Agregar(version);
@@ -75,7 +92,7 @@ public sealed class CrearVersionImportacionHandler(
         var disponibles = await perfiles.ListarAsync(ct);
         var resultado = new List<PerfilImportacion>();
 
-        foreach (var definicion in esquemaMunicipal.Where(x => x.Obligatoria))
+        foreach (var definicion in esquemaMunicipal)
         {
             var perfil = disponibles.FirstOrDefault(x => x.Nombre == definicion.NombrePerfil);
             if (perfil is null || perfil.TipoCapa != definicion.TipoCapa)
@@ -85,41 +102,6 @@ public sealed class CrearVersionImportacionHandler(
         }
 
         return resultado;
-    }
-
-    private static bool ContieneArchivosEsperados(
-        MemoryStream paquete,
-        IReadOnlyList<PerfilImportacion> perfilesVersionados)
-    {
-        try
-        {
-            paquete.Position = 0;
-            using var zip = new ZipArchive(paquete, ZipArchiveMode.Read, leaveOpen: true);
-            var archivos = zip.Entries
-                .Where(x => !string.IsNullOrEmpty(x.Name))
-                // ZipExtractor busca los SHP en la raíz. Rechazar rutas anidadas aquí evita
-                // que un request malformado termine como carga Fallida.
-                .Select(x => x.FullName.Replace('\\', '/'))
-                .ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-            // TODO 3.A.2b: distinguir componentes obligatorios de capas opcionales.
-            return perfilesVersionados.All(perfil =>
-            {
-                var baseNombre = Path.GetFileNameWithoutExtension(perfil.NombreArchivoShp);
-                return archivos.Contains(baseNombre + ".shp") &&
-                       archivos.Contains(baseNombre + ".dbf") &&
-                       archivos.Contains(baseNombre + ".shx") &&
-                       archivos.Contains(baseNombre + ".prj");
-            });
-        }
-        catch (InvalidDataException)
-        {
-            return false;
-        }
-        finally
-        {
-            paquete.Position = 0;
-        }
     }
 
     private static string SanitizarNombre(string nombre)

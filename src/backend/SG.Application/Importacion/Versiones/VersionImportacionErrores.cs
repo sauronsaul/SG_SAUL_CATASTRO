@@ -4,8 +4,17 @@ namespace SG.Application.Importacion.Versiones;
 
 public static class VersionImportacionErrores
 {
-    public static readonly DomainError PaqueteInvalido =
-        new("VersionImportacion.PaqueteInvalido", "El paquete ZIP de las siete capas es inválido.");
+    public static DomainError PaqueteInvalido(string detalle) =>
+        new("VersionImportacion.PaqueteInvalido", $"El paquete ZIP es inválido: {detalle}");
+
+    public static DomainError MunicipioNoEncontrado(string codigoIne) =>
+        new("VersionImportacion.MunicipioNoEncontrado", $"El municipio INE {codigoIne} no existe en el catálogo.");
+
+    public static DomainError EsquemaMunicipalNoConfigurado(string codigoIne) =>
+        new("VersionImportacion.EsquemaMunicipalNoConfigurado", $"El municipio INE {codigoIne} no tiene un esquema de capas configurado.");
+
+    public static DomainError EsquemaMunicipalInconsistente(string detalle) =>
+        new("VersionImportacion.EsquemaMunicipalInconsistente", $"El esquema municipal es inconsistente: {detalle}");
     public static readonly DomainError NoEncontrada =
         new("VersionImportacion.NoEncontrada", "La versión de dataset no fue encontrada.");
     public static readonly DomainError UsuarioNoDisponible =

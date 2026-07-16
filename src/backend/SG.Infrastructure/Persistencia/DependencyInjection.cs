@@ -6,11 +6,13 @@ using Microsoft.Extensions.Options;
 using Minio;
 using SG.Application.Abstractions;
 using SG.Application.Abstractions.Catastro;
+using SG.Application.Abstractions.Catalogos;
 using SG.Application.Abstractions.Autenticacion;
 using SG.Application.Abstractions.Importacion;
 using SG.Application.Abstractions.GIS;
 using SG.Infrastructure.Almacenamiento;
 using SG.Infrastructure.Catastro;
+using SG.Infrastructure.Catalogos;
 using SG.Infrastructure.GIS;
 using SG.Infrastructure.Importacion;
 using SG.Infrastructure.Identidad;
@@ -48,6 +50,7 @@ public static class DependencyInjection
         services.AddScoped<IUsoSueloRepositorio, UsoSueloRepositorio>();
         services.AddScoped<IPropietarioRepositorio, PropietarioRepositorio>();
         services.AddScoped<IPredioRepositorio, PredioRepositorio>();
+        services.AddScoped<IMunicipioRepositorio, MunicipioRepositorio>();
         services.AddScoped<IConsultaPredioVersionado, ConsultaPredioVersionado>();
 
         // Servicios GIS
@@ -64,6 +67,7 @@ public static class DependencyInjection
         services.AddScoped<ICargaVersionadaServicio, CargaVersionadaServicio>();
         services.AddScoped<IReportePreviewVersionServicio, ReportePreviewVersionServicio>();
         services.AddScoped<IActivacionVersionServicio, ActivacionVersionServicio>();
+        services.AddSingleton<IInspectorPaqueteVersionado, InspectorPaqueteVersionado>();
 
         // Servicios de importación
         services.AddSingleton<IShapefileReader, ShapefileReader>();

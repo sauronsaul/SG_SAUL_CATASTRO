@@ -62,9 +62,15 @@ public sealed class ImportacionesController(ISender sender) : ControllerBase
     [Authorize(Roles = "Admin,Tecnico")]
     [RequestSizeLimit(110 * 1024 * 1024)]
     public async Task<IActionResult> CrearVersion(
+        [FromForm(Name = "municipio_codigo")] string? municipioCodigo,
         [FromForm] IFormFile? paquete,
         CancellationToken ct)
     {
+        if (string.IsNullOrWhiteSpace(municipioCodigo))
+            return Problem(
+                detail: "Se requiere el campo 'municipio_codigo'.",
+                statusCode: StatusCodes.Status400BadRequest);
+
         // La ausencia del archivo es un error de request: no debe crear una versión Fallida.
         if (paquete is null)
             return Problem(
@@ -73,6 +79,7 @@ public sealed class ImportacionesController(ISender sender) : ControllerBase
 
         await using var stream = paquete.OpenReadStream();
         var result = await sender.Send(new CrearVersionImportacionCommand(
+            municipioCodigo,
             paquete.FileName,
             stream,
             paquete.Length), ct);
@@ -137,7 +144,8 @@ public sealed class ImportacionesController(ISender sender) : ControllerBase
 
     private ObjectResult MapError(DomainError error) => error.Code switch
     {
-        "PerfilImportacion.NoEncontrado" or "Importacion.NoEncontrada" or "VersionImportacion.NoEncontrada" =>
+        "PerfilImportacion.NoEncontrado" or "Importacion.NoEncontrada" or "VersionImportacion.NoEncontrada" or
+        "VersionImportacion.MunicipioNoEncontrado" =>
             Problem(detail: error.Message, statusCode: StatusCodes.Status404NotFound),
         "Importacion.YaConfirmada" =>
             Problem(detail: error.Message, statusCode: StatusCodes.Status409Conflict),
@@ -147,7 +155,8 @@ public sealed class ImportacionesController(ISender sender) : ControllerBase
             Problem(detail: error.Message, statusCode: StatusCodes.Status409Conflict),
         "VersionImportacion.ReporteNoDisponible" or
         "VersionImportacion.ReporteConBloqueantes" or
-        "VersionImportacion.ReconciliacionInvalida" =>
+        "VersionImportacion.ReconciliacionInvalida" or
+        "VersionImportacion.EsquemaMunicipalNoConfigurado" =>
             Problem(detail: error.Message, statusCode: StatusCodes.Status422UnprocessableEntity),
         "VersionImportacion.UsuarioNoDisponible" =>
             Problem(detail: error.Message, statusCode: StatusCodes.Status401Unauthorized),
