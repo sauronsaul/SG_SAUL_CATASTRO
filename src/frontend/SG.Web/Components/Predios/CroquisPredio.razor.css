@@ -39,9 +39,9 @@
     display: flex;
     flex-direction: column;
     margin: 0 auto;
-    min-height: 190mm;
+    min-height: 0;
     padding: 10mm;
-    width: min(297mm, 100%);
+    width: min(279.4mm, 100%);
 }
 
 .membrete-croquis {
@@ -77,7 +77,7 @@
     display: grid;
     flex: 1;
     gap: 7mm;
-    grid-template-columns: minmax(0, 2fr) minmax(62mm, 1fr);
+    grid-template-columns: minmax(0, 2fr) minmax(58mm, .9fr);
     padding: 6mm 0;
 }
 
@@ -175,6 +175,10 @@ figcaption {
     }
 
     .croquis-documento {
-        min-width: 270mm;
+        width: 100%;
+    }
+
+    .contenido-croquis {
+        grid-template-columns: 1fr;
     }
 }

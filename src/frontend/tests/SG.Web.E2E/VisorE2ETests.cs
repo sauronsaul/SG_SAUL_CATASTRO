@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.RegularExpressions;
 using Microsoft.Playwright;
 using Xunit.Abstractions;
@@ -147,7 +148,8 @@ public sealed class VisorE2ETests(ITestOutputHelper output)
         await Assertions.Expect(vistaCroquis)
             .ToContainTextAsync("GOBIERNO AUTÓNOMO MUNICIPAL DE UYUNI");
         await Assertions.Expect(vistaCroquis).ToContainTextAsync("1 / 1 / 1");
-        await Assertions.Expect(vistaCroquis).ToContainTextAsync("UTC-4");
+        await Assertions.Expect(vistaCroquis)
+            .ToContainTextAsync("(hora de Bolivia, UTC-4)");
         await Assertions.Expect(vistaCroquis)
             .ToContainTextAsync("Dataset UYUNI — versión interna 3");
         await Assertions.Expect(vistaCroquis)
@@ -164,6 +166,22 @@ public sealed class VisorE2ETests(ITestOutputHelper output)
             directorioArtefactos,
             $"croquis-simple-{DateTime.UtcNow:yyyyMMdd-HHmmss}.png");
         await vistaCroquis.ScreenshotAsync(new() { Path = capturaCroquis });
+
+        var pdfCroquis = Path.Combine(
+            directorioArtefactos,
+            $"croquis-simple-{DateTime.UtcNow:yyyyMMdd-HHmmss}.pdf");
+        var contenidoPdf = await page.PdfAsync(new()
+        {
+            Path = pdfCroquis,
+            Landscape = true,
+            PrintBackground = true,
+            PreferCSSPageSize = true,
+            DisplayHeaderFooter = false
+        });
+        var paginasPdf = Regex.Matches(
+            Encoding.Latin1.GetString(contenidoPdf),
+            @"/Type\s*/Page(?!s)\b").Count;
+        Assert.Equal(1, paginasPdf);
 
         await page.GetByRole(
             AriaRole.Button,
@@ -224,8 +242,11 @@ public sealed class VisorE2ETests(ITestOutputHelper output)
         output.WriteLine($"resaltado_zoom_in={resaltadoZoomIn}");
         output.WriteLine($"resaltado_clic={resaltadoClic}");
         output.WriteLine("triplete=1/1/1 fila=11883 declarada=238.3470 grafica=238.3466 version=3");
-        output.WriteLine($"croquis_srid=32719 escala_grafica_m={escalaMetros} fecha=UTC-4");
+        output.WriteLine(
+            $"croquis_srid=32719 escala_grafica_m={escalaMetros} " +
+            "fecha=hora_de_Bolivia_UTC-4");
         output.WriteLine($"captura_croquis={Path.GetFullPath(capturaCroquis)}");
+        output.WriteLine($"pdf_croquis={Path.GetFullPath(pdfCroquis)} paginas={paginasPdf}");
         output.WriteLine($"captura={Path.GetFullPath(captura)}");
     }
 

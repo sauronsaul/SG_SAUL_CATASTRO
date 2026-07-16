@@ -80,38 +80,75 @@ input {
 
 @media print {
     @page {
-        size: A4 landscape;
-        margin: 10mm;
+        size: letter landscape;
+        margin: 8mm;
     }
 
     html,
     body,
     #app {
         background: #fff;
+        height: auto !important;
+        margin: 0;
+        min-height: 0;
+        overflow: visible;
+        width: auto;
+    }
+
+    #app .aplicacion,
+    #app .aplicacion > main,
+    #app .pagina-visor,
+    #app .visor {
+        display: block;
         height: auto;
+        min-height: 0;
+        overflow: visible;
+        width: auto;
     }
 
-    #app * {
-        visibility: hidden;
-    }
-
-    #app .croquis-documento,
-    #app .croquis-documento * {
-        visibility: visible;
-    }
-
+    #app .aplicacion > .barra-superior,
+    #app .visor > :not(.vista-croquis),
     #app .acciones-croquis {
         display: none !important;
     }
 
+    #app .vista-croquis {
+        background: #fff;
+        display: block;
+        height: auto;
+        inset: auto;
+        overflow: visible;
+        padding: 0;
+        position: static;
+        width: auto;
+    }
+
     #app .croquis-documento {
         box-shadow: none;
-        left: 0;
+        break-after: avoid-page;
+        break-before: avoid-page;
+        break-inside: avoid-page;
+        height: 199mm;
         margin: 0;
-        min-height: 190mm;
-        padding: 0;
-        position: absolute;
-        top: 0;
-        width: 277mm;
+        max-height: 199mm;
+        min-height: 199mm;
+        overflow: hidden;
+        padding: 6mm;
+        page-break-after: avoid;
+        page-break-before: avoid;
+        page-break-inside: avoid;
+        position: static;
+        width: 263mm;
+    }
+
+    #app .contenido-croquis {
+        gap: 5mm;
+        grid-template-columns: minmax(0, 2fr) minmax(55mm, .9fr);
+        min-height: 0;
+        padding: 4mm 0;
+    }
+
+    #app .geometria-croquis {
+        min-height: 0;
     }
 }
