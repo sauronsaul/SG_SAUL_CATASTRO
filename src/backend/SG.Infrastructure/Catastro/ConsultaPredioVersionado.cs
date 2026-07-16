@@ -1,6 +1,7 @@
 using System.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using NetTopologySuite.Geometries;
 using SG.Application.Abstractions.Catastro;
 using SG.Contracts.Catastro;
 using SG.Infrastructure.GIS;
@@ -47,6 +48,7 @@ internal sealed class ConsultaPredioVersionado(
                NULLIF(BTRIM(c.servicio_luz), '') AS servicio_luz,
                NULLIF(BTRIM(c.servicio_alcantarillado), '') AS servicio_alcantarillado,
                NULLIF(BTRIM(c.servicio_telefonia), '') AS servicio_telefonia,
+               c.geometria AS geometria_planar,
                ST_XMin(ST_Envelope(ST_Transform(c.geometria, 4326))) AS oeste,
                ST_YMin(ST_Envelope(ST_Transform(c.geometria, 4326))) AS sur,
                ST_XMax(ST_Envelope(ST_Transform(c.geometria, 4326))) AS este,
@@ -119,11 +121,12 @@ internal sealed class ConsultaPredioVersionado(
                 ObtenerStringNullable(reader, 22),
                 ObtenerStringNullable(reader, 23),
                 ObtenerStringNullable(reader, 24),
+                CrearGeometriaPlanar(reader.GetFieldValue<Polygon>(25)),
                 new LimitesPredioDto(
-                    reader.GetDouble(25),
                     reader.GetDouble(26),
                     reader.GetDouble(27),
-                    reader.GetDouble(28)));
+                    reader.GetDouble(28),
+                    reader.GetDouble(29)));
         }
         finally
         {
@@ -137,6 +140,21 @@ internal sealed class ConsultaPredioVersionado(
 
     private static decimal? ObtenerDecimalNullable(System.Data.Common.DbDataReader reader, int ordinal) =>
         reader.IsDBNull(ordinal) ? null : reader.GetDecimal(ordinal);
+
+    private static GeometriaPlanarDto CrearGeometriaPlanar(Polygon poligono)
+    {
+        var anillos = new double[poligono.NumInteriorRings + 1][][];
+        anillos[0] = ConvertirAnillo(poligono.ExteriorRing);
+        for (var indice = 0; indice < poligono.NumInteriorRings; indice++)
+            anillos[indice + 1] = ConvertirAnillo(poligono.GetInteriorRingN(indice));
+
+        return new GeometriaPlanarDto(poligono.SRID, "Polygon", anillos);
+    }
+
+    private static double[][] ConvertirAnillo(LineString anillo) =>
+        anillo.Coordinates
+            .Select(coordenada => new[] { coordenada.X, coordenada.Y })
+            .ToArray();
 
     private static void AgregarParametro(
         System.Data.Common.DbCommand command,

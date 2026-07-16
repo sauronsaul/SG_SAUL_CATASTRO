@@ -28,9 +28,15 @@
     </aside>
 
     <div id="@_contenedorId" class="mapa" aria-label="Mapa catastral de @Configuracion.MunicipioCodigo"></div>
-    @if (_fichaPredio is not null)
+    @if (_fichaPredio is not null && !_mostrarCroquis)
     {
-        <FichaPredioPanel Ficha="_fichaPredio" AlCerrar="CerrarFichaAsync" />
+        <FichaPredioPanel Ficha="_fichaPredio"
+                          AlCerrar="CerrarFichaAsync"
+                          AlImprimirCroquis="AbrirCroquis" />
+    }
+    @if (_fichaPredio is not null && _mostrarCroquis)
+    {
+        <CroquisPredio Ficha="_fichaPredio" AlCerrar="CerrarCroquis" />
     }
 </section>
 
@@ -39,6 +45,7 @@
     private MapaInterop? _interop;
     private DotNetObjectReference<MapaCatastral>? _referenciaDotNet;
     private FichaPredioDto? _fichaPredio;
+    private bool _mostrarCroquis;
     private bool _buscandoPredio;
     private string? _errorPredio;
 
@@ -104,6 +111,7 @@
             if (resultado.Estado != EstadoConsultaPredio.Encontrado || resultado.Ficha is null)
             {
                 _fichaPredio = null;
+                _mostrarCroquis = false;
                 _errorPredio = resultado.Error;
                 if (_interop is not null)
                     await _interop.LimpiarResaltadoAsync(_contenedorId);
@@ -111,6 +119,7 @@
             }
 
             _fichaPredio = resultado.Ficha;
+            _mostrarCroquis = false;
             if (_interop is not null)
             {
                 await _interop.ResaltarPredioAsync(
@@ -131,9 +140,14 @@
     private async Task CerrarFichaAsync()
     {
         _fichaPredio = null;
+        _mostrarCroquis = false;
         if (_interop is not null)
             await _interop.LimpiarResaltadoAsync(_contenedorId);
     }
+
+    private void AbrirCroquis() => _mostrarCroquis = true;
+
+    private void CerrarCroquis() => _mostrarCroquis = false;
 
     [JSInvokable]
     public async Task NotificarNoAutorizadoAsync()

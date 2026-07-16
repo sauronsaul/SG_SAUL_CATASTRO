@@ -109,6 +109,19 @@ Sin embargo, el repositorio no contiene las expansiones oficiales de esos
 códigos. Se preservan como códigos opacos y se solicita al GAM el diccionario;
 el sistema no inventa significados ni reescribe los datos.
 
+## Texto libre de barrio y vía
+
+La verificación posterior del croquis confirmó que `direccion_barrio` y
+`nombre_via` conservan texto libre del origen. La versión activa incluye
+variaciones de mayúsculas, tildes y grafías que no pueden resolverse sin
+autoridad institucional; los conteos crudos quedan en
+`INFORME_CALIDAD_DATOS_UYUNI_V2_HALLAZGOS.md`.
+
+La futura fase de edición debe diseñar catálogos controlados de barrios y vías
+con identificador estable, denominación oficial, alias e historial. Esta nota
+no autoriza normalización silenciosa de los valores importados ni una migración
+automática desde texto libre.
+
 `codigo_geografico` vale exactamente `04-12-05-01` en las 11.985 parcelas y
 cumple el formato `NN-NN-NN-NN`. Por ser constante, no identifica parcela,
 manzana o distrito y no forma parte del triplete canónico. Tampoco puede

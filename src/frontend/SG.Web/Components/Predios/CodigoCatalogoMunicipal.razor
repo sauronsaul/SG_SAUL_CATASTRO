@@ -1,0 +1,13 @@
+@using SG.Web.Models
+
+<span class="codigo-catalogo-municipal" title="@_presentacion.Ayuda">@_presentacion.Texto</span>
+
+@code {
+    private PresentacionCodigoMunicipal _presentacion = null!;
+
+    [Parameter]
+    public string? Valor { get; set; }
+
+    protected override void OnParametersSet() =>
+        _presentacion = CatalogoPresentacionMunicipal.Crear(Valor);
+}

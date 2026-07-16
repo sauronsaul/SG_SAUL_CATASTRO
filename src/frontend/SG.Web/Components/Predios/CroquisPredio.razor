@@ -1,0 +1,124 @@
+@using System.Globalization
+@using SG.Contracts.Catastro
+@using SG.Web.Models
+@inject IJSRuntime JS
+
+<div class="vista-croquis" role="dialog" aria-modal="true" aria-label="Vista previa del croquis">
+    <nav class="acciones-croquis" aria-label="Acciones del croquis">
+        <button type="button" class="boton-secundario" @onclick="AlCerrar">Volver a la ficha</button>
+        <button type="button" class="boton-primario" @onclick="ImprimirAsync">Imprimir</button>
+    </nav>
+
+    <article class="croquis-documento" aria-label="Croquis simple del predio">
+        <header class="membrete-croquis">
+            <div>
+                <p>GOBIERNO AUTÓNOMO MUNICIPAL DE UYUNI</p>
+                <h1>Croquis simple del predio</h1>
+            </div>
+            <p class="fecha-emision">
+                Fecha de emisión<br />
+                <strong>@_fechaEmision</strong>
+            </p>
+        </header>
+
+        <div class="contenido-croquis">
+            <figure>
+                <svg class="geometria-croquis"
+                     viewBox="0 0 @CroquisSvg.Ancho @CroquisSvg.Alto"
+                     role="img"
+                     aria-label="Geometría del predio en EPSG 32719"
+                     data-srid="@Ficha.GeometriaPlanar.Srid"
+                     data-escala-metros="@FormatearNumero(_svg.BarraMetros)">
+                    <path d="@_svg.Trayectoria" fill="#dbeafe" fill-rule="evenodd"
+                          stroke="#0f172a" stroke-width="3" vector-effect="non-scaling-stroke" />
+
+                    <g class="norte-cuadricula" aria-label="Norte de cuadrícula UTM 19S">
+                        <text x="835" y="48" text-anchor="middle">N</text>
+                        <path d="M 835 112 L 835 58 M 835 58 L 824 78 M 835 58 L 846 78"
+                              fill="none" stroke="#0f172a" stroke-width="3" />
+                        <text x="835" y="132" text-anchor="middle">UTM 19S</text>
+                    </g>
+
+                    <g class="barra-escala" aria-label="Escala gráfica @FormatearMetros(_svg.BarraMetros)">
+                        <line x1="@Svg(_svg.BarraX1)" y1="@Svg(_svg.BarraY)"
+                              x2="@Svg(_svg.BarraX2)" y2="@Svg(_svg.BarraY)" />
+                        <line x1="@Svg(_svg.BarraX1)" y1="@Svg(_svg.BarraY - 10)"
+                              x2="@Svg(_svg.BarraX1)" y2="@Svg(_svg.BarraY + 10)" />
+                        <line x1="@Svg(_svg.BarraX2)" y1="@Svg(_svg.BarraY - 10)"
+                              x2="@Svg(_svg.BarraX2)" y2="@Svg(_svg.BarraY + 10)" />
+                        <text x="@Svg((_svg.BarraX1 + _svg.BarraX2) / 2)"
+                              y="@Svg(_svg.BarraY - 14)" text-anchor="middle">
+                            @FormatearMetros(_svg.BarraMetros)
+                        </text>
+                    </g>
+                </svg>
+                <figcaption>
+                    Coordenadas métricas EPSG:32719. Escala nominal aproximada
+                    1:@_svg.EscalaNominal.ToString("N0", CulturaBolivia) al imprimir Carta al 100 %;
+                    prevalece la barra gráfica.
+                </figcaption>
+            </figure>
+
+            <section class="datos-croquis" aria-label="Datos esenciales del predio">
+                <h2>@Ficha.Distrito / @Ficha.Manzana / @Ficha.Predio</h2>
+                <dl>
+                    <div><dt>Código catastral</dt><dd>@Valor(Ficha.CodigoCatastral)</dd></div>
+                    <div><dt>Código geográfico</dt><dd>@Valor(Ficha.CodigoGeografico)</dd></div>
+                    <div><dt>Propietario de referencia</dt><dd>@Valor(Ficha.PropietarioReferencia)</dd></div>
+                    <div><dt>Estado</dt><dd>@Ficha.Estado</dd></div>
+                    <div><dt>Vía</dt><dd>@Valor(Ficha.NombreVia)</dd></div>
+                    <div><dt>Barrio</dt><dd>@Valor(Ficha.Barrio)</dd></div>
+                    <div><dt>Dirección</dt><dd>@Valor(Ficha.Direccion)</dd></div>
+                    <div><dt>Tipo de inmueble</dt><dd><CodigoCatalogoMunicipal Valor="Ficha.TipoInmueble" /></dd></div>
+                    <div><dt>Uso de terreno</dt><dd><CodigoCatalogoMunicipal Valor="Ficha.UsoTerreno" /></dd></div>
+                    <div><dt>Superficie declarada</dt><dd>@Metros(Ficha.SuperficieDeclaradaM2)</dd></div>
+                    <div><dt>Superficie gráfica</dt><dd>@Metros(Ficha.SuperficieGraficaM2)</dd></div>
+                    <div><dt>Superficie oficial</dt><dd>@MetrosNullable(Ficha.SuperficieOficialM2)</dd></div>
+                </dl>
+            </section>
+        </div>
+
+        <footer>
+            <span>Dataset @Ficha.MunicipioCodigo — versión interna @Ficha.NumeroVersion</span>
+            <strong>Croquis simple informativo — no constituye certificado catastral oficial.</strong>
+        </footer>
+    </article>
+</div>
+
+@code {
+    private static readonly CultureInfo CulturaBolivia = CultureInfo.GetCultureInfo("es-BO");
+    private CroquisSvgResultado _svg = null!;
+    private string _fechaEmision = string.Empty;
+
+    [Parameter, EditorRequired]
+    public FichaPredioDto Ficha { get; set; } = null!;
+
+    [Parameter]
+    public EventCallback AlCerrar { get; set; }
+
+    protected override void OnParametersSet()
+    {
+        _svg = CroquisSvg.Crear(Ficha.GeometriaPlanar);
+        _fechaEmision = FechaEmisionBolivia.Formatear(DateTimeOffset.UtcNow, CulturaBolivia);
+    }
+
+    private async Task ImprimirAsync() => await JS.InvokeVoidAsync("window.print");
+
+    private static string Valor(string? valor) =>
+        string.IsNullOrWhiteSpace(valor) ? "No registrado" : valor;
+
+    private static string Metros(decimal valor) =>
+        $"{valor.ToString("N4", CulturaBolivia)} m²";
+
+    private static string MetrosNullable(decimal? valor) =>
+        valor is null ? "No registrada" : Metros(valor.Value);
+
+    private static string FormatearMetros(double valor) =>
+        $"{FormatearNumero(valor)} m";
+
+    private static string FormatearNumero(double valor) =>
+        valor.ToString(valor >= 1 ? "0.##" : "0.###", CulturaBolivia);
+
+    private static string Svg(double valor) =>
+        valor.ToString("0.###", CultureInfo.InvariantCulture);
+}

@@ -70,6 +70,12 @@ public sealed class BusquedaFichaPredioE2ETests : IDisposable
             primeraFicha.SuperficieDeclaradaM2.Should().Be(100m);
             primeraFicha.SuperficieGraficaM2.Should().Be(100m);
             primeraFicha.PropietarioReferencia.Should().Be("****");
+            primeraFicha.GeometriaPlanar.Srid.Should().Be(32719);
+            primeraFicha.GeometriaPlanar.Tipo.Should().Be("Polygon");
+            primeraFicha.GeometriaPlanar.Coordenadas.Should().ContainSingle();
+            primeraFicha.GeometriaPlanar.Coordenadas[0].Should().HaveCountGreaterThanOrEqualTo(4);
+            primeraFicha.GeometriaPlanar.Coordenadas[0][0]
+                .Should().Equal(primeraFicha.GeometriaPlanar.Coordenadas[0][^1]);
             primeraFicha.Limites.Oeste.Should().BeLessThan(primeraFicha.Limites.Este);
             primeraFicha.Limites.Sur.Should().BeLessThan(primeraFicha.Limites.Norte);
 
@@ -92,6 +98,8 @@ public sealed class BusquedaFichaPredioE2ETests : IDisposable
                 $"triplete={primeraFicha.Distrito}/{primeraFicha.Manzana}/{primeraFicha.Predio} " +
                 $"fila={primeraFicha.FilaOrigen} declarada={primeraFicha.SuperficieDeclaradaM2:F4} " +
                 $"grafica={primeraFicha.SuperficieGraficaM2:F4} " +
+                $"geometria_srid={primeraFicha.GeometriaPlanar.Srid} " +
+                $"anillos={primeraFicha.GeometriaPlanar.Coordenadas.Length} " +
                 $"bbox={primeraFicha.Limites.Oeste},{primeraFicha.Limites.Sur}," +
                 $"{primeraFicha.Limites.Este},{primeraFicha.Limites.Norte}");
             _output.WriteLine(
