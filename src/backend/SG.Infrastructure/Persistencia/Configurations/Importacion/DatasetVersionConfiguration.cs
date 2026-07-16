@@ -15,7 +15,7 @@ public sealed class DatasetVersionConfiguration : IEntityTypeConfiguration<Impor
 
         builder.HasKey(x => x.Id);
         builder.Property(x => x.NumeroVersion).IsRequired();
-        builder.Property(x => x.MunicipioCodigo).IsRequired().HasMaxLength(30);
+        builder.Property(x => x.MunicipioCodigo).IsRequired().HasMaxLength(6);
         builder.Property(x => x.OrigenDescripcion).IsRequired().HasMaxLength(500);
         builder.Property(x => x.Estado).IsRequired().HasConversion<string>().HasMaxLength(30);
         builder.Property(x => x.RutaMinioPaquete).HasMaxLength(500);
@@ -45,5 +45,11 @@ public sealed class DatasetVersionConfiguration : IEntityTypeConfiguration<Impor
             .IsUnique()
             .HasFilter("estado = 'Activa'")
             .HasDatabaseName("uix_dataset_versiones_municipio_activa");
+
+        builder.HasOne<Domain.Catalogos.Municipio>()
+            .WithMany()
+            .HasForeignKey(x => x.MunicipioCodigo)
+            .HasPrincipalKey(x => x.CodigoIne)
+            .OnDelete(DeleteBehavior.Restrict);
     }
 }

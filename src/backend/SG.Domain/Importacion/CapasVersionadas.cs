@@ -180,3 +180,41 @@ public sealed class CapaVia : CapaVersionada
         DistanciaOrigen = distanciaOrigen,
     };
 }
+
+public sealed class CapaAreaUrbana : CapaVersionada
+{
+    public Geometry? Geometria { get; private set; }
+
+    private CapaAreaUrbana() { }
+
+    public static CapaAreaUrbana Crear(
+        Guid datasetVersionId,
+        Geometry? geometria,
+        string atributosExtra,
+        int filaOrigen) => new()
+    {
+        DatasetVersionId = datasetVersionId,
+        Geometria = geometria,
+        AtributosExtra = atributosExtra,
+        FilaOrigen = filaOrigen,
+    };
+}
+
+public sealed class CapaPuntoGeodesico : CapaVersionada
+{
+    public Point? Geometria { get; private set; }
+
+    private CapaPuntoGeodesico() { }
+
+    public static CapaPuntoGeodesico Crear(
+        Guid datasetVersionId,
+        Point? geometria,
+        string atributosExtra,
+        int filaOrigen) => new()
+    {
+        DatasetVersionId = datasetVersionId,
+        Geometria = geometria,
+        AtributosExtra = atributosExtra,
+        FilaOrigen = filaOrigen,
+    };
+}

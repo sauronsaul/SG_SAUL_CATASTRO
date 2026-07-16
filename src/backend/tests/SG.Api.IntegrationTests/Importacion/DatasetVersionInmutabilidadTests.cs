@@ -1,7 +1,9 @@
+using System.Globalization;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using SG.Api.IntegrationTests.Infrastructure;
+using SG.Domain.Catalogos;
 using ImportacionDomain = SG.Domain.Importacion;
 using SG.Infrastructure.Persistencia;
 using Xunit.Abstractions;
@@ -83,7 +85,7 @@ public sealed class DatasetVersionInmutabilidadTests : IDisposable
     }
 
     [Fact]
-    public async Task Esquema_ContieneOchoTablasYDosIndicesUnicosParciales()
+    public async Task Esquema_ContieneDoceTablasYDosIndicesUnicosParciales()
     {
         await using var scope = _factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -95,7 +97,8 @@ WHERE table_schema = 'dominio'
   AND table_name IN (
     'dataset_versiones', 'capa_parcelas', 'capa_edificaciones',
     'capa_predios_no_fotografiados', 'capa_manzanas', 'capa_distritos',
-    'capa_zonas', 'capa_vias')
+    'capa_zonas', 'capa_vias', 'municipios', 'esquemas_capas',
+    'capa_areas_urbanas', 'capa_puntos_geodesicos')
 ORDER BY table_name")
             .ToListAsync();
 
@@ -105,7 +108,7 @@ FROM pg_indexes
 WHERE schemaname = 'dominio'
   AND indexname IN (
     'uix_dataset_versiones_municipio_activa',
-    'uix_predios_triplete_activo')
+    'uix_predios_municipio_triplete_activo')
   AND indexdef LIKE '% WHERE %'
 ORDER BY indexname")
             .ToListAsync();
@@ -118,17 +121,83 @@ ORDER BY indexname")
         foreach (var indice in indicesParciales)
             _output.WriteLine(indice);
 
-        tablas.Should().HaveCount(8);
+        tablas.Should().HaveCount(12);
         indicesParciales.Should().HaveCount(2);
+    }
+
+    [Fact]
+    public async Task Seed_MunicipiosYEsquemasCapas_ContieneCatalogoEsperado()
+    {
+        const string fuente = "INE Bolivia — Clasificación de Ubicación Geográfica (geocódigo DDPPMM). " +
+            "Corroborado en publicaciones oficiales INE (visorPdf Codigo=051201; serie AtlasMunicipal nombrada por geocódigo). " +
+            "Verificado 2026-07-16.";
+        await using var scope = _factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        var municipios = await db.Municipios.AsNoTracking()
+            .Where(x => x.CodigoIne == "051201" || x.CodigoIne == "022001")
+            .OrderBy(x => x.CodigoIne)
+            .ToListAsync();
+        var uyuni = await db.EsquemasCapas.CountAsync(x => x.MunicipioCodigo == "051201");
+        var caranavi = await db.EsquemasCapas.CountAsync(x => x.MunicipioCodigo == "022001");
+
+        municipios.Should().HaveCount(2);
+        municipios.Should().OnlyContain(x => x.FuenteCodigo == fuente);
+        uyuni.Should().Be(7);
+        caranavi.Should().Be(3);
+    }
+
+    [Theory]
+    [InlineData("capa_areas_urbanas")]
+    [InlineData("capa_puntos_geodesicos")]
+    public async Task TriggersNuevasCapas_UpdateActivaYTruncate_Rechazan(string tabla)
+    {
+        await using var scope = _factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var version = await CrearVersionAsync(db, ImportacionDomain.EstadoDatasetVersion.Activa);
+        var id = Guid.NewGuid();
+        var insertSql = tabla switch
+        {
+            "capa_areas_urbanas" => "INSERT INTO dominio.capa_areas_urbanas (id, dataset_version_id, fila_origen, atributos_extra) VALUES ({0}, {1}, 1, '{{}}')",
+            "capa_puntos_geodesicos" => "INSERT INTO dominio.capa_puntos_geodesicos (id, dataset_version_id, fila_origen, atributos_extra) VALUES ({0}, {1}, 1, '{{}}')",
+            _ => throw new ArgumentOutOfRangeException(nameof(tabla), tabla, null),
+        };
+        var updateSql = tabla switch
+        {
+            "capa_areas_urbanas" => "UPDATE dominio.capa_areas_urbanas SET fila_origen = 2 WHERE id = {0}",
+            "capa_puntos_geodesicos" => "UPDATE dominio.capa_puntos_geodesicos SET fila_origen = 2 WHERE id = {0}",
+            _ => throw new ArgumentOutOfRangeException(nameof(tabla), tabla, null),
+        };
+        var truncateSql = tabla switch
+        {
+            "capa_areas_urbanas" => "TRUNCATE dominio.capa_areas_urbanas",
+            "capa_puntos_geodesicos" => "TRUNCATE dominio.capa_puntos_geodesicos",
+            _ => throw new ArgumentOutOfRangeException(nameof(tabla), tabla, null),
+        };
+        await db.Database.ExecuteSqlRawAsync(insertSql, id, version.Id);
+
+        var update = async () => await db.Database.ExecuteSqlRawAsync(updateSql, id);
+        var truncate = async () => await db.Database.ExecuteSqlRawAsync(truncateSql);
+
+        await update.Should().ThrowAsync<Exception>().WithMessage($"*{tabla}*UPDATE*Activa*");
+        await truncate.Should().ThrowAsync<Exception>().WithMessage($"*{tabla}*TRUNCATE*prohibida*");
     }
 
     private static async Task<ImportacionDomain.DatasetVersion> CrearVersionAsync(
         ApplicationDbContext db,
         ImportacionDomain.EstadoDatasetVersion estado)
     {
+        var municipioCodigo = Random.Shared.Next(100000, 1000000)
+            .ToString(CultureInfo.InvariantCulture);
+        db.Municipios.Add(Municipio.Crear(
+            municipioCodigo,
+            $"Municipio {municipioCodigo}",
+            $"GOBIERNO AUTONOMO MUNICIPAL {municipioCodigo}",
+            "Prueba",
+            "Fixture de integracion").Value);
         var version = ImportacionDomain.DatasetVersion.Crear(
             1,
-            $"TST-{Guid.NewGuid():N}"[..12],
+            municipioCodigo,
             null,
             "Versión de prueba");
 

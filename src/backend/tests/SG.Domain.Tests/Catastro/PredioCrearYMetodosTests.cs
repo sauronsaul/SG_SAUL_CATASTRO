@@ -7,6 +7,7 @@ namespace SG.Domain.Tests.Catastro;
 
 public sealed class PredioCrearYMetodosTests
 {
+    private const string MunicipioCodigo = "051201";
     private static readonly Guid UsuarioId = Guid.NewGuid();
 
     private static UbicacionCatastral UbicacionValida() =>
@@ -28,14 +29,14 @@ public sealed class PredioCrearYMetodosTests
     }
 
     private static Predio PredioNuevo() =>
-        Predio.Crear(UbicacionValida(), 250m, Guid.NewGuid(), UsuarioId).Value;
+        Predio.Crear(MunicipioCodigo, UbicacionValida(), 250m, Guid.NewGuid(), UsuarioId).Value;
 
     // ── Predio.Crear guards ─────────────────────────────────────────────────
 
     [Fact]
     public void Crear_UbicacionNula_EsFailure_UbicacionRequerida()
     {
-        var result = Predio.Crear(null!, 250m, Guid.NewGuid(), UsuarioId);
+        var result = Predio.Crear(MunicipioCodigo, null!, 250m, Guid.NewGuid(), UsuarioId);
 
         result.IsFailure.Should().BeTrue();
         result.Error.Should().Be(PredioErrores.UbicacionRequerida);
@@ -44,7 +45,7 @@ public sealed class PredioCrearYMetodosTests
     [Fact]
     public void Crear_SuperficieCero_EsFailure_SuperficieInvalida()
     {
-        var result = Predio.Crear(UbicacionValida(), 0m, Guid.NewGuid(), UsuarioId);
+        var result = Predio.Crear(MunicipioCodigo, UbicacionValida(), 0m, Guid.NewGuid(), UsuarioId);
 
         result.IsFailure.Should().BeTrue();
         result.Error.Should().Be(PredioErrores.SuperficieInvalida);
@@ -53,7 +54,7 @@ public sealed class PredioCrearYMetodosTests
     [Fact]
     public void Crear_SuperficieNegativa_EsFailure_SuperficieInvalida()
     {
-        var result = Predio.Crear(UbicacionValida(), -10m, Guid.NewGuid(), UsuarioId);
+        var result = Predio.Crear(MunicipioCodigo, UbicacionValida(), -10m, Guid.NewGuid(), UsuarioId);
 
         result.IsFailure.Should().BeTrue();
         result.Error.Should().Be(PredioErrores.SuperficieInvalida);
@@ -62,7 +63,7 @@ public sealed class PredioCrearYMetodosTests
     [Fact]
     public void Crear_UsoSueloVacio_EsFailure_UsoSueloRequerido()
     {
-        var result = Predio.Crear(UbicacionValida(), 250m, Guid.Empty, UsuarioId);
+        var result = Predio.Crear(MunicipioCodigo, UbicacionValida(), 250m, Guid.Empty, UsuarioId);
 
         result.IsFailure.Should().BeTrue();
         result.Error.Should().Be(PredioErrores.UsoSueloRequerido);
@@ -73,7 +74,7 @@ public sealed class PredioCrearYMetodosTests
     {
         var ubicacion = UbicacionCatastral.Crear("Distrito", "M1", "L1").Value;
 
-        var result = Predio.Crear(ubicacion, 250m, Guid.NewGuid(), UsuarioId);
+        var result = Predio.Crear(MunicipioCodigo, ubicacion, 250m, Guid.NewGuid(), UsuarioId);
 
         result.IsFailure.Should().BeTrue();
         result.Error.Should().Be(PredioErrores.TripleteCatastralInvalido);
@@ -82,7 +83,7 @@ public sealed class PredioCrearYMetodosTests
     [Fact]
     public void Crear_UbicacionConTripleteNumerico_ConservaComponentesCanonicos()
     {
-        var result = Predio.Crear(UbicacionValida(), 250m, Guid.NewGuid(), UsuarioId);
+        var result = Predio.Crear(MunicipioCodigo, UbicacionValida(), 250m, Guid.NewGuid(), UsuarioId);
 
         result.IsSuccess.Should().BeTrue();
         result.Value.CodUv.Should().Be(1);

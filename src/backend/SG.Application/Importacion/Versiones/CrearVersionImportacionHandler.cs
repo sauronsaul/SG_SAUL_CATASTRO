@@ -1,7 +1,9 @@
 using System.IO.Compression;
 using MediatR;
+using Microsoft.Extensions.Options;
 using SG.Application.Abstractions;
 using SG.Application.Abstractions.Importacion;
+using SG.Application.Catastro.Config;
 using SG.Contracts.Importacion;
 using SG.Domain.Importacion;
 using SG.Domain.Common;
@@ -12,7 +14,9 @@ public sealed class CrearVersionImportacionHandler(
     IPerfilImportacionRepositorio perfiles,
     IDatasetVersionRepositorio versiones,
     IMinioService minio,
-    IColaCargaVersionada cola)
+    IColaCargaVersionada cola,
+    IEsquemaCapasMunicipioRepositorio esquemas,
+    IOptions<CatastroConfig> config)
     : IRequestHandler<CrearVersionImportacionCommand, Result<CrearVersionImportacionDto>>
 {
     private const long TamanoMaximoBytes = 110L * 1024 * 1024;
@@ -29,7 +33,12 @@ public sealed class CrearVersionImportacionHandler(
         using var paquete = new MemoryStream();
         await request.PaqueteStream.CopyToAsync(paquete, cancellationToken);
 
-        var perfilesVersionados = await ObtenerPerfilesVersionadosAsync(cancellationToken);
+        // TODO 3.A.2b: el municipio objetivo debe llegar en el contrato de importacion.
+        var municipioCodigo = config.Value.MunicipioCodigo;
+        var esquemaMunicipal = await esquemas.ListarAsync(municipioCodigo, cancellationToken);
+        if (esquemaMunicipal.Count == 0)
+            return Result.Failure<CrearVersionImportacionDto>(VersionImportacionErrores.PaqueteInvalido);
+        var perfilesVersionados = await ObtenerPerfilesVersionadosAsync(esquemaMunicipal, cancellationToken);
         if (perfilesVersionados is null || !ContieneArchivosEsperados(paquete, perfilesVersionados))
             return Result.Failure<CrearVersionImportacionDto>(VersionImportacionErrores.PaqueteInvalido);
 
@@ -43,13 +52,13 @@ public sealed class CrearVersionImportacionHandler(
             cancellationToken);
 
         var numeroVersion = await versiones.ObtenerSiguienteNumeroAsync(
-            DefinicionesCapasVersionadasUyuni.MunicipioCodigo,
+            municipioCodigo,
             cancellationToken);
         var version = DatasetVersion.Crear(
             numeroVersion,
-            DefinicionesCapasVersionadasUyuni.MunicipioCodigo,
+            municipioCodigo,
             importacionId: null,
-            origenDescripcion: $"Paquete de siete capas: {request.NombreArchivo}",
+            origenDescripcion: $"Paquete de {esquemaMunicipal.Count} capas: {request.NombreArchivo}",
             rutaMinioPaquete: claveMinio);
 
         versiones.Agregar(version);
@@ -59,12 +68,14 @@ public sealed class CrearVersionImportacionHandler(
         return Result.Success(new CrearVersionImportacionDto(version.Id, version.Estado.ToString()));
     }
 
-    private async Task<IReadOnlyList<PerfilImportacion>?> ObtenerPerfilesVersionadosAsync(CancellationToken ct)
+    private async Task<IReadOnlyList<PerfilImportacion>?> ObtenerPerfilesVersionadosAsync(
+        IReadOnlyList<EsquemaCapaMunicipio> esquemaMunicipal,
+        CancellationToken ct)
     {
         var disponibles = await perfiles.ListarAsync(ct);
         var resultado = new List<PerfilImportacion>();
 
-        foreach (var definicion in DefinicionesCapasVersionadasUyuni.Todas)
+        foreach (var definicion in esquemaMunicipal.Where(x => x.Obligatoria))
         {
             var perfil = disponibles.FirstOrDefault(x => x.Nombre == definicion.NombrePerfil);
             if (perfil is null || perfil.TipoCapa != definicion.TipoCapa)
@@ -91,6 +102,7 @@ public sealed class CrearVersionImportacionHandler(
                 .Select(x => x.FullName.Replace('\\', '/'))
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
+            // TODO 3.A.2b: distinguir componentes obligatorios de capas opcionales.
             return perfilesVersionados.All(perfil =>
             {
                 var baseNombre = Path.GetFileNameWithoutExtension(perfil.NombreArchivoShp);

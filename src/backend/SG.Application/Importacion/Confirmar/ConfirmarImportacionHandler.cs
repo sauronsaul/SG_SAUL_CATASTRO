@@ -1,10 +1,12 @@
 using System.Globalization;
 using MediatR;
+using Microsoft.Extensions.Options;
 using NetTopologySuite.Geometries;
 using SG.Application.Abstractions;
 using SG.Application.Abstractions.Catastro;
 using SG.Application.Abstractions.Importacion;
 using SG.Application.Importacion.GenerarPreview;
+using SG.Application.Catastro.Config;
 using SG.Contracts.Importacion;
 using SG.Domain.Catastro;
 using SG.Domain.Catastro.Enums;
@@ -27,7 +29,8 @@ public sealed class ConfirmarImportacionHandler(
     IZipExtractor zipExtractor,
     IMapeadorImportacion mapeador,
     IMinioService minio,
-    ICurrentUserService currentUser)
+    ICurrentUserService currentUser,
+    IOptions<CatastroConfig> config)
     : IRequestHandler<ConfirmarImportacionCommand, Result<ConfirmacionImportacionDto>>
 {
     public async Task<Result<ConfirmacionImportacionDto>> Handle(
@@ -121,7 +124,7 @@ public sealed class ConfirmarImportacionHandler(
             .ToList();
 
         var existentesCompletos = tripletasConsulta.Count > 0
-            ? await predios.ObtenerParaActualizarPorTripletasAsync(tripletasConsulta, ct)
+            ? await predios.ObtenerParaActualizarPorTripletasAsync(config.Value.MunicipioCodigo, tripletasConsulta, ct)
             : new Dictionary<(string, string, string), Predio>();
 
         // Diccionario de estados para el clasificador.
@@ -138,7 +141,7 @@ public sealed class ConfirmarImportacionHandler(
             switch (accion)
             {
                 case AccionPreviewFila.Crear:
-                    if (CrearPredioDesdeResultado(resultado, usuarioId) is { } nuevoPredio)
+                    if (CrearPredioDesdeResultado(config.Value.MunicipioCodigo, resultado, usuarioId) is { } nuevoPredio)
                     {
                         predios.Agregar(nuevoPredio);
                         creadas++;
@@ -193,7 +196,7 @@ public sealed class ConfirmarImportacionHandler(
             .ToList();
 
         var prediosPadre = vinculoTripletas.Count > 0
-            ? await predios.ObtenerParaActualizarPorTripletasAsync(vinculoTripletas, ct)
+            ? await predios.ObtenerParaActualizarPorTripletasAsync(config.Value.MunicipioCodigo, vinculoTripletas, ct)
             : new Dictionary<(string, string, string), Predio>();
 
         int creadas = 0, omitidas = 0, rechazadas = 0, conAdvertencia = 0;
@@ -238,7 +241,10 @@ public sealed class ConfirmarImportacionHandler(
 
     // ── Helpers — creación/actualización de predios ────────────────────────
 
-    private static Predio? CrearPredioDesdeResultado(ResultadoMapeoFila resultado, Guid usuarioId)
+    private static Predio? CrearPredioDesdeResultado(
+        string municipioCodigo,
+        ResultadoMapeoFila resultado,
+        Guid usuarioId)
     {
         var vals = resultado.ValoresMapeados;
 
@@ -266,6 +272,7 @@ public sealed class ConfirmarImportacionHandler(
             : null;
 
         var predioResult = Predio.CrearImportado(
+            municipioCodigo,
             ubResult.Value,
             superficie.Value,
             usuarioId,

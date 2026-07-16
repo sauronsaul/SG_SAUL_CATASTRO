@@ -30,8 +30,8 @@ public sealed class DatasetVersion : AggregateRoot
         if (numeroVersion < 1)
             throw new DomainException("El número de versión debe ser mayor o igual a 1.");
 
-        if (string.IsNullOrWhiteSpace(municipioCodigo))
-            throw new DomainException("El código de municipio es requerido.");
+        if (!Catalogos.Municipio.EsCodigoIneValido(municipioCodigo))
+            throw new DomainException("El codigo INE del municipio debe contener exactamente seis digitos ASCII.");
 
         if (string.IsNullOrWhiteSpace(origenDescripcion))
             throw new DomainException("La descripción de origen es requerida.");

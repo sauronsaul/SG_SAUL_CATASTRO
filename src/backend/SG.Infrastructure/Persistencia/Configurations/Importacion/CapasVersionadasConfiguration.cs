@@ -135,6 +135,36 @@ public sealed class CapaDistritoConfiguration : IEntityTypeConfiguration<Importa
     }
 }
 
+public sealed class CapaAreaUrbanaConfiguration : IEntityTypeConfiguration<ImportacionDomain.CapaAreaUrbana>
+{
+    public void Configure(EntityTypeBuilder<ImportacionDomain.CapaAreaUrbana> builder)
+    {
+        CapaVersionadaConfiguration.ConfigurarBase(builder, "capa_areas_urbanas");
+        CapaVersionadaConfiguration.ConfigurarSrid(builder, "capa_areas_urbanas");
+        builder.ToTable("capa_areas_urbanas", "dominio", table =>
+            table.HasCheckConstraint(
+                "ck_capa_areas_urbanas_tipo_geometria",
+                "geometria IS NULL OR GeometryType(geometria) IN ('POLYGON', 'MULTIPOLYGON')"));
+        builder.Property(x => x.Geometria).HasColumnType("geometry(Geometry,32719)");
+        builder.HasIndex(x => x.Geometria).HasMethod("gist")
+            .HasFilter("geometria IS NOT NULL")
+            .HasDatabaseName("ix_capa_areas_urbanas_geometria");
+    }
+}
+
+public sealed class CapaPuntoGeodesicoConfiguration : IEntityTypeConfiguration<ImportacionDomain.CapaPuntoGeodesico>
+{
+    public void Configure(EntityTypeBuilder<ImportacionDomain.CapaPuntoGeodesico> builder)
+    {
+        CapaVersionadaConfiguration.ConfigurarBase(builder, "capa_puntos_geodesicos");
+        CapaVersionadaConfiguration.ConfigurarSrid(builder, "capa_puntos_geodesicos");
+        builder.Property(x => x.Geometria).HasColumnType("geometry(Point,32719)");
+        builder.HasIndex(x => x.Geometria).HasMethod("gist")
+            .HasFilter("geometria IS NOT NULL")
+            .HasDatabaseName("ix_capa_puntos_geodesicos_geometria");
+    }
+}
+
 public sealed class CapaZonaConfiguration : IEntityTypeConfiguration<ImportacionDomain.CapaZona>
 {
     public void Configure(EntityTypeBuilder<ImportacionDomain.CapaZona> builder)

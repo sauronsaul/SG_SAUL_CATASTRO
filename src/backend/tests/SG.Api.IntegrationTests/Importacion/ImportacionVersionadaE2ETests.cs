@@ -24,6 +24,19 @@ namespace SG.Api.IntegrationTests.Importacion;
 [Collection("Postgres")]
 public sealed class ImportacionVersionadaE2ETests : IDisposable
 {
+    private sealed record DefinicionCapaPrueba(TipoCapa TipoCapa, string NombreArchivoShp);
+
+    private static readonly IReadOnlyList<DefinicionCapaPrueba> CapasUyuni =
+    [
+        new(TipoCapa.Predios, "PRE_SIS_UYU.shp"),
+        new(TipoCapa.Construcciones, "EDI_SIS_UYU.shp"),
+        new(TipoCapa.PrediosNoFotografiados, "PRE_NO_FOT.shp"),
+        new(TipoCapa.Manzanas, "MAN_SIS_UYU.shp"),
+        new(TipoCapa.Distritos, "DIS_SIS_UYU.shp"),
+        new(TipoCapa.ZonasValuacion, "ZONA_SIS_UYU.shp"),
+        new(TipoCapa.Vias, "VIA_INFO_UYU.shp"),
+    ];
+
     private static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
     private readonly SgApiFactory _factory;
     private readonly HttpClient _clientAdmin;
@@ -269,7 +282,7 @@ public sealed class ImportacionVersionadaE2ETests : IDisposable
         await using var scope = _factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         (await db.DatasetVersiones.CountAsync(x =>
-            x.MunicipioCodigo == "UYUNI" && x.Estado == EstadoDatasetVersion.Activa))
+            x.MunicipioCodigo == "051201" && x.Estado == EstadoDatasetVersion.Activa))
             .Should().Be(1);
         (await db.Predios.CountAsync(x => x.UltimaVersionVistaId == creada.DatasetVersionId))
             .Should().Be(2);
@@ -344,7 +357,7 @@ SELECT (
     {
         await using var scope = _factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        var version = DatasetVersion.Crear(999, "HUERFANA", null, "Prueba de reinicio", "paquete/prueba.zip");
+        var version = DatasetVersion.Crear(999, "051201", null, "Prueba de reinicio", "paquete/prueba.zip");
         db.DatasetVersiones.Add(version);
         await db.SaveChangesAsync();
 
@@ -419,7 +432,7 @@ SELECT (
         Directory.CreateDirectory(directorio);
         try
         {
-            foreach (var definicion in DefinicionesCapasVersionadasUyuni.Todas)
+            foreach (var definicion in CapasUyuni)
             {
                 CrearShapefile(directorio, definicion, corromperEdificaciones, escenarioGeometria);
                 if (definicion.TipoCapa == omitirPrjDe)
@@ -442,7 +455,7 @@ SELECT (
 
     private static void CrearShapefile(
         string directorio,
-        DefinicionCapaVersionadaUyuni definicion,
+        DefinicionCapaPrueba definicion,
         bool corromperEdificaciones,
         EscenarioGeometria escenarioGeometria)
     {

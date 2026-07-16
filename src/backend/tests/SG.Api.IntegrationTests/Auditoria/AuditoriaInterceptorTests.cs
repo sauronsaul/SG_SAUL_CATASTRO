@@ -26,7 +26,7 @@ public sealed class AuditoriaInterceptorTests : IDisposable
         ApplicationDbContext db, string zonaSufijo)
     {
         var ubicacion = UbicacionCatastral.Crear("901", zonaSufijo[1..], "001").Value;
-        var predio = Predio.CrearImportado(ubicacion, 100m, Guid.NewGuid()).Value;
+        var predio = Predio.CrearImportado("051201", ubicacion, 100m, Guid.NewGuid()).Value;
         db.Predios.Add(predio);
         await db.SaveChangesAsync();
 

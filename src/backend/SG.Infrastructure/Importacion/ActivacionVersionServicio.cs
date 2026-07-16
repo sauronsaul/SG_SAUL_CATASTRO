@@ -107,7 +107,9 @@ internal sealed class ActivacionVersionServicio(ApplicationDbContext db)
             .Where(x => x.DatasetVersionId == version.Id)
             .OrderBy(x => x.FilaOrigen)
             .ToListAsync(ct);
-        var maestro = await db.Predios.ToListAsync(ct);
+        var maestro = await db.Predios
+            .Where(x => x.MunicipioCodigo == version.MunicipioCodigo)
+            .ToListAsync(ct);
         var maestroPorTriplete = maestro.ToDictionary(x => (x.CodUv, x.CodMan, x.CodPred));
         var razonesInvalidas = await ObtenerRazonesInvalidasAsync(version.Id, ct);
         var tripletesVersion = new HashSet<(int CodUv, int CodMan, int CodPred)>();
@@ -142,6 +144,7 @@ internal sealed class ActivacionVersionServicio(ApplicationDbContext db)
             if (predio is null)
             {
                 var alta = Predio.CrearDesdeDataset(
+                    version.MunicipioCodigo,
                     ubicacion,
                     superficie,
                     superficieSig,

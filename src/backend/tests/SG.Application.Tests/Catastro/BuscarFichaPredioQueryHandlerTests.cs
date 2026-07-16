@@ -63,7 +63,7 @@ public sealed class BuscarFichaPredioQueryHandlerTests
         Guid.NewGuid(),
         Guid.NewGuid(),
         3,
-        "UYUNI",
+        "051201",
         42,
         1,
         2,

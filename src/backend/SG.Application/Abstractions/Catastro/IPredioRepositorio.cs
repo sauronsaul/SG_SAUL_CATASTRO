@@ -8,7 +8,7 @@ public interface IPredioRepositorio
 {
     Task<Predio?> ObtenerPorIdAsync(Guid id, CancellationToken ct = default);
     Task<bool> ExisteCodigoCatastralAsync(string codigoCatastral, CancellationToken ct = default);
-    Task<bool> ExisteTripleteCatastralAsync(int codUv, int codMan, int codPred, CancellationToken ct = default);
+    Task<bool> ExisteTripleteCatastralAsync(string municipioCodigo, int codUv, int codMan, int codPred, CancellationToken ct = default);
     Task<PagedResult<Predio>> ListarAsync(int page, int pageSize, CancellationToken ct = default);
     void Agregar(Predio predio);
     Task GuardarCambiosAsync(CancellationToken ct = default);
@@ -18,6 +18,7 @@ public interface IPredioRepositorio
     // no aparecen en el resultado — la ausencia implica AccionPreviewFila.Crear.
     Task<IReadOnlyDictionary<(string Zona, string Manzana, string Lote), EstadoPredio>>
         ObtenerEstadosPorTripletasAsync(
+            string municipioCodigo,
             IReadOnlyCollection<(string Zona, string Manzana, string Lote)> tripletas,
             CancellationToken ct = default);
 
@@ -25,6 +26,7 @@ public interface IPredioRepositorio
     // tracking de EF Core para que los cambios se persistan en el SaveChangesAsync final.
     Task<Dictionary<(string Zona, string Manzana, string Lote), Predio>>
         ObtenerParaActualizarPorTripletasAsync(
+            string municipioCodigo,
             IReadOnlyCollection<(string Zona, string Manzana, string Lote)> tripletas,
             CancellationToken ct = default);
 }

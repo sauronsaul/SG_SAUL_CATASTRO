@@ -1,9 +1,11 @@
 using FluentAssertions;
 using NSubstitute;
+using Microsoft.Extensions.Options;
 using SG.Application.Abstractions;
 using SG.Application.Abstractions.Catastro;
 using SG.Application.Abstractions.Importacion;
 using SG.Application.Importacion.Confirmar;
+using SG.Application.Catastro.Config;
 using ImportacionDomain = SG.Domain.Importacion;
 
 namespace SG.Application.Tests.Importacion;
@@ -20,7 +22,8 @@ public sealed class ConfirmarImportacionHandlerTests
     private readonly ICurrentUserService _currentUser = Substitute.For<ICurrentUserService>();
 
     private ConfirmarImportacionHandler CrearHandler() =>
-        new(_importaciones, _perfiles, _predios, _shapefileReader, _zipExtractor, _mapeador, _minio, _currentUser);
+        new(_importaciones, _perfiles, _predios, _shapefileReader, _zipExtractor, _mapeador, _minio, _currentUser,
+            Options.Create(new CatastroConfig { MunicipioCodigo = "051201" }));
 
     [Fact]
     public async Task Handle_ImportacionNoEncontrada_RetornaNoEncontrada()

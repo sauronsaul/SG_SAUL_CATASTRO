@@ -1,5 +1,7 @@
+using Microsoft.Extensions.Options;
 using SG.Application.Abstractions;
 using SG.Application.Abstractions.Catastro;
+using SG.Application.Catastro.Config;
 using SG.Application.Importacion.GenerarPreview;
 using SG.Contracts.Importacion;
 using SG.Domain.Catastro.Enums;
@@ -16,7 +18,8 @@ public sealed class PipelineShapefileService(
     IZipExtractor zipExtractor,
     IShapefileReader shapefileReader,
     IMapeadorImportacion mapeador,
-    IPredioRepositorio predios)
+    IPredioRepositorio predios,
+    IOptions<CatastroConfig> config)
 {
     public async Task<IReadOnlyList<FilaPreviewDto>> ProcesarAsync(
         Stream zipBuffer,
@@ -47,7 +50,7 @@ public sealed class PipelineShapefileService(
 
                 IReadOnlyDictionary<(string, string, string), EstadoPredio> prediosExistentes =
                     vinculoTripletas.Count > 0
-                        ? await predios.ObtenerEstadosPorTripletasAsync(vinculoTripletas, ct)
+                        ? await predios.ObtenerEstadosPorTripletasAsync(config.Value.MunicipioCodigo, vinculoTripletas, ct)
                         : new Dictionary<(string, string, string), EstadoPredio>();
 
                 return resultados
@@ -78,7 +81,7 @@ public sealed class PipelineShapefileService(
 
             IReadOnlyDictionary<(string, string, string), EstadoPredio> estados =
                 tripletas.Count > 0
-                    ? await predios.ObtenerEstadosPorTripletasAsync(tripletas, ct)
+                    ? await predios.ObtenerEstadosPorTripletasAsync(config.Value.MunicipioCodigo, tripletas, ct)
                     : new Dictionary<(string, string, string), EstadoPredio>();
 
             return resultados

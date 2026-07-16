@@ -34,7 +34,7 @@ public sealed class AuditoriaInterceptorGeometriaTests : IDisposable
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
         var ubicacion = UbicacionCatastral.Crear("902", "903", "001").Value;
-        var predio = Predio.CrearImportado(ubicacion, 150m, Guid.NewGuid()).Value;
+        var predio = Predio.CrearImportado("051201", ubicacion, 150m, Guid.NewGuid()).Value;
 
         var geoFactory = new GeometryFactory(
             new PrecisionModel(), GeometriaPredial.SridObligatorio);

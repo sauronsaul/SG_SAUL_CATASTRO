@@ -197,25 +197,25 @@ public sealed class TilesE2ETests : IDisposable
             DELETE FROM dominio.predios;
             UPDATE dominio.dataset_versiones
             SET estado = 'Descartada'
-            WHERE municipio_codigo = 'UYUNI';
+            WHERE municipio_codigo = '051201';
             DELETE FROM dominio.capa_parcelas
-            WHERE dataset_version_id IN (SELECT id FROM dominio.dataset_versiones WHERE municipio_codigo = 'UYUNI');
+            WHERE dataset_version_id IN (SELECT id FROM dominio.dataset_versiones WHERE municipio_codigo = '051201');
             DELETE FROM dominio.capa_edificaciones
-            WHERE dataset_version_id IN (SELECT id FROM dominio.dataset_versiones WHERE municipio_codigo = 'UYUNI');
+            WHERE dataset_version_id IN (SELECT id FROM dominio.dataset_versiones WHERE municipio_codigo = '051201');
             DELETE FROM dominio.capa_predios_no_fotografiados
-            WHERE dataset_version_id IN (SELECT id FROM dominio.dataset_versiones WHERE municipio_codigo = 'UYUNI');
+            WHERE dataset_version_id IN (SELECT id FROM dominio.dataset_versiones WHERE municipio_codigo = '051201');
             DELETE FROM dominio.capa_manzanas
-            WHERE dataset_version_id IN (SELECT id FROM dominio.dataset_versiones WHERE municipio_codigo = 'UYUNI');
+            WHERE dataset_version_id IN (SELECT id FROM dominio.dataset_versiones WHERE municipio_codigo = '051201');
             DELETE FROM dominio.capa_distritos
-            WHERE dataset_version_id IN (SELECT id FROM dominio.dataset_versiones WHERE municipio_codigo = 'UYUNI');
+            WHERE dataset_version_id IN (SELECT id FROM dominio.dataset_versiones WHERE municipio_codigo = '051201');
             DELETE FROM dominio.capa_zonas
-            WHERE dataset_version_id IN (SELECT id FROM dominio.dataset_versiones WHERE municipio_codigo = 'UYUNI');
+            WHERE dataset_version_id IN (SELECT id FROM dominio.dataset_versiones WHERE municipio_codigo = '051201');
             DELETE FROM dominio.capa_vias
-            WHERE dataset_version_id IN (SELECT id FROM dominio.dataset_versiones WHERE municipio_codigo = 'UYUNI');
+            WHERE dataset_version_id IN (SELECT id FROM dominio.dataset_versiones WHERE municipio_codigo = '051201');
             DELETE FROM dominio.dataset_versiones
-            WHERE municipio_codigo = 'UYUNI';
+            WHERE municipio_codigo = '051201';
             """);
-        var versionesRestantes = await db.DatasetVersiones.CountAsync(x => x.MunicipioCodigo == "UYUNI");
+        var versionesRestantes = await db.DatasetVersiones.CountAsync(x => x.MunicipioCodigo == "051201");
         var prediosRestantes = await db.Predios.IgnoreQueryFilters().CountAsync();
         if (versionesRestantes != 0 || prediosRestantes != 0)
             throw new InvalidOperationException(

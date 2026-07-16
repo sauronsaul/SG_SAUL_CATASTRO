@@ -7,7 +7,7 @@ namespace SG.Domain.Tests.Importacion;
 public sealed class DatasetVersionTests
 {
     private static DatasetVersion CrearEnCarga()
-        => DatasetVersion.Crear(1, "UYU", null, "Entrega de prueba");
+        => DatasetVersion.Crear(1, "051201", null, "Entrega de prueba");
 
     [Fact]
     public void Crear_DatosValidos_IniciaEnCarga()
@@ -16,7 +16,7 @@ public sealed class DatasetVersionTests
 
         version.Estado.Should().Be(EstadoDatasetVersion.EnCarga);
         version.NumeroVersion.Should().Be(1);
-        version.MunicipioCodigo.Should().Be("UYU");
+        version.MunicipioCodigo.Should().Be("051201");
     }
 
     [Fact]
@@ -54,9 +54,20 @@ public sealed class DatasetVersionTests
     [Fact]
     public void Crear_NumeroNoPositivo_LanzaDomainException()
     {
-        var act = () => DatasetVersion.Crear(0, "UYU", null, "Entrega");
+        var act = () => DatasetVersion.Crear(0, "051201", null, "Entrega");
 
         act.Should().Throw<DomainException>().WithMessage("*mayor o igual a 1*");
+    }
+
+    [Theory]
+    [InlineData("UYUNI")]
+    [InlineData("05120")]
+    [InlineData("05120A")]
+    public void Crear_CodigoIneInvalido_LanzaDomainException(string codigo)
+    {
+        var act = () => DatasetVersion.Crear(1, codigo, null, "Entrega");
+
+        act.Should().Throw<DomainException>().WithMessage("*seis digitos ASCII*");
     }
 
     [Fact]

@@ -9,4 +9,6 @@ public enum TipoCapa
     Distritos = 5,
     ZonasValuacion = 6,
     Vias = 7,
+    AreasUrbanas = 8,
+    PuntosGeodesicos = 9,
 }

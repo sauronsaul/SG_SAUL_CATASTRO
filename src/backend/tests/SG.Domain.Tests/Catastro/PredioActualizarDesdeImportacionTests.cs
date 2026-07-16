@@ -7,6 +7,7 @@ namespace SG.Domain.Tests.Catastro;
 
 public sealed class PredioActualizarDesdeImportacionTests
 {
+    private const string MunicipioCodigo = "051201";
     private static readonly Guid UsuarioId = Guid.NewGuid();
 
     private static UbicacionCatastral UbicacionValida() =>
@@ -17,7 +18,7 @@ public sealed class PredioActualizarDesdeImportacionTests
     [Fact]
     public void ActualizarDesdeImportacion_PredioImportado_ActualizaCamposEsperados()
     {
-        var predio = Predio.CrearImportado(UbicacionValida(), 200m, UsuarioId).Value;
+        var predio = Predio.CrearImportado(MunicipioCodigo, UbicacionValida(), 200m, UsuarioId).Value;
 
         var result = predio.ActualizarDesdeImportacion(
             superficieDeclarada:   350m,
@@ -40,7 +41,7 @@ public sealed class PredioActualizarDesdeImportacionTests
     [Fact]
     public void ActualizarDesdeImportacion_PredioBorrador_EsExito_ActualizaSuperficie()
     {
-        var predio = Predio.Crear(UbicacionValida(), 200m, Guid.NewGuid(), UsuarioId).Value;
+        var predio = Predio.Crear(MunicipioCodigo, UbicacionValida(), 200m, Guid.NewGuid(), UsuarioId).Value;
 
         var result = predio.ActualizarDesdeImportacion(300m, UsuarioId);
 
@@ -54,7 +55,7 @@ public sealed class PredioActualizarDesdeImportacionTests
     public void ActualizarDesdeImportacion_NoModificaUsoSueloNiCodigoCatastral()
     {
         var usoSueloId = Guid.NewGuid();
-        var predio = Predio.Crear(UbicacionValida(), 200m, usoSueloId, UsuarioId).Value;
+        var predio = Predio.Crear(MunicipioCodigo, UbicacionValida(), 200m, usoSueloId, UsuarioId).Value;
         var codigo = CodigoCatastral.Crear("02-006-028-001-0001-0001").Value;
         predio.AsignarCodigoOficial(codigo, UsuarioId);
 
@@ -92,21 +93,21 @@ public sealed class PredioActualizarDesdeImportacionTests
         switch (estado)
         {
             case EstadoPredio.Importado:
-                return Predio.CrearImportado(UbicacionValida(), 200m, UsuarioId).Value;
+                return Predio.CrearImportado(MunicipioCodigo, UbicacionValida(), 200m, UsuarioId).Value;
 
             case EstadoPredio.Borrador:
-                return Predio.Crear(UbicacionValida(), 200m, Guid.NewGuid(), UsuarioId).Value;
+                return Predio.Crear(MunicipioCodigo, UbicacionValida(), 200m, Guid.NewGuid(), UsuarioId).Value;
 
             case EstadoPredio.EnRevision:
             {
-                var p = Predio.Crear(UbicacionValida(), 200m, Guid.NewGuid(), UsuarioId).Value;
+                var p = Predio.Crear(MunicipioCodigo, UbicacionValida(), 200m, Guid.NewGuid(), UsuarioId).Value;
                 p.EnviarARevision(UsuarioId);
                 return p;
             }
 
             case EstadoPredio.Validado:
             {
-                var p = Predio.Crear(UbicacionValida(), 200m, Guid.NewGuid(), UsuarioId).Value;
+                var p = Predio.Crear(MunicipioCodigo, UbicacionValida(), 200m, Guid.NewGuid(), UsuarioId).Value;
                 p.EnviarARevision(UsuarioId);
                 p.Validar(CodigoCatastral.Crear("02-006-028-001-0001-0001").Value, UsuarioId);
                 return p;
@@ -114,7 +115,7 @@ public sealed class PredioActualizarDesdeImportacionTests
 
             case EstadoPredio.Observado:
             {
-                var p = Predio.Crear(UbicacionValida(), 200m, Guid.NewGuid(), UsuarioId).Value;
+                var p = Predio.Crear(MunicipioCodigo, UbicacionValida(), 200m, Guid.NewGuid(), UsuarioId).Value;
                 p.EnviarARevision(UsuarioId);
                 p.Observar("Predio observado para test.", UsuarioId);
                 return p;

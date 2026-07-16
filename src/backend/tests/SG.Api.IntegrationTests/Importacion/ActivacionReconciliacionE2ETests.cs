@@ -14,6 +14,7 @@ using SG.Contracts.Importacion;
 using SG.Domain.Catastro;
 using SG.Domain.Catastro.Enums;
 using SG.Domain.Catastro.ValueObjects;
+using SG.Domain.Catalogos;
 using SG.Domain.Importacion;
 using SG.Infrastructure.Persistencia;
 using Xunit.Abstractions;
@@ -48,21 +49,22 @@ public sealed class ActivacionReconciliacionE2ETests : IDisposable
     {
         await LimpiarMaestroAsync();
         var usuarioId = await ObtenerAdminIdAsync();
-        var predioSinCambio = CrearPredioMaestro(900, 1, 1, 100m, 100, "Sin cambio", usuarioId);
-        var predioActualizar = CrearPredioMaestro(900, 1, 2, 100m, 200, "Anterior", usuarioId);
-        var predioAusente = CrearPredioMaestro(900, 1, 3, 100m, 300, "Ausente", usuarioId);
+        var municipio = CrearCodigoMunicipio();
+        var predioSinCambio = CrearPredioMaestro(municipio, 900, 1, 1, 100m, 100, "Sin cambio", usuarioId);
+        var predioActualizar = CrearPredioMaestro(municipio, 900, 1, 2, 100m, 200, "Anterior", usuarioId);
+        var predioAusente = CrearPredioMaestro(municipio, 900, 1, 3, 100m, 300, "Ausente", usuarioId);
         predioAusente.AgregarDocumento(
             "respaldo.pdf", "application/pdf", 10, "test/respaldo.pdf", TipoDocumento.Otro, usuarioId);
 
         await using (var scope = _factory.Services.CreateAsyncScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            db.Municipios.Add(CrearMunicipioPrueba(municipio));
             db.Predios.AddRange(predioSinCambio, predioActualizar, predioAusente);
             await db.SaveChangesAsync();
             _output.WriteLine($"SQL ANTES: {JsonSerializer.Serialize(await ConsultarMaestroAsync(db, 900))}");
         }
 
-        var municipio = $"TB-{Guid.NewGuid():N}"[..12];
         var versionId = await CrearVersionPreviewAsync(municipio, 1,
         [
             new ParcelaPrueba(900, 1, 1, 100m, 100, "Sin cambio", Invalida: false),
@@ -132,7 +134,7 @@ public sealed class ActivacionReconciliacionE2ETests : IDisposable
     [Fact]
     public async Task Activar_TripleteDuplicado_RechazaConBloqueanteB1()
     {
-        var municipio = $"TD-{Guid.NewGuid():N}"[..12];
+        var municipio = CrearCodigoMunicipio();
         var versionId = await CrearVersionPreviewAsync(municipio, 1,
         [
             new ParcelaPrueba(910, 1, 1, 100m, 100, "Duplicado A", false),
@@ -152,7 +154,7 @@ public sealed class ActivacionReconciliacionE2ETests : IDisposable
     [Fact]
     public async Task Activar_SuperficieNoPositiva_RechazaConBloqueanteB4()
     {
-        var municipio = $"TS-{Guid.NewGuid():N}"[..12];
+        var municipio = CrearCodigoMunicipio();
         var versionId = await CrearVersionPreviewAsync(municipio, 1,
         [
             new ParcelaPrueba(920, 1, 1, 0m, 100, "Superficie cero", false),
@@ -176,7 +178,7 @@ public sealed class ActivacionReconciliacionE2ETests : IDisposable
     public async Task Reactivar_Archivada_UsaMismoCaminoYQuedaComoUnicaActiva()
     {
         await LimpiarMaestroAsync();
-        var municipio = $"TR-{Guid.NewGuid():N}"[..12];
+        var municipio = CrearCodigoMunicipio();
         var version1 = await CrearVersionPreviewAsync(municipio, 1,
         [
             new ParcelaPrueba(930, 1, 1, 100m, 100, "Versión uno", false),
@@ -224,12 +226,72 @@ public sealed class ActivacionReconciliacionE2ETests : IDisposable
         _output.WriteLine($"LEGADO CONFIRMAR status={(int)response.StatusCode}: {error}");
     }
 
+    [Fact]
+    public async Task Activar_MunicipioConTripletaIdentica_NoTocaPredioDeOtroMunicipio()
+    {
+        await LimpiarMaestroAsync();
+        var usuarioId = await ObtenerAdminIdAsync();
+        var municipioA = CrearCodigoMunicipio();
+        var municipioB = CrearCodigoMunicipio();
+        var predioA = CrearPredioMaestro(municipioA, 910, 2, 3, 100m, 100, "Municipio A", usuarioId);
+        var predioB = CrearPredioMaestro(municipioB, 910, 2, 3, 100m, 200, "Municipio B", usuarioId);
+
+        await using (var scope = _factory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            db.Municipios.AddRange(CrearMunicipioPrueba(municipioA), CrearMunicipioPrueba(municipioB));
+            db.Predios.AddRange(predioA, predioB);
+            await db.SaveChangesAsync();
+        }
+
+        var versionId = await CrearVersionPreviewAsync(municipioA, 1,
+        [
+            new ParcelaPrueba(910, 2, 3, 150m, 300, "Actualizado A", Invalida: false),
+        ]);
+        var response = await _clientAdmin.PostAsync($"/api/importaciones/versiones/{versionId}/activar", null);
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        await using var verificacion = _factory.Services.CreateAsyncScope();
+        var dbVerificacion = verificacion.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var resultadoA = await dbVerificacion.Predios.SingleAsync(x => x.Id == predioA.Id);
+        var resultadoB = await dbVerificacion.Predios.SingleAsync(x => x.Id == predioB.Id);
+        resultadoA.PropietarioReferencia.Should().Be("Actualizado A");
+        resultadoB.PropietarioReferencia.Should().Be("Municipio B");
+        resultadoB.PresenteEnVersionActiva.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task UnicidadTripleta_PermiteMunicipiosDistintosYRechazaDuplicadoDelMismo()
+    {
+        await LimpiarMaestroAsync();
+        var usuarioId = await ObtenerAdminIdAsync();
+        var municipioA = CrearCodigoMunicipio();
+        var municipioB = CrearCodigoMunicipio();
+
+        await using var scope = _factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        db.Municipios.AddRange(CrearMunicipioPrueba(municipioA), CrearMunicipioPrueba(municipioB));
+        db.Predios.AddRange(
+            CrearPredioMaestro(municipioA, 920, 1, 1, 100m, 100, "A", usuarioId),
+            CrearPredioMaestro(municipioB, 920, 1, 1, 100m, 200, "B", usuarioId));
+        await db.SaveChangesAsync();
+
+        db.Predios.Add(CrearPredioMaestro(municipioA, 920, 1, 1, 100m, 300, "Duplicado", usuarioId));
+        var act = async () => await db.SaveChangesAsync();
+
+        await act.Should().ThrowAsync<DbUpdateException>();
+    }
+
     private async Task<Guid> CrearVersionPreviewAsync(
         string municipio,
         int numeroVersion,
         IReadOnlyList<ParcelaPrueba> parcelas)
     {
         await using var dbCarga = CrearContextoSinInterceptors();
+        if (!await dbCarga.Municipios.IgnoreQueryFilters().AnyAsync(x => x.CodigoIne == municipio))
+            dbCarga.Municipios.Add(CrearMunicipioPrueba(municipio));
+        if (!await dbCarga.EsquemasCapas.IgnoreQueryFilters().AnyAsync(x => x.MunicipioCodigo == municipio))
+            dbCarga.EsquemasCapas.AddRange(CrearEsquemaUyuniPrueba(municipio));
         var version = DatasetVersion.Crear(numeroVersion, municipio, null, "Fixture activación");
         dbCarga.DatasetVersiones.Add(version);
         await dbCarga.SaveChangesAsync();
@@ -312,6 +374,7 @@ public sealed class ActivacionReconciliacionE2ETests : IDisposable
     }
 
     private static Predio CrearPredioMaestro(
+        string municipioCodigo,
         int codUv,
         int codMan,
         int codPred,
@@ -327,13 +390,35 @@ public sealed class ActivacionReconciliacionE2ETests : IDisposable
             "Barrio",
             "Dirección").Value;
         var predio = Predio.CrearImportado(
-            ubicacion, superficie, usuarioId, propietario, "R", $"{codUv}{codMan}{codPred}").Value;
+            municipioCodigo, ubicacion, superficie, usuarioId, propietario, "R", $"{codUv}{codMan}{codPred}").Value;
         predio.AsignarGeometria(
             GeometriaPredial.Crear(CrearPoligono(coordenada, false)).Value,
             usuarioId);
         predio.ActualizarSuperficieSig(100m);
         return predio;
     }
+
+    private static string CrearCodigoMunicipio() =>
+        Random.Shared.Next(100000, 1000000).ToString(CultureInfo.InvariantCulture);
+
+    private static Municipio CrearMunicipioPrueba(string codigo) =>
+        Municipio.Crear(
+            codigo,
+            $"Municipio {codigo}",
+            $"GOBIERNO AUTONOMO MUNICIPAL {codigo}",
+            "Prueba",
+            "Fixture de integracion").Value;
+
+    private static IReadOnlyList<EsquemaCapaMunicipio> CrearEsquemaUyuniPrueba(string municipio) =>
+    [
+        EsquemaCapaMunicipio.Crear(municipio, TipoCapa.Predios, "uyuni-versionado-parcelas", "PRE_SIS_UYU.shp", "capa_parcelas", true).Value,
+        EsquemaCapaMunicipio.Crear(municipio, TipoCapa.Construcciones, "uyuni-versionado-edificaciones", "EDI_SIS_UYU.shp", "capa_edificaciones", true).Value,
+        EsquemaCapaMunicipio.Crear(municipio, TipoCapa.PrediosNoFotografiados, "uyuni-versionado-predios-no-fotografiados", "PRE_NO_FOT.shp", "capa_predios_no_fotografiados", true).Value,
+        EsquemaCapaMunicipio.Crear(municipio, TipoCapa.Manzanas, "uyuni-versionado-manzanas", "MAN_SIS_UYU.shp", "capa_manzanas", true).Value,
+        EsquemaCapaMunicipio.Crear(municipio, TipoCapa.Distritos, "uyuni-versionado-distritos", "DIS_SIS_UYU.shp", "capa_distritos", true).Value,
+        EsquemaCapaMunicipio.Crear(municipio, TipoCapa.ZonasValuacion, "uyuni-versionado-zonas", "ZONA_SIS_UYU.shp", "capa_zonas", true).Value,
+        EsquemaCapaMunicipio.Crear(municipio, TipoCapa.Vias, "uyuni-versionado-vias", "VIA_INFO_UYU.shp", "capa_vias", true).Value,
+    ];
 
     private static Polygon CrearPoligono(double origen, bool invalida)
     {

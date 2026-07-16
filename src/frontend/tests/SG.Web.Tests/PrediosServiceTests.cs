@@ -49,7 +49,7 @@ public sealed class PrediosServiceTests
             {
               "predioId":"11111111-1111-1111-1111-111111111111",
               "datasetVersionId":"22222222-2222-2222-2222-222222222222",
-              "numeroVersion":3,"municipioCodigo":"UYUNI","filaOrigen":1,
+              "numeroVersion":3,"municipioCodigo":"051201","filaOrigen":1,
               "distrito":1,"manzana":1,"predio":1,
               "codigoCatastral":"1-1-1","codigoGeografico":"010101",
               "estado":"Activo","superficieDeclaradaM2":100.0000,
@@ -73,7 +73,7 @@ public sealed class PrediosServiceTests
 
         resultado.Estado.Should().Be(EstadoConsultaPredio.Encontrado);
         resultado.Ficha.Should().NotBeNull();
-        resultado.Ficha!.MunicipioCodigo.Should().Be("UYUNI");
+        resultado.Ficha!.MunicipioCodigo.Should().Be("051201");
         resultado.Ficha.GeometriaPlanar.Srid.Should().Be(32719);
         resultado.Ficha.GeometriaPlanar.Coordenadas.Should().ContainSingle();
         resultado.Ficha.Limites.Oeste.Should().Be(-67);

@@ -8,6 +8,7 @@ namespace SG.Domain.Tests.Catastro;
 
 public sealed class PredioReconciliacionDatasetTests
 {
+    private const string MunicipioCodigo = "051201";
     private static readonly Guid UsuarioId = Guid.NewGuid();
 
     [Fact]
@@ -17,6 +18,7 @@ public sealed class PredioReconciliacionDatasetTests
         const string detalle = "Geometría inválida en importación versión 1: Self-intersection";
 
         var resultado = Predio.CrearDesdeDataset(
+            MunicipioCodigo,
             CrearUbicacion(), 100m, 0m, geometria, Guid.NewGuid(), UsuarioId,
             detalleGeometriaInvalida: detalle);
 
@@ -32,6 +34,7 @@ public sealed class PredioReconciliacionDatasetTests
         var version1 = Guid.NewGuid();
         var geometria = GeometriaPredial.CrearDesdeImportacion(CrearPoligonoValido()).Value;
         var predio = Predio.CrearDesdeDataset(
+            MunicipioCodigo,
             CrearUbicacion(), 100m, 100m, geometria, version1, UsuarioId).Value;
 
         var resultado = predio.ReconciliarDesdeDataset(
@@ -47,6 +50,7 @@ public sealed class PredioReconciliacionDatasetTests
     {
         var geometria = GeometriaPredial.CrearDesdeImportacion(CrearPoligonoValido()).Value;
         var predio = Predio.CrearDesdeDataset(
+            MunicipioCodigo,
             CrearUbicacion(), 100m, 100m, geometria, Guid.NewGuid(), UsuarioId).Value;
         predio.MarcarAusenteEnDataset(2);
 
@@ -64,6 +68,7 @@ public sealed class PredioReconciliacionDatasetTests
     {
         var valida = GeometriaPredial.CrearDesdeImportacion(CrearPoligonoValido()).Value;
         var predio = Predio.CrearDesdeDataset(
+            MunicipioCodigo,
             CrearUbicacion(), 100m, 100m, valida, Guid.NewGuid(), UsuarioId).Value;
         predio.MarcarAusenteEnDataset(2);
         var invalida = GeometriaPredial.CrearDesdeImportacion(CrearPoligonoInvalido()).Value;
@@ -81,7 +86,7 @@ public sealed class PredioReconciliacionDatasetTests
     [Fact]
     public void ReconciliarDesdeDataset_PredioValidado_NoModificaEstadoNiCodigoOficial()
     {
-        var predio = Predio.Crear(CrearUbicacion(), 100m, Guid.NewGuid(), UsuarioId).Value;
+        var predio = Predio.Crear(MunicipioCodigo, CrearUbicacion(), 100m, Guid.NewGuid(), UsuarioId).Value;
         predio.EnviarARevision(UsuarioId);
         var codigo = CodigoCatastral.Crear("02-006-028-001-0002-0003").Value;
         predio.Validar(codigo, UsuarioId);

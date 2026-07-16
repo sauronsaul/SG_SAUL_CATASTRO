@@ -7,12 +7,13 @@ namespace SG.Domain.Tests.Catastro;
 
 public sealed class PredioDocumentoTests
 {
+    private const string MunicipioCodigo = "051201";
     private static readonly Guid UsuarioId = Guid.NewGuid();
 
     private static Predio PredioNuevo()
     {
         var ubicacion = UbicacionCatastral.Crear("001", "0001", "0001").Value;
-        return Predio.Crear(ubicacion, 250m, Guid.NewGuid(), UsuarioId).Value;
+        return Predio.Crear(MunicipioCodigo, ubicacion, 250m, Guid.NewGuid(), UsuarioId).Value;
     }
 
     // ── Predio.AgregarDocumento → cubre Documento.Crear ────────────────────

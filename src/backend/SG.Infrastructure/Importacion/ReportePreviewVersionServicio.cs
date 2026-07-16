@@ -10,6 +10,7 @@ namespace SG.Infrastructure.Importacion;
 
 internal sealed class ReportePreviewVersionServicio(
     ApplicationDbContext db,
+    IEsquemaCapasMunicipioRepositorio esquemas,
     IConfiguration configuration) : IReportePreviewVersionServicio
 {
     private const decimal UmbralPredeterminado = 10m;
@@ -18,9 +19,12 @@ internal sealed class ReportePreviewVersionServicio(
         Guid datasetVersionId,
         CancellationToken ct = default)
     {
+        var version = await db.DatasetVersiones.AsNoTracking()
+            .SingleAsync(x => x.Id == datasetVersionId, ct);
+        var esquemaMunicipal = await esquemas.ListarAsync(version.MunicipioCodigo, ct);
         var conteos = await ContarCapasAsync(datasetVersionId, ct);
-        var bloqueantes = await ObtenerBloqueantesAsync(datasetVersionId, conteos, ct);
-        var invalidas = await ObtenerGeometriasInvalidasAsync(datasetVersionId, ct);
+        var bloqueantes = await ObtenerBloqueantesAsync(datasetVersionId, conteos, esquemaMunicipal, ct);
+        var invalidas = await ObtenerGeometriasInvalidasAsync(datasetVersionId, esquemaMunicipal, ct);
         var observaciones = await ObtenerObservacionesAsync(datasetVersionId, ct);
         var diferencias = await ObtenerDiferenciasContraActivaAsync(datasetVersionId, conteos, ct);
         var proyeccion = await ProyectarReconciliacionAsync(datasetVersionId, ct);
@@ -38,6 +42,7 @@ internal sealed class ReportePreviewVersionServicio(
     private async Task<IReadOnlyList<BloqueantePreviewVersionDto>> ObtenerBloqueantesAsync(
         Guid datasetVersionId,
         IReadOnlyDictionary<string, int> conteos,
+        IReadOnlyList<EsquemaCapaMunicipio> esquemaMunicipal,
         CancellationToken ct)
     {
         var resultado = new List<BloqueantePreviewVersionDto>();
@@ -74,16 +79,18 @@ internal sealed class ReportePreviewVersionServicio(
                 []));
         }
 
-        var capasConFilas = conteos.Count(x => x.Value > 0);
-        if (capasConFilas < DefinicionesCapasVersionadasUyuni.Todas.Count)
+        var obligatorias = esquemaMunicipal.Where(x => x.Obligatoria).ToList();
+        var faltantes = obligatorias.Where(x => !conteos.TryGetValue(x.TablaDestino, out var filas) || filas == 0).ToList();
+        if (faltantes.Count > 0)
         {
             resultado.Add(new BloqueantePreviewVersionDto(
                 "B3",
-                "La versión no contiene filas en las siete capas requeridas.",
-                DefinicionesCapasVersionadasUyuni.Todas.Count - capasConFilas,
-                conteos.Where(x => x.Value == 0).Select(x => x.Key).ToList()));
+                "La version no contiene filas en todas las capas obligatorias del municipio.",
+                faltantes.Count,
+                faltantes.Select(x => x.TablaDestino).ToList()));
         }
 
+        // TODO 3.A.2b: B1, B2 y B4 solo aplican cuando el esquema municipal contiene parcelas.
         var superficiesInvalidas = await db.CapasParcelas
             .AsNoTracking()
             .Where(x => x.DatasetVersionId == datasetVersionId &&
@@ -106,10 +113,11 @@ internal sealed class ReportePreviewVersionServicio(
 
     private async Task<IReadOnlyList<GeometriasInvalidasCapaDto>> ObtenerGeometriasInvalidasAsync(
         Guid datasetVersionId,
+        IReadOnlyList<EsquemaCapaMunicipio> esquemaMunicipal,
         CancellationToken ct)
     {
         var resultado = new List<GeometriasInvalidasCapaDto>();
-        foreach (var definicion in DefinicionesCapasVersionadasUyuni.Todas)
+        foreach (var definicion in esquemaMunicipal)
         {
             var sql = """
                 SELECT fila_origen AS fila_origen,
@@ -121,7 +129,7 @@ internal sealed class ReportePreviewVersionServicio(
                   AND NOT ST_IsValid(geometria)
                 ORDER BY fila_origen
                 LIMIT 100
-                """.Replace("__TABLA__", definicion.NombreTabla, StringComparison.Ordinal);
+                """.Replace("__TABLA__", definicion.TablaDestino, StringComparison.Ordinal);
             var filas = await db.Database
                 .SqlQueryRaw<GeometriaInvalidaSql>(sql, datasetVersionId)
                 .ToListAsync(ct);
@@ -129,7 +137,7 @@ internal sealed class ReportePreviewVersionServicio(
                 continue;
 
             resultado.Add(new GeometriasInvalidasCapaDto(
-                definicion.NombreTabla,
+                definicion.TablaDestino,
                 filas[0].Total,
                 filas.Select(x => new GeometriaInvalidaPreviewDto(x.FilaOrigen, x.Razon)).ToList()));
         }
@@ -312,14 +320,20 @@ internal sealed class ReportePreviewVersionServicio(
         Guid datasetVersionId,
         CancellationToken ct)
     {
+        var municipioCodigo = await db.DatasetVersiones.AsNoTracking()
+            .Where(x => x.Id == datasetVersionId)
+            .Select(x => x.MunicipioCodigo)
+            .SingleAsync(ct);
         var parcelas = db.CapasParcelas.AsNoTracking()
             .Where(x => x.DatasetVersionId == datasetVersionId);
-        var totalMaestro = await db.Predios.AsNoTracking().CountAsync(ct);
-        var altas = await parcelas.CountAsync(capa => !db.Predios.Any(predio =>
+        var maestro = db.Predios.AsNoTracking()
+            .Where(x => x.MunicipioCodigo == municipioCodigo);
+        var totalMaestro = await maestro.CountAsync(ct);
+        var altas = await parcelas.CountAsync(capa => !maestro.Any(predio =>
             predio.CodUv == capa.CodUv &&
             predio.CodMan == capa.CodMan &&
             predio.CodPred == capa.CodPred), ct);
-        var ausencias = await db.Predios.AsNoTracking().CountAsync(predio => !parcelas.Any(capa =>
+        var ausencias = await maestro.CountAsync(predio => !parcelas.Any(capa =>
             capa.CodUv == predio.CodUv &&
             capa.CodMan == predio.CodMan &&
             capa.CodPred == predio.CodPred), ct);
@@ -340,16 +354,29 @@ internal sealed class ReportePreviewVersionServicio(
 
     private async Task<IReadOnlyDictionary<string, int>> ContarCapasAsync(
         Guid datasetVersionId,
-        CancellationToken ct) => new Dictionary<string, int>(StringComparer.Ordinal)
+        CancellationToken ct)
     {
-        ["capa_parcelas"] = await db.CapasParcelas.AsNoTracking().CountAsync(x => x.DatasetVersionId == datasetVersionId, ct),
-        ["capa_edificaciones"] = await db.CapasEdificaciones.AsNoTracking().CountAsync(x => x.DatasetVersionId == datasetVersionId, ct),
-        ["capa_predios_no_fotografiados"] = await db.CapasPrediosNoFotografiados.AsNoTracking().CountAsync(x => x.DatasetVersionId == datasetVersionId, ct),
-        ["capa_manzanas"] = await db.CapasManzanas.AsNoTracking().CountAsync(x => x.DatasetVersionId == datasetVersionId, ct),
-        ["capa_distritos"] = await db.CapasDistritos.AsNoTracking().CountAsync(x => x.DatasetVersionId == datasetVersionId, ct),
-        ["capa_zonas"] = await db.CapasZonas.AsNoTracking().CountAsync(x => x.DatasetVersionId == datasetVersionId, ct),
-        ["capa_vias"] = await db.CapasVias.AsNoTracking().CountAsync(x => x.DatasetVersionId == datasetVersionId, ct),
-    };
+        var version = await db.DatasetVersiones.AsNoTracking().SingleAsync(x => x.Id == datasetVersionId, ct);
+        var esquemaMunicipal = await esquemas.ListarAsync(version.MunicipioCodigo, ct);
+        var resultado = new Dictionary<string, int>(StringComparer.Ordinal);
+        foreach (var definicion in esquemaMunicipal)
+        {
+            resultado[definicion.TablaDestino] = definicion.TipoCapa switch
+            {
+                TipoCapa.Predios => await db.CapasParcelas.AsNoTracking().CountAsync(x => x.DatasetVersionId == datasetVersionId, ct),
+                TipoCapa.Construcciones => await db.CapasEdificaciones.AsNoTracking().CountAsync(x => x.DatasetVersionId == datasetVersionId, ct),
+                TipoCapa.PrediosNoFotografiados => await db.CapasPrediosNoFotografiados.AsNoTracking().CountAsync(x => x.DatasetVersionId == datasetVersionId, ct),
+                TipoCapa.Manzanas => await db.CapasManzanas.AsNoTracking().CountAsync(x => x.DatasetVersionId == datasetVersionId, ct),
+                TipoCapa.Distritos => await db.CapasDistritos.AsNoTracking().CountAsync(x => x.DatasetVersionId == datasetVersionId, ct),
+                TipoCapa.ZonasValuacion => await db.CapasZonas.AsNoTracking().CountAsync(x => x.DatasetVersionId == datasetVersionId, ct),
+                TipoCapa.Vias => await db.CapasVias.AsNoTracking().CountAsync(x => x.DatasetVersionId == datasetVersionId, ct),
+                TipoCapa.AreasUrbanas => await db.CapasAreasUrbanas.AsNoTracking().CountAsync(x => x.DatasetVersionId == datasetVersionId, ct),
+                TipoCapa.PuntosGeodesicos => await db.CapasPuntosGeodesicos.AsNoTracking().CountAsync(x => x.DatasetVersionId == datasetVersionId, ct),
+                _ => throw new InvalidOperationException($"Tipo de capa no soportado: {definicion.TipoCapa}."),
+            };
+        }
+        return resultado;
+    }
 
     private sealed class GeometriaInvalidaSql
     {

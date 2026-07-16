@@ -19,6 +19,7 @@ internal sealed class CargaVersionadaServicio(
     IZipExtractor zipExtractor,
     IShapefileReader shapefileReader,
     IReportePreviewVersionServicio reportePreview,
+    IEsquemaCapasMunicipioRepositorio esquemas,
     IConfiguration configuration) : ICargaVersionadaServicio
 {
     private const int TamanoLote = 1000;
@@ -34,7 +35,10 @@ internal sealed class CargaVersionadaServicio(
         if (string.IsNullOrWhiteSpace(version.RutaMinioPaquete))
             throw new InvalidOperationException("DatasetVersion no tiene paquete almacenado en MinIO.");
 
-        var perfilesVersionados = await ObtenerPerfilesVersionadosAsync(ct);
+        var esquemaMunicipal = await esquemas.ListarAsync(version.MunicipioCodigo, ct);
+        if (esquemaMunicipal.Count == 0)
+            throw new InvalidOperationException($"No existe esquema de capas para el municipio {version.MunicipioCodigo}.");
+        var perfilesVersionados = await ObtenerPerfilesVersionadosAsync(esquemaMunicipal, ct);
         await using var paqueteStream = await minio.DescargarAsync(version.RutaMinioPaquete, ct);
         using var paquete = new MemoryStream();
         await paqueteStream.CopyToAsync(paquete, ct);
@@ -45,10 +49,10 @@ internal sealed class CargaVersionadaServicio(
 
         try
         {
-            foreach (var definicion in DefinicionesCapasVersionadasUyuni.Todas)
+            foreach (var definicion in esquemaMunicipal)
             {
                 var perfil = perfilesVersionados[definicion.NombrePerfil];
-                version.RegistrarProgreso(SerializarReporte(definicion.NombreTabla, conteos));
+                version.RegistrarProgreso(SerializarReporte(definicion.TablaDestino, conteos));
                 await versiones.GuardarCambiosAsync(ct);
 
                 paquete.Position = 0;
@@ -62,9 +66,9 @@ internal sealed class CargaVersionadaServicio(
                 var insertados = await ContarFilasCapaAsync(contextoCarga, version.Id, definicion.TipoCapa, ct);
                 if (insertados != registros.Count)
                     throw new InvalidOperationException(
-                        $"Conteo inconsistente en {definicion.NombreTabla}: SHP={registros.Count}, insertadas={insertados}.");
+                        $"Conteo inconsistente en {definicion.TablaDestino}: SHP={registros.Count}, insertadas={insertados}.");
 
-                conteos[definicion.NombreTabla] = insertados;
+                conteos[definicion.TablaDestino] = insertados;
                 version.RegistrarProgreso(SerializarReporte(null, conteos));
                 await versiones.GuardarCambiosAsync(ct);
             }
@@ -111,11 +115,13 @@ internal sealed class CargaVersionadaServicio(
         await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM dominio.capa_vias WHERE dataset_version_id = {datasetVersionId}", ct);
     }
 
-    private async Task<Dictionary<string, PerfilImportacion>> ObtenerPerfilesVersionadosAsync(CancellationToken ct)
+    private async Task<Dictionary<string, PerfilImportacion>> ObtenerPerfilesVersionadosAsync(
+        IReadOnlyList<EsquemaCapaMunicipio> esquemaMunicipal,
+        CancellationToken ct)
     {
         var disponibles = await perfiles.ListarAsync(ct);
         var resultado = new Dictionary<string, PerfilImportacion>(StringComparer.Ordinal);
-        foreach (var definicion in DefinicionesCapasVersionadasUyuni.Todas)
+        foreach (var definicion in esquemaMunicipal)
         {
             var perfil = disponibles.FirstOrDefault(x => x.Nombre == definicion.NombrePerfil)
                 ?? throw new InvalidOperationException($"No existe el perfil '{definicion.NombrePerfil}'.");
@@ -127,7 +133,7 @@ internal sealed class CargaVersionadaServicio(
     private static async Task InsertarCapaAsync(
         ApplicationDbContext contextoCarga,
         Guid datasetVersionId,
-        DefinicionCapaVersionadaUyuni definicion,
+        EsquemaCapaMunicipio definicion,
         PerfilImportacion perfil,
         IReadOnlyList<RegistroCrudoShapefile> registros,
         CancellationToken ct)
@@ -155,6 +161,10 @@ internal sealed class CargaVersionadaServicio(
             case TipoCapa.Vias:
                 await InsertarEnLotesAsync(contextoCarga, contextoCarga.CapasVias, registros.Select((r, i) => CrearVia(datasetVersionId, perfil, r, i + 1)), ct);
                 break;
+            // TODO 3.A.2b: implementar lectura e insercion de las capas propias de Caranavi.
+            case TipoCapa.AreasUrbanas:
+            case TipoCapa.PuntosGeodesicos:
+                throw new InvalidOperationException($"La carga de {definicion.TipoCapa} corresponde a 3.A.2b.");
             default:
                 throw new InvalidOperationException($"Tipo de capa no soportado: {definicion.TipoCapa}.");
         }

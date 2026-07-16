@@ -16,6 +16,10 @@ public class PredioConfiguration : IEntityTypeConfiguration<Predio>
 
         builder.HasKey(x => x.Id);
 
+        builder.Property(x => x.MunicipioCodigo)
+            .IsRequired()
+            .HasMaxLength(6);
+
         // CodigoCatastral — nullable hasta Validar(); value converter a string canónica.
         builder.Property(x => x.CodigoCatastral)
             .HasConversion(
@@ -105,10 +109,16 @@ public class PredioConfiguration : IEntityTypeConfiguration<Predio>
             .IsUnique()
             .HasDatabaseName("uix_predios_codigo_catastral");
 
-        builder.HasIndex(x => new { x.CodUv, x.CodMan, x.CodPred })
+        builder.HasIndex(x => new { x.MunicipioCodigo, x.CodUv, x.CodMan, x.CodPred })
             .IsUnique()
             .HasFilter("NOT is_deleted")
-            .HasDatabaseName("uix_predios_triplete_activo");
+            .HasDatabaseName("uix_predios_municipio_triplete_activo");
+
+        builder.HasOne<Domain.Catalogos.Municipio>()
+            .WithMany()
+            .HasForeignKey(x => x.MunicipioCodigo)
+            .HasPrincipalKey(x => x.CodigoIne)
+            .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasOne<ImportacionDomain.DatasetVersion>()
             .WithMany()

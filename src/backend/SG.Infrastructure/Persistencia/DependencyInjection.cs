@@ -60,6 +60,7 @@ public static class DependencyInjection
         services.AddScoped<IPerfilImportacionRepositorio, PerfilImportacionRepositorio>();
         services.AddScoped<IImportacionRepositorio, ImportacionRepositorio>();
         services.AddScoped<IDatasetVersionRepositorio, DatasetVersionRepositorio>();
+        services.AddScoped<IEsquemaCapasMunicipioRepositorio, EsquemaCapasMunicipioRepositorio>();
         services.AddScoped<ICargaVersionadaServicio, CargaVersionadaServicio>();
         services.AddScoped<IReportePreviewVersionServicio, ReportePreviewVersionServicio>();
         services.AddScoped<IActivacionVersionServicio, ActivacionVersionServicio>();

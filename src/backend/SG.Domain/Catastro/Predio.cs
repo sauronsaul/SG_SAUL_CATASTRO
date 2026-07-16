@@ -12,6 +12,7 @@ public sealed class Predio : AggregateRoot
     private readonly List<Construccion> _construcciones = [];
 
     public CodigoCatastral? CodigoCatastral { get; private set; }
+    public string MunicipioCodigo { get; private set; } = string.Empty;
     public UbicacionCatastral Ubicacion { get; private set; } = null!;
     public decimal SuperficieDeclarada { get; private set; }
     public decimal? SuperficieSig { get; private set; }
@@ -40,11 +41,14 @@ public sealed class Predio : AggregateRoot
     private Predio() { }
 
     public static Result<Predio> Crear(
+        string municipioCodigo,
         UbicacionCatastral ubicacion,
         decimal superficieDeclarada,
         Guid usoSueloId,
         Guid creadoPor)
     {
+        if (!Catalogos.Municipio.EsCodigoIneValido(municipioCodigo))
+            return Result.Failure<Predio>(PredioErrores.MunicipioCodigoInvalido);
         if (ubicacion is null)
             return Result.Failure<Predio>(PredioErrores.UbicacionRequerida);
 
@@ -59,6 +63,7 @@ public sealed class Predio : AggregateRoot
 
         var predio = new Predio
         {
+            MunicipioCodigo = municipioCodigo,
             Ubicacion = ubicacion,
             SuperficieDeclarada = superficieDeclarada,
             UsoSueloId = usoSueloId,
@@ -72,6 +77,7 @@ public sealed class Predio : AggregateRoot
     }
 
     public static Result<Predio> CrearImportado(
+        string municipioCodigo,
         UbicacionCatastral ubicacion,
         decimal superficieDeclarada,
         Guid importadoPor,
@@ -81,6 +87,8 @@ public sealed class Predio : AggregateRoot
         bool requiereRevision = false,
         string? detalleRevision = null)
     {
+        if (!Catalogos.Municipio.EsCodigoIneValido(municipioCodigo))
+            return Result.Failure<Predio>(PredioErrores.MunicipioCodigoInvalido);
         if (ubicacion is null)
             return Result.Failure<Predio>(PredioErrores.UbicacionRequerida);
 
@@ -92,6 +100,7 @@ public sealed class Predio : AggregateRoot
 
         var predio = new Predio
         {
+            MunicipioCodigo = municipioCodigo,
             Ubicacion = ubicacion,
             SuperficieDeclarada = superficieDeclarada,
             UsoSueloId = null,
@@ -113,6 +122,7 @@ public sealed class Predio : AggregateRoot
     }
 
     public static Result<Predio> CrearDesdeDataset(
+        string municipioCodigo,
         UbicacionCatastral ubicacion,
         decimal superficieDeclarada,
         decimal superficieSig,
@@ -132,6 +142,7 @@ public sealed class Predio : AggregateRoot
             return Result.Failure<Predio>(PredioErrores.SuperficieInvalida);
 
         var resultado = CrearImportado(
+            municipioCodigo,
             ubicacion,
             superficieDeclarada,
             importadoPor,
@@ -487,6 +498,8 @@ public sealed class Predio : AggregateRoot
 
 public static class PredioErrores
 {
+    public static readonly DomainError MunicipioCodigoInvalido =
+        new("Predio.MunicipioCodigoInvalido", "El codigo INE del municipio debe contener exactamente seis digitos ASCII.");
     public static readonly DomainError CodigoCatastralRequerido = new("Predio.CodigoCatastralRequerido", "El código catastral es requerido.");
     public static readonly DomainError UbicacionRequerida = new("Predio.UbicacionRequerida", "La ubicación catastral es requerida.");
     public static readonly DomainError SuperficieInvalida = new("Predio.SuperficieInvalida", "La superficie debe ser mayor a cero.");

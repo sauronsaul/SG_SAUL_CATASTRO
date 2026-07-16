@@ -16,6 +16,7 @@ public class ApplicationDbContext
 
     // Catálogos
     public DbSet<UsoSuelo> UsosSuelo => Set<UsoSuelo>();
+    public DbSet<Municipio> Municipios => Set<Municipio>();
 
     // Dominio catastral
     public DbSet<Propietario> Propietarios => Set<Propietario>();
@@ -38,6 +39,9 @@ public class ApplicationDbContext
     public DbSet<ImportacionDomain.CapaDistrito> CapasDistritos => Set<ImportacionDomain.CapaDistrito>();
     public DbSet<ImportacionDomain.CapaZona> CapasZonas => Set<ImportacionDomain.CapaZona>();
     public DbSet<ImportacionDomain.CapaVia> CapasVias => Set<ImportacionDomain.CapaVia>();
+    public DbSet<ImportacionDomain.CapaAreaUrbana> CapasAreasUrbanas => Set<ImportacionDomain.CapaAreaUrbana>();
+    public DbSet<ImportacionDomain.CapaPuntoGeodesico> CapasPuntosGeodesicos => Set<ImportacionDomain.CapaPuntoGeodesico>();
+    public DbSet<ImportacionDomain.EsquemaCapaMunicipio> EsquemasCapas => Set<ImportacionDomain.EsquemaCapaMunicipio>();
 
     public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options)
         : base(options) { }

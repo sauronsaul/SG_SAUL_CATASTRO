@@ -7,6 +7,23 @@ namespace SG.Infrastructure.DataSeed;
 
 public static partial class DomainSeeder
 {
+    private sealed record DefinicionCapaSeed(
+        string NombrePerfil,
+        TipoCapa TipoCapa,
+        string NombreArchivoShp,
+        string TablaDestino);
+
+    private static readonly IReadOnlyList<DefinicionCapaSeed> CapasVersionadasUyuni =
+    [
+        new("uyuni-versionado-parcelas", TipoCapa.Predios, "PRE_SIS_UYU.shp", "capa_parcelas"),
+        new("uyuni-versionado-edificaciones", TipoCapa.Construcciones, "EDI_SIS_UYU.shp", "capa_edificaciones"),
+        new("uyuni-versionado-predios-no-fotografiados", TipoCapa.PrediosNoFotografiados, "PRE_NO_FOT.shp", "capa_predios_no_fotografiados"),
+        new("uyuni-versionado-manzanas", TipoCapa.Manzanas, "MAN_SIS_UYU.shp", "capa_manzanas"),
+        new("uyuni-versionado-distritos", TipoCapa.Distritos, "DIS_SIS_UYU.shp", "capa_distritos"),
+        new("uyuni-versionado-zonas", TipoCapa.ZonasValuacion, "ZONA_SIS_UYU.shp", "capa_zonas"),
+        new("uyuni-versionado-vias", TipoCapa.Vias, "VIA_INFO_UYU.shp", "capa_vias"),
+    ];
+
     public static async Task SeedPerfilesImportacionAsync(ApplicationDbContext db, ILogger logger)
     {
         var existentes = await db.PerfilesImportacion
@@ -90,7 +107,7 @@ public static partial class DomainSeeder
 
     private static IReadOnlyList<PerfilImportacion> SeedPerfilesVersionadosUyuni()
     {
-        var definiciones = DefinicionesCapasVersionadasUyuni.Todas.ToDictionary(x => x.NombrePerfil);
+        var definiciones = CapasVersionadasUyuni.ToDictionary(x => x.NombrePerfil);
 
         return
         [
@@ -146,14 +163,14 @@ public static partial class DomainSeeder
     }
 
     private static PerfilImportacion CrearPerfilVersionado(
-        DefinicionCapaVersionadaUyuni definicion,
+        DefinicionCapaSeed definicion,
         IReadOnlyList<(string Origen, string Destino, bool Obligatorio)> mapeos)
     {
         var perfil = PerfilImportacion.Crear(
             definicion.NombrePerfil,
             definicion.TipoCapa,
             definicion.NombreArchivoShp,
-            $"Perfil versionado para {definicion.NombreTabla} de Uyuni.");
+            $"Perfil versionado para {definicion.TablaDestino} de Uyuni.");
 
         foreach (var (origen, destino, obligatorio) in mapeos)
             perfil.AgregarMapeo(origen, destino, obligatorio);

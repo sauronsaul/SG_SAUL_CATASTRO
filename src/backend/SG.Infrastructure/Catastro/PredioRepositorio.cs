@@ -33,12 +33,14 @@ internal sealed class PredioRepositorio(ApplicationDbContext db) : IPredioReposi
     }
 
     public Task<bool> ExisteTripleteCatastralAsync(
+        string municipioCodigo,
         int codUv,
         int codMan,
         int codPred,
         CancellationToken ct = default) =>
         db.Predios.AnyAsync(
-            p => p.CodUv == codUv && p.CodMan == codMan && p.CodPred == codPred,
+            p => p.MunicipioCodigo == municipioCodigo &&
+                 p.CodUv == codUv && p.CodMan == codMan && p.CodPred == codPred,
             ct);
 
     public async Task<PagedResult<Predio>> ListarAsync(
@@ -64,6 +66,7 @@ internal sealed class PredioRepositorio(ApplicationDbContext db) : IPredioReposi
 
     public async Task<IReadOnlyDictionary<(string Zona, string Manzana, string Lote), EstadoPredio>>
         ObtenerEstadosPorTripletasAsync(
+            string municipioCodigo,
             IReadOnlyCollection<(string Zona, string Manzana, string Lote)> tripletas,
             CancellationToken ct = default)
     {
@@ -79,7 +82,8 @@ internal sealed class PredioRepositorio(ApplicationDbContext db) : IPredioReposi
 
         var filas = await db.Predios
             .AsNoTracking()
-            .Where(p => zonas.Contains(p.Ubicacion.Zona)
+            .Where(p => p.MunicipioCodigo == municipioCodigo
+                     && zonas.Contains(p.Ubicacion.Zona)
                      && manzanas.Contains(p.Ubicacion.Manzana)
                      && lotes.Contains(p.Ubicacion.Lote))
             .Select(p => new
@@ -100,6 +104,7 @@ internal sealed class PredioRepositorio(ApplicationDbContext db) : IPredioReposi
 
     public async Task<Dictionary<(string Zona, string Manzana, string Lote), Predio>>
         ObtenerParaActualizarPorTripletasAsync(
+            string municipioCodigo,
             IReadOnlyCollection<(string Zona, string Manzana, string Lote)> tripletas,
             CancellationToken ct = default)
     {
@@ -114,7 +119,8 @@ internal sealed class PredioRepositorio(ApplicationDbContext db) : IPredioReposi
         // Sin AsNoTracking: EF Core trackea las entidades para que
         // ActualizarDesdeImportacion y AgregarConstruccion se persistan en SaveChangesAsync.
         var prediosList = await db.Predios
-            .Where(p => zonas.Contains(p.Ubicacion.Zona)
+            .Where(p => p.MunicipioCodigo == municipioCodigo
+                     && zonas.Contains(p.Ubicacion.Zona)
                      && manzanas.Contains(p.Ubicacion.Manzana)
                      && lotes.Contains(p.Ubicacion.Lote))
             .ToListAsync(ct);

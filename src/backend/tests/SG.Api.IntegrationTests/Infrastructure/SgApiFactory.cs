@@ -43,7 +43,8 @@ public sealed class SgApiFactory : WebApplicationFactory<Program>
                 ["Jwt:RefreshExpiryDays"]    = "7",
                 ["Admin:Email"]              = PostgreSqlFixture.AdminEmail,
                 ["Admin:Password"]           = PostgreSqlFixture.AdminPassword,
-                ["Tiles:MunicipioCodigo"]    = "UYUNI",
+                ["Catastro:MunicipioCodigo"] = "051201",
+                ["Tiles:MunicipioCodigo"]    = "051201",
             });
         });
 

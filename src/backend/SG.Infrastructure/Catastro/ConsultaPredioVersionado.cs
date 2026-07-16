@@ -56,7 +56,8 @@ internal sealed class ConsultaPredioVersionado(
         FROM version_activa v
         JOIN dominio.capa_parcelas c ON c.dataset_version_id = v.id
         JOIN dominio.predios p
-          ON p.cod_uv = c.cod_uv
+          ON p.municipio_codigo = v.municipio_codigo
+         AND p.cod_uv = c.cod_uv
          AND p.cod_man = c.cod_man
          AND p.cod_pred = c.cod_pred
          AND p.presente_en_version_activa

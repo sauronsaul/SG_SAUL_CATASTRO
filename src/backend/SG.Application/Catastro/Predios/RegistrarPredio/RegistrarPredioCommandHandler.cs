@@ -1,5 +1,7 @@
 using MediatR;
+using Microsoft.Extensions.Options;
 using SG.Application.Abstractions.Catastro;
+using SG.Application.Catastro.Config;
 using SG.Domain.Catalogos;
 using SG.Domain.Catastro;
 using SG.Domain.Catastro.ValueObjects;
@@ -9,7 +11,8 @@ namespace SG.Application.Catastro.Predios.RegistrarPredio;
 
 public sealed class RegistrarPredioCommandHandler(
     IPredioRepositorio predios,
-    IUsoSueloRepositorio usosSuelo)
+    IUsoSueloRepositorio usosSuelo,
+    IOptions<CatastroConfig> config)
     : IRequestHandler<RegistrarPredioCommand, Result<Guid>>
 {
     public async Task<Result<Guid>> Handle(
@@ -31,6 +34,7 @@ public sealed class RegistrarPredioCommandHandler(
             return Result.Failure<Guid>(ubicacionResult.Error);
 
         var predioResult = Predio.Crear(
+            config.Value.MunicipioCodigo,
             ubicacionResult.Value,
             request.SuperficieDeclarada,
             request.UsoSueloId,
@@ -40,6 +44,7 @@ public sealed class RegistrarPredioCommandHandler(
             return Result.Failure<Guid>(predioResult.Error);
 
         if (await predios.ExisteTripleteCatastralAsync(
+                config.Value.MunicipioCodigo,
                 predioResult.Value.CodUv,
                 predioResult.Value.CodMan,
                 predioResult.Value.CodPred,

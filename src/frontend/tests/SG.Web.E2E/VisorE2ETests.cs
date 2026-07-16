@@ -134,7 +134,7 @@ public sealed class VisorE2ETests(ITestOutputHelper output)
         await Assertions.Expect(panel).ToContainTextAsync("Gráfica238,3466 m²");
         await Assertions.Expect(panel).ToContainTextAsync("Tipo de inmuebleVIV");
         await Assertions.Expect(panel).ToContainTextAsync("VíaCOLON Y SUCRE");
-        await Assertions.Expect(panel).ToContainTextAsync("Dataset UYUNI — versión interna 3");
+        await Assertions.Expect(panel).ToContainTextAsync("Dataset 051201 — versión interna 3");
 
         await page.GetByRole(
             AriaRole.Button,
@@ -151,7 +151,7 @@ public sealed class VisorE2ETests(ITestOutputHelper output)
         await Assertions.Expect(vistaCroquis)
             .ToContainTextAsync("(hora de Bolivia, UTC-4)");
         await Assertions.Expect(vistaCroquis)
-            .ToContainTextAsync("Dataset UYUNI — versión interna 3");
+            .ToContainTextAsync("Dataset 051201 — versión interna 3");
         await Assertions.Expect(vistaCroquis)
             .ToContainTextAsync("no constituye certificado catastral oficial");
         var svgCroquis = vistaCroquis.Locator("svg.geometria-croquis");

@@ -15,7 +15,7 @@ public sealed class ConfiguracionVisorTests
             -66.80351074623223,
             -20.440762937955693,
         };
-        var configuracion = new ConfiguracionVisor("UYUNI", limitesConfigurados);
+        var configuracion = new ConfiguracionVisor("051201", limitesConfigurados);
 
         var limitesInterop = configuracion.ObtenerLimitesMapa();
 

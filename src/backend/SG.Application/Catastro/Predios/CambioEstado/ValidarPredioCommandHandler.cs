@@ -23,7 +23,7 @@ public sealed class ValidarPredioCommandHandler(
         if (predio is null)
             return Result.Failure(PredioErrores.NoEncontrado);
 
-        var cfg = config.Value;
+        var cfg = config.Value.CodigoCatastral;
         var zona = predio.Ubicacion.Zona.PadLeft(3, '0');
         var manzana = predio.Ubicacion.Manzana.PadLeft(4, '0');
         var lote = predio.Ubicacion.Lote.PadLeft(4, '0');
