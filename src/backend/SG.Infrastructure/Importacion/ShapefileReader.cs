@@ -17,6 +17,7 @@ internal sealed class ShapefileReader : IShapefileReader
 
     private static readonly CoordinateSystemFactory CsFactory = new();
     private static readonly CoordinateTransformationFactory TransformFactory = new();
+    private readonly ShpPolygonFallbackReader _polygonFallback = new();
 
     public IEnumerable<RegistroCrudoShapefile> Leer(string rutaShp)
     {
@@ -40,6 +41,7 @@ internal sealed class ShapefileReader : IShapefileReader
                 $"Shapefile corrupto: DBF tiene {dbfTotal} registros y SHP tiene {shpTotal} " +
                 $"en '{Path.GetFileName(rutaShp)}'. Importación abortada.");
 
+        var indiceRegistro = 0;
         while (true)
         {
             bool dbfHasNext = dbfReader.Read(out IAttributesTable? attrs, out _);
@@ -86,11 +88,22 @@ internal sealed class ShapefileReader : IShapefileReader
                 // pasar aquí en lugar de relanzarla como error de stream. Los Null Shape
                 // genuinos no lanzan: el lector estricto los devuelve como geometría vacía.
                 shpHasNext = true;
-                geometria = shpReaderTolerante.Geometry;
-                if (geometria is null || geometria.IsEmpty)
+                try
+                {
+                    geometria = _polygonFallback.Reconstruir(rutaShp, rutaShx, indiceRegistro);
+                }
+                catch (Exception reparacionEx) when (
+                    reparacionEx is InvalidDataException or NotSupportedException or ArgumentException)
+                {
+                    geometria = shpReaderTolerante.Geometry;
+                }
+
+                if (geometria is null || geometria.IsEmpty || EsCentinelaAnilloInvalido(geometria))
                 {
                     geometria = null;
-                    var msg = ex.Message;
+                    var msg = EsCentinelaAnilloInvalido(shpReaderTolerante.Geometry)
+                        ? $"{ex.Message} El fallback produjo el centinela de anillo inválido."
+                        : ex.Message;
                     errorGeometria = msg.Length > 200 ? msg[..200] : msg;
                 }
                 else if (transformacion is not null)
@@ -100,6 +113,12 @@ internal sealed class ShapefileReader : IShapefileReader
                 else if (!proyeccionDesconocida)
                 {
                     geometria.SRID = (int)SridDestino;
+                }
+
+                if (geometria is not null && EsCentinelaAnilloInvalido(geometria))
+                {
+                    geometria = null;
+                    errorGeometria = "El fallback produjo el centinela de anillo inválido.";
                 }
             }
 
@@ -112,6 +131,7 @@ internal sealed class ShapefileReader : IShapefileReader
 
             yield return new RegistroCrudoShapefile(
                 geometria, atributos, proyeccionDesconocida, prjWkt, errorGeometria);
+            indiceRegistro++;
         }
     }
 
@@ -136,7 +156,8 @@ internal sealed class ShapefileReader : IShapefileReader
             var csOrigen = CsFactory.CreateFromWkt(wkt);
             var csDestino = ProjectedCoordinateSystem.WGS84_UTM(19, false);
 
-            if (csOrigen.AuthorityCode == SridDestino)
+            if (csOrigen.AuthorityCode == SridDestino ||
+                (csOrigen.AuthorityCode <= 0 && EsUtm19SurWgs84(csOrigen)))
                 return (null, wkt, false);
 
             var transformacion = TransformFactory.CreateFromCoordinateSystems(csOrigen, csDestino);
@@ -146,6 +167,36 @@ internal sealed class ShapefileReader : IShapefileReader
         {
             return (null, wkt, true);
         }
+    }
+
+    private static bool EsUtm19SurWgs84(CoordinateSystem sistema)
+    {
+        if (sistema is not ProjectedCoordinateSystem proyectado ||
+            !proyectado.Projection.ClassName.Equals("Transverse_Mercator", StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        var elipsoide = proyectado.GeographicCoordinateSystem.HorizontalDatum.Ellipsoid;
+        return Cerca(proyectado.Projection.GetParameter("False_Easting")?.Value, 500000d) &&
+               Cerca(proyectado.Projection.GetParameter("False_Northing")?.Value, 10000000d) &&
+               Cerca(proyectado.Projection.GetParameter("Central_Meridian")?.Value, -69d) &&
+               Cerca(proyectado.Projection.GetParameter("Scale_Factor")?.Value, 0.9996d) &&
+               Cerca(proyectado.Projection.GetParameter("Latitude_Of_Origin")?.Value, 0d) &&
+               Cerca(proyectado.GeographicCoordinateSystem.PrimeMeridian.Longitude, 0d) &&
+               Cerca(proyectado.LinearUnit.MetersPerUnit, 1d) &&
+               Cerca(elipsoide.SemiMajorAxis, 6378137d, 1e-6) &&
+               Cerca(elipsoide.InverseFlattening, 298.257223563d, 1e-9);
+    }
+
+    private static bool Cerca(double? valor, double esperado, double tolerancia = 1e-10) =>
+        valor is not null && Math.Abs(valor.Value - esperado) <= tolerancia;
+
+    private static bool EsCentinelaAnilloInvalido(Geometry? geometria)
+    {
+        if (geometria is null || geometria.NumPoints != 4)
+            return false;
+
+        var coordenadas = geometria.Coordinates;
+        return coordenadas.Length == 4 && coordenadas.Skip(1).All(x => x.Equals2D(coordenadas[0]));
     }
 
     private static Geometry AplicarTransformacion(Geometry geometria, ICoordinateTransformation transformacion)
