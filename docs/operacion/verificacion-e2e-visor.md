@@ -1,8 +1,8 @@
 # Verificación E2E del visor con Playwright
 
 Este procedimiento ejecuta el navegador Chromium real contra el stack Compose
-ya desplegado. Verifica el mapa, la búsqueda T-2.3, la ficha T-2.4 y la vista
-imprimible del croquis T-2.5. El proyecto
+ya desplegado. Verifica el mapa, la búsqueda T-2.3, la ficha T-2.4, la vista
+imprimible del croquis T-2.5 y el hot-swap municipal 3.A.2c. El proyecto
 `src/frontend/tests/SG.Web.E2E` queda deliberadamente fuera de
 `src/backend/SG.slnx`: la suite estándar no descarga navegadores ni requiere
 credenciales.
@@ -85,7 +85,7 @@ Resultado esperado:
 - búsqueda del triplete fijo `1/1/1` mediante los campos **Distrito**,
   **Manzana** y **Predio**;
 - respuesta 200 de
-  `/api/predios/buscar?distrito=1&manzana=1&predio=1`;
+  `/api/predios/051201/buscar?distrito=1&manzana=1&predio=1`;
 - encuadre del predio con zoom mayor que 17;
 - resaltado visible mediante relleno amarillo translúcido y contorno rojo
   grueso, filtrado exactamente por el triplete `1/1/1`;
@@ -108,6 +108,12 @@ Resultado esperado:
 - cierre del panel, clic en la parcela encuadrada y segunda respuesta 200 del
   mismo endpoint, con la ficha nuevamente visible y el mismo resaltado;
 - limpieza del filtro de resaltado al cerrar la ficha;
+- cambio hot-swap de Uyuni (`051201`) a Caranavi (`022001`) sin recargar ni
+  perder la sesión; el E2E intercepta de forma determinista sólo el catálogo,
+  la configuración de Caranavi y sus tiles vacíos, mientras login,
+  configuración inicial, tiles, búsqueda y ficha de Uyuni siguen siendo reales;
+- tras el cambio, tres capas de Caranavi visibles, buscador predial ausente,
+  mensaje de capacidad no disponible y ficha anterior cerrada;
 - una captura `visor-minimo-*.png` en `artifacts/e2e`;
 - `Total: 1, Failed: 0, Passed: 1`.
 

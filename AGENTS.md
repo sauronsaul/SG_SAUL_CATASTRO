@@ -469,7 +469,7 @@ La normativa debe convertirse en: reglas, validaciones, estructuras de datos, pr
 - La suite canónica se ejecuta desde la raíz mediante
   `dotnet test src\backend\SG.slnx`. La solución real es `SG.slnx` y no está en
   la raíz; ejecutar `dotnet test` sin ruta desde la raíz falla con `MSB1003`.
-  La suite estándar actual contiene 308 pruebas. `SG.Web.E2E` es una suite
+  La suite estándar actual contiene 318 pruebas. `SG.Web.E2E` es una suite
   Playwright independiente y no se incluye en ese total.
 - El cierre posterior a cambios de paquetes exige un restore fresco con
   `dotnet restore src\backend\SG.slnx`; no se acepta inferir el estado de
@@ -483,6 +483,15 @@ La normativa debe convertirse en: reglas, validaciones, estructuras de datos, pr
   `powershell -ExecutionPolicy Bypass -File scripts\sql.ps1 -Sql "<SQL>"`.
   `scripts/sql.sh` pertenece al orquestador que opera con Git Bash; no debe
   invocarse mediante el alias `bash` de PowerShell porque resuelve a WSL.
+- En sondeos asíncronos desde PowerShell, usar `do { ... } while (...)` cuando
+  deba existir al menos una consulta. Un `while` mal inicializado puede omitir
+  por completo el sondeo.
+- `Invoke-RestMethod` deserializa JSON. Para evidencia del contrato, canalizar
+  el resultado a `ConvertTo-Json -Depth <n>`; el formato tabular de PowerShell
+  no representa el payload JSON.
+- Los `NOTICE` de PostGIS emitidos por `ST_IsValid` son evidencia informativa
+  de geometrías inválidas, no un fallo del wrapper SQL. El fallo se determina
+  por código de salida, excepción o resultado contractual.
 - Los commits se crean con `scripts/commit.sh` mediante
   `'C:\Program Files\Git\bin\bash.exe'`. Los archivos de mensaje deben ubicarse
   fuera del repositorio y fuera de `.git/`.
