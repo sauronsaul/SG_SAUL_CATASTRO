@@ -19,6 +19,19 @@
     margin: .25rem 0;
 }
 
+.selector-municipio {
+    display: grid;
+    gap: .35rem;
+    margin-bottom: 1rem;
+}
+
+.selector-municipio select {
+    border: 1px solid #94a3b8;
+    border-radius: .35rem;
+    padding: .5rem;
+    width: 100%;
+}
+
 .sobrelinea {
     color: #0f766e;
     font-size: .75rem;

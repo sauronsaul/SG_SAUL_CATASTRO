@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using SG.Application.Abstractions.Importacion;
@@ -143,6 +144,7 @@ internal sealed class ReportePreviewVersionServicio(
         var resultado = new List<GeometriasInvalidasCapaDto>();
         foreach (var definicion in esquemaMunicipal)
         {
+            ValidarTablaDestino(definicion.TablaDestino);
             var sql = """
                 SELECT fila_origen AS fila_origen,
                        ST_IsValidReason(geometria) AS razon,
@@ -178,6 +180,7 @@ internal sealed class ReportePreviewVersionServicio(
 
         foreach (var definicion in esquemaMunicipal)
         {
+            ValidarTablaDestino(definicion.TablaDestino);
             var sql = """
                 SELECT fila_origen AS fila_origen,
                        ((to_jsonb(c) - 'id' - 'dataset_version_id' - 'geometria' - 'atributos_extra')
@@ -206,6 +209,19 @@ internal sealed class ReportePreviewVersionServicio(
         }
 
         return resultado;
+    }
+
+    private static void ValidarTablaDestino(string tablaDestino)
+    {
+        if (!Regex.IsMatch(
+                tablaDestino,
+                "^[a-z_]+$",
+                RegexOptions.CultureInvariant,
+                TimeSpan.FromMilliseconds(100)))
+        {
+            throw new InvalidOperationException(
+                $"La tabla destino '{tablaDestino}' no cumple el identificador SQL permitido.");
+        }
     }
 
     private static Dictionary<string, string?> DeserializarIdentificadores(string json)

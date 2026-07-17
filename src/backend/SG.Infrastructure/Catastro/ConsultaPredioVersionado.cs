@@ -1,17 +1,14 @@
 using System.Data;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
 using NetTopologySuite.Geometries;
 using SG.Application.Abstractions.Catastro;
 using SG.Contracts.Catastro;
-using SG.Infrastructure.GIS;
 using SG.Infrastructure.Persistencia;
 
 namespace SG.Infrastructure.Catastro;
 
 internal sealed class ConsultaPredioVersionado(
-    ApplicationDbContext db,
-    IOptions<TilesSettings> settings) : IConsultaPredioVersionado
+    ApplicationDbContext db) : IConsultaPredioVersionado
 {
     private const string Sql = """
         WITH version_activa AS MATERIALIZED (
@@ -68,15 +65,12 @@ internal sealed class ConsultaPredioVersionado(
         """;
 
     public async Task<FichaPredioDto?> BuscarAsync(
+        string municipioCodigo,
         int distrito,
         int manzana,
         int predio,
         CancellationToken cancellationToken)
     {
-        var municipio = settings.Value.MunicipioCodigo;
-        if (string.IsNullOrWhiteSpace(municipio))
-            throw new InvalidOperationException("Tiles:MunicipioCodigo no esta configurado.");
-
         var connection = db.Database.GetDbConnection();
         var cerrarConexion = connection.State != ConnectionState.Open;
         if (cerrarConexion)
@@ -87,7 +81,7 @@ internal sealed class ConsultaPredioVersionado(
             await using var command = connection.CreateCommand();
             command.CommandText = Sql;
             command.CommandTimeout = 30;
-            AgregarParametro(command, "municipio", municipio, DbType.String);
+            AgregarParametro(command, "municipio", municipioCodigo, DbType.String);
             AgregarParametro(command, "distrito", distrito, DbType.Int32);
             AgregarParametro(command, "manzana", manzana, DbType.Int32);
             AgregarParametro(command, "predio", predio, DbType.Int32);

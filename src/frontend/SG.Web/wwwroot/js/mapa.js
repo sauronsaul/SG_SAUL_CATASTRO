@@ -3,15 +3,18 @@ const prefijoLog = "[SG.Web mapa]";
 const capaResaltadoRelleno = "parcelas-seleccion-relleno";
 const capaResaltadoLinea = "parcelas-seleccion-linea";
 
-export function crearMapa(contenedorId, limites, camara, token, capas, referenciaDotNet) {
+export function crearMapa(contenedorId, municipioCodigo, limites, camara, token, capas, referenciaDotNet) {
     if (!window.maplibregl) {
         throw new Error("MapLibre GL JS 5.24.0 no esta disponible.");
     }
 
     const cantidadCapas = Array.isArray(capas) ? capas.length : -1;
     console.info(`${prefijoLog} creación`, { contenedorId, cantidadCapas, bbox: limites });
-    if (!Array.isArray(capas) || capas.length !== 7) {
-        throw new Error(`${prefijoLog} se esperaban 7 capas y llegaron ${cantidadCapas}.`);
+    if (!Array.isArray(capas) || capas.length === 0) {
+        throw new Error(`${prefijoLog} se esperaba al menos una capa y llegaron ${cantidadCapas}.`);
+    }
+    if (!/^\d{6}$/.test(municipioCodigo)) {
+        throw new Error(`${prefijoLog} código INE municipal inválido.`);
     }
     validarLimites(limites);
 
@@ -62,7 +65,7 @@ export function crearMapa(contenedorId, limites, camara, token, capas, referenci
         console.info(`${prefijoLog} inicialización de capas`, { cantidadCapas: capas.length });
 
         for (const capa of capas) {
-            const plantillaTile = crearPlantillaTile(capa.nombre);
+            const plantillaTile = crearPlantillaTile(municipioCodigo, capa.nombre);
             console.info(`${prefijoLog} addSource`, {
                 capa: capa.nombre,
                 minZoom: capa.minZoom,
@@ -85,22 +88,32 @@ export function crearMapa(contenedorId, limites, camara, token, capas, referenci
             mapa.addLayer(crearLinea(capa));
         }
 
+        for (const capa of capas.filter(x => x.tieneCirculo)) {
+            mapa.addLayer(crearCirculo(capa));
+        }
+
         for (const capa of capas.filter(x => x.campoEtiqueta)) {
             mapa.addLayer(crearEtiqueta(capa));
         }
 
-        mapa.addLayer(crearResaltadoRelleno());
-        mapa.addLayer(crearResaltadoLinea());
+        const tieneParcelas = capas.some(x => x.nombre === "parcelas");
+        if (tieneParcelas) {
+            mapa.addLayer(crearResaltadoRelleno());
+            mapa.addLayer(crearResaltadoLinea());
+        }
 
         console.info(`${prefijoLog} capas listas`, {
             fuentes: capas.length,
             capasDibujadas: capas.filter(x => x.tieneRelleno).length
                 + capas.filter(x => x.tieneLinea).length
+                + capas.filter(x => x.tieneCirculo).length
                 + capas.filter(x => x.campoEtiqueta).length
-                + 2
+                + (tieneParcelas ? 2 : 0)
         });
 
-        mapa.on("click", evento => seleccionarParcela(mapa, evento, referenciaDotNet));
+        if (tieneParcelas) {
+            mapa.on("click", evento => seleccionarParcela(mapa, evento, referenciaDotNet));
+        }
     };
 
     if (mapa.isStyleLoaded()) {
@@ -230,7 +243,7 @@ export function cambiarVisibilidad(contenedorId, nombreCapa, visible) {
     const mapa = mapas.get(contenedorId)?.mapa;
     if (!mapa) return;
 
-    for (const sufijo of ["relleno", "linea", "etiqueta"]) {
+    for (const sufijo of ["relleno", "linea", "circulo", "etiqueta"]) {
         const id = `${nombreCapa}-${sufijo}`;
         if (mapa.getLayer(id)) {
             mapa.setLayoutProperty(id, "visibility", visible ? "visible" : "none");
@@ -267,8 +280,8 @@ export function resaltarPredio(contenedorId, distrito, manzana, predio) {
     }
 
     const filtro = crearFiltroTriplete(distrito, manzana, predio);
-    mapa.setFilter(capaResaltadoRelleno, filtro);
-    mapa.setFilter(capaResaltadoLinea, filtro);
+    if (mapa.getLayer(capaResaltadoRelleno)) mapa.setFilter(capaResaltadoRelleno, filtro);
+    if (mapa.getLayer(capaResaltadoLinea)) mapa.setFilter(capaResaltadoLinea, filtro);
     console.info(`${prefijoLog} predio resaltado`, { distrito, manzana, predio });
 }
 
@@ -277,18 +290,16 @@ export function limpiarResaltado(contenedorId) {
     if (!mapa) return;
 
     const filtro = crearFiltroSinSeleccion();
-    mapa.setFilter(capaResaltadoRelleno, filtro);
-    mapa.setFilter(capaResaltadoLinea, filtro);
+    if (mapa.getLayer(capaResaltadoRelleno)) mapa.setFilter(capaResaltadoRelleno, filtro);
+    if (mapa.getLayer(capaResaltadoLinea)) mapa.setFilter(capaResaltadoLinea, filtro);
     console.info(`${prefijoLog} resaltado limpiado`);
 }
 
 export function obtenerResaltado(contenedorId) {
     const mapa = mapas.get(contenedorId)?.mapa;
     if (!mapa) return null;
-    return {
-        relleno: mapa.getFilter(capaResaltadoRelleno),
-        linea: mapa.getFilter(capaResaltadoLinea)
-    };
+    if (!mapa.getLayer(capaResaltadoRelleno) || !mapa.getLayer(capaResaltadoLinea)) return null;
+    return { relleno: mapa.getFilter(capaResaltadoRelleno), linea: mapa.getFilter(capaResaltadoLinea) };
 }
 
 export function destruirMapa(contenedorId) {
@@ -299,9 +310,9 @@ export function destruirMapa(contenedorId) {
     mapas.delete(contenedorId);
 }
 
-function crearPlantillaTile(nombreCapa) {
+function crearPlantillaTile(municipioCodigo, nombreCapa) {
     const baseTiles = new URL("/api/tiles/", window.location.origin).href;
-    return `${baseTiles}${encodeURIComponent(nombreCapa)}/{z}/{x}/{y}.mvt`;
+    return `${baseTiles}${encodeURIComponent(municipioCodigo)}/${encodeURIComponent(nombreCapa)}/{z}/{x}/{y}.mvt`;
 }
 
 function transformarSolicitud(url, tipoRecurso, token) {
@@ -428,6 +439,23 @@ function crearLinea(capa) {
             "line-color": capa.color,
             "line-opacity": 0.9,
             "line-width": esVia ? ["interpolate", ["linear"], ["zoom"], 13, 1, 18, 4] : 1.1
+        }
+    };
+}
+
+function crearCirculo(capa) {
+    return {
+        id: `${capa.nombre}-circulo`,
+        type: "circle",
+        source: capa.nombre,
+        "source-layer": capa.nombre,
+        minzoom: capa.minZoom,
+        layout: { visibility: capa.visible ? "visible" : "none" },
+        paint: {
+            "circle-color": capa.color,
+            "circle-radius": 5,
+            "circle-stroke-color": "#FFFFFF",
+            "circle-stroke-width": 1.5
         }
     };
 }

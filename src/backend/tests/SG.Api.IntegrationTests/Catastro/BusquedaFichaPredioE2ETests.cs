@@ -44,16 +44,16 @@ public sealed class BusquedaFichaPredioE2ETests : IDisposable
         {
             using var anonimo = _factory.CreateClient();
             var sinAutenticacion = await anonimo.GetAsync(
-                "/api/predios/buscar?distrito=1&manzana=2&predio=1");
+                "/api/predios/051201/buscar?distrito=1&manzana=2&predio=1");
             sinAutenticacion.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
 
             var criterioInvalido = await _clientAdmin.GetAsync(
-                "/api/predios/buscar?distrito=0&manzana=2&predio=1");
+                "/api/predios/051201/buscar?distrito=0&manzana=2&predio=1");
             criterioInvalido.StatusCode.Should().Be(HttpStatusCode.BadRequest);
 
             var primeraVersion = await ImportarYActivarAsync("ficha-primera.zip");
             var primeraRespuesta = await _clientAdmin.GetAsync(
-                "/api/predios/buscar?distrito=1&manzana=2&predio=1");
+                "/api/predios/051201/buscar?distrito=1&manzana=2&predio=1");
             var primerCuerpo = await primeraRespuesta.Content.ReadAsStringAsync();
             primeraRespuesta.StatusCode.Should().Be(HttpStatusCode.OK, primerCuerpo);
             var primeraFicha = JsonSerializer.Deserialize<FichaPredioDto>(primerCuerpo, JsonOpts)!;
@@ -80,12 +80,12 @@ public sealed class BusquedaFichaPredioE2ETests : IDisposable
             primeraFicha.Limites.Sur.Should().BeLessThan(primeraFicha.Limites.Norte);
 
             var distritoFueraDeUyuni = await _clientAdmin.GetAsync(
-                "/api/predios/buscar?distrito=7&manzana=2&predio=1");
+                "/api/predios/051201/buscar?distrito=7&manzana=2&predio=1");
             distritoFueraDeUyuni.StatusCode.Should().Be(HttpStatusCode.NotFound);
 
             var segundaVersion = await ImportarYActivarAsync("ficha-segunda.zip");
             var segundaFicha = await _clientAdmin.GetFromJsonAsync<FichaPredioDto>(
-                "/api/predios/buscar?distrito=1&manzana=2&predio=1",
+                "/api/predios/051201/buscar?distrito=1&manzana=2&predio=1",
                 JsonOpts);
 
             segundaFicha.Should().NotBeNull();

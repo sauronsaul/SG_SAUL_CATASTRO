@@ -18,7 +18,7 @@ public sealed class BuscarFichaPredioQueryValidatorTests
         string propiedad)
     {
         var resultado = _validator.Validate(
-            new BuscarFichaPredioQuery(distrito, manzana, predio));
+            new BuscarFichaPredioQuery("051201", distrito, manzana, predio));
 
         resultado.IsValid.Should().BeFalse();
         resultado.Errors.Should().Contain(x => x.PropertyName == propiedad);
@@ -33,7 +33,7 @@ public sealed class BuscarFichaPredioQueryValidatorTests
         int predio)
     {
         var resultado = _validator.Validate(
-            new BuscarFichaPredioQuery(distrito, manzana, predio));
+            new BuscarFichaPredioQuery("051201", distrito, manzana, predio));
 
         resultado.IsValid.Should().BeTrue();
     }

@@ -44,7 +44,6 @@ public sealed class SgApiFactory : WebApplicationFactory<Program>
                 ["Admin:Email"]              = PostgreSqlFixture.AdminEmail,
                 ["Admin:Password"]           = PostgreSqlFixture.AdminPassword,
                 ["Catastro:MunicipioCodigo"] = "051201",
-                ["Tiles:MunicipioCodigo"]    = "051201",
             });
         });
 

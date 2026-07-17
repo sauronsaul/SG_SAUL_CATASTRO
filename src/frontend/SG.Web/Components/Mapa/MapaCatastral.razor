@@ -1,21 +1,46 @@
+@using SG.Contracts.GIS
 @implements IAsyncDisposable
 @inject IJSRuntime JS
-@inject ConfiguracionVisor Configuracion
 @inject SesionAutenticacion Sesion
 @inject EstadoVisor Estado
 @inject PrediosService Predios
+@inject VisorService Visor
 @inject NavigationManager Navigation
 
 <section class="visor">
     <aside class="panel-capas" aria-label="Capas del mapa">
-        @* TODO 3.A.2c: mostrar nombre del catálogo de municipios, no el geocódigo. *@
-        <p class="sobrelinea">@Configuracion.MunicipioCodigo</p>
+        @if (_municipios.Count > 0)
+        {
+            <label class="selector-municipio">
+                <span>Municipio</span>
+                <select aria-label="Municipio" value="@_municipioSeleccionado" @onchange="CambiarMunicipioAsync">
+                    @foreach (var municipio in _municipios)
+                    {
+                        <option value="@municipio.Codigo">@municipio.Nombre</option>
+                    }
+                </select>
+            </label>
+        }
+        <p class="sobrelinea">@(_configuracion?.Municipio.NombreOficial ?? "Visor municipal")</p>
         <h1>Cartografía catastral</h1>
-        <BuscadorPredio Buscando="_buscandoPredio"
-                        Error="@_errorPredio"
-                        AlBuscar="BuscarPredioAsync" />
+
+        @if (!string.IsNullOrWhiteSpace(_errorVisor))
+        {
+            <p role="alert">@_errorVisor</p>
+        }
+        else if (_configuracion?.Capacidades.TienePredios == true)
+        {
+            <BuscadorPredio Buscando="_buscandoPredio"
+                            Error="@_errorPredio"
+                            AlBuscar="BuscarPredioAsync" />
+        }
+        else if (_configuracion is not null)
+        {
+            <p class="ayuda">Este municipio aún no tiene catastro predial cargado.</p>
+        }
+
         <p class="ayuda">Active o desactive las capas disponibles.</p>
-        @foreach (var capa in CatalogoCapasMapa.ObtenerTodas())
+        @foreach (var capa in _configuracion?.Capas ?? [])
         {
             <label class="selector-capa">
                 <input type="checkbox"
@@ -28,87 +53,149 @@
         }
     </aside>
 
-    <div id="@_contenedorId" class="mapa" aria-label="Mapa catastral de @Configuracion.MunicipioCodigo"></div>
-    @if (_fichaPredio is not null && !_mostrarCroquis)
+    <div id="@_contenedorId" class="mapa"
+         aria-label="Mapa catastral de @(_configuracion?.Municipio.Nombre ?? "municipio")"></div>
+    @if (_fichaPredio is not null && !_mostrarCroquis && _configuracion is not null)
     {
         <FichaPredioPanel Ficha="_fichaPredio"
+                          MunicipioNombre="@_configuracion.Municipio.Nombre"
                           AlCerrar="CerrarFichaAsync"
                           AlImprimirCroquis="AbrirCroquis" />
     }
-    @if (_fichaPredio is not null && _mostrarCroquis)
+    @if (_fichaPredio is not null && _mostrarCroquis && _configuracion is not null)
     {
-        <CroquisPredio Ficha="_fichaPredio" AlCerrar="CerrarCroquis" />
+        <CroquisPredio Ficha="_fichaPredio"
+                       MunicipioNombre="@_configuracion.Municipio.Nombre"
+                       MunicipioNombreOficial="@_configuracion.Municipio.NombreOficial"
+                       AlCerrar="CerrarCroquis" />
     }
 </section>
 
 @code {
     private readonly string _contenedorId = $"mapa-{Guid.NewGuid():N}";
+    private IReadOnlyList<MunicipioVisorDto> _municipios = [];
+    private ConfiguracionVisorDto? _configuracion;
+    private string? _municipioSeleccionado;
     private MapaInterop? _interop;
     private DotNetObjectReference<MapaCatastral>? _referenciaDotNet;
     private FichaPredioDto? _fichaPredio;
+    private bool _mapaPendiente;
     private bool _mostrarCroquis;
     private bool _buscandoPredio;
     private string? _errorPredio;
+    private string? _errorVisor;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var resultado = await Visor.ListarMunicipiosAsync();
+        if (resultado.EsNoAutorizado)
+        {
+            Navigation.NavigateTo("/login");
+            return;
+        }
+        if (!resultado.EsExitoso || resultado.Valor is null || resultado.Valor.Count == 0)
+        {
+            _errorVisor = resultado.Error ?? "No existen municipios con dataset activo.";
+            return;
+        }
+
+        _municipios = resultado.Valor;
+        _municipioSeleccionado = _municipios.Any(x => x.Codigo == "051201")
+            ? "051201"
+            : _municipios[0].Codigo;
+        await CargarConfiguracionAsync(_municipioSeleccionado);
+    }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!firstRender || Sesion.AccessToken is null)
+        if (!_mapaPendiente || _configuracion is null || Sesion.AccessToken is null)
             return;
 
-        _interop = new MapaInterop(JS);
-        _referenciaDotNet = DotNetObjectReference.Create(this);
-        var capas = CatalogoCapasMapa.ObtenerTodas()
+        _mapaPendiente = false;
+        _interop ??= new MapaInterop(JS);
+        _referenciaDotNet ??= DotNetObjectReference.Create(this);
+        var capas = _configuracion.Capas
             .Select(capa => CapaMapaInterop.Crear(capa, Estado.EsVisible(capa.Nombre)))
             .ToArray();
-        var limites = Configuracion.ObtenerLimitesMapa();
-
+        var bbox = _configuracion.Bbox;
         await _interop.CrearAsync(
             _contenedorId,
-            limites,
+            _configuracion.Municipio.Codigo,
+            [bbox.Oeste, bbox.Sur, bbox.Este, bbox.Norte],
             Estado.Camara,
             Sesion.AccessToken,
             capas,
             _referenciaDotNet);
     }
 
+    private async Task CambiarMunicipioAsync(ChangeEventArgs evento)
+    {
+        var codigo = evento.Value?.ToString();
+        if (string.IsNullOrWhiteSpace(codigo) || codigo == _municipioSeleccionado)
+            return;
+
+        _municipioSeleccionado = codigo;
+        if (_interop is not null)
+            await _interop.DestruirAsync(_contenedorId);
+        await CargarConfiguracionAsync(codigo);
+    }
+
+    private async Task CargarConfiguracionAsync(string codigo)
+    {
+        _errorVisor = null;
+        var resultado = await Visor.ObtenerConfiguracionAsync(codigo);
+        if (resultado.EsNoAutorizado)
+        {
+            Navigation.NavigateTo("/login");
+            return;
+        }
+        if (!resultado.EsExitoso || resultado.Valor is null)
+        {
+            _configuracion = null;
+            _errorVisor = resultado.Error;
+            return;
+        }
+
+        _configuracion = resultado.Valor;
+        Estado.ConfigurarMunicipio(_configuracion.Capas.Select(x => x.Nombre));
+        _fichaPredio = null;
+        _mostrarCroquis = false;
+        _errorPredio = null;
+        _mapaPendiente = true;
+    }
+
     private async Task CambiarVisibilidadAsync(string nombre, bool visible)
     {
         if (!Estado.CambiarVisibilidad(nombre, visible) || _interop is null)
             return;
-
         await _interop.CambiarVisibilidadAsync(_contenedorId, nombre, visible);
     }
 
     private Task BuscarPredioAsync(CriterioBusquedaPredio criterio) =>
-        ConsultarPredioAsync(criterio, enfocar: true);
+        ConsultarPredioAsync(criterio, true);
 
     [JSInvokable]
     public async Task SeleccionarPredioAsync(int distrito, int manzana, int predio)
     {
-        await ConsultarPredioAsync(
-            new CriterioBusquedaPredio(distrito, manzana, predio),
-            enfocar: false);
+        await ConsultarPredioAsync(new(distrito, manzana, predio), false);
         await InvokeAsync(StateHasChanged);
     }
 
-    private async Task ConsultarPredioAsync(
-        CriterioBusquedaPredio criterio,
-        bool enfocar)
+    private async Task ConsultarPredioAsync(CriterioBusquedaPredio criterio, bool enfocar)
     {
-        if (_buscandoPredio)
+        if (_buscandoPredio || _configuracion is null)
             return;
 
         _buscandoPredio = true;
         _errorPredio = null;
         try
         {
-            var resultado = await Predios.BuscarAsync(criterio);
+            var resultado = await Predios.BuscarAsync(_configuracion.Municipio.Codigo, criterio);
             if (resultado.Estado == EstadoConsultaPredio.NoAutorizado)
             {
                 Navigation.NavigateTo("/login");
                 return;
             }
-
             if (resultado.Estado != EstadoConsultaPredio.Encontrado || resultado.Ficha is null)
             {
                 _fichaPredio = null;
@@ -147,21 +234,14 @@
     }
 
     private void AbrirCroquis() => _mostrarCroquis = true;
-
     private void CerrarCroquis() => _mostrarCroquis = false;
 
     [JSInvokable]
-    public async Task NotificarNoAutorizadoAsync()
+    public Task NotificarNoAutorizadoAsync()
     {
-        if (_interop is not null)
-        {
-            var camara = await _interop.ObtenerCamaraAsync(_contenedorId);
-            if (camara is not null)
-                Estado.ActualizarCamara(camara);
-        }
-
         if (Sesion.NotificarNoAutorizado())
             Navigation.NavigateTo("/login");
+        return Task.CompletedTask;
     }
 
     public async ValueTask DisposeAsync()
@@ -171,7 +251,6 @@
             await _interop.DestruirAsync(_contenedorId);
             await _interop.DisposeAsync();
         }
-
         _referenciaDotNet?.Dispose();
     }
 }

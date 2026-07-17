@@ -6,6 +6,7 @@ public interface IDatasetVersionRepositorio
 {
     Task<DatasetVersion?> ObtenerPorIdAsync(Guid id, CancellationToken ct = default);
     Task<DatasetVersion?> ObtenerPorIdSinTrackingAsync(Guid id, CancellationToken ct = default);
+    Task<DatasetVersion?> ObtenerActivaAsync(string municipioCodigo, CancellationToken ct = default);
     Task<IReadOnlyList<DatasetVersion>> ObtenerEnCargaAsync(CancellationToken ct = default);
     Task<int> ObtenerSiguienteNumeroAsync(string municipioCodigo, CancellationToken ct = default);
     void Agregar(DatasetVersion version);

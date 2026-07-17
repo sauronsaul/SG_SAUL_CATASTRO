@@ -1,27 +1,25 @@
 using System.Text.Json;
 using FluentAssertions;
+using SG.Contracts.GIS;
 using SG.Web.Models;
-using SG.Web.Services;
 
 namespace SG.Web.Tests;
 
 public sealed class CapaMapaInteropTests
 {
     [Fact]
-    public void ProyectaLasSieteCapasConContratoJsonExplicito()
+    public void ProyectaContratoDataDrivenConCirculo()
     {
-        var capas = CatalogoCapasMapa.ObtenerTodas()
-            .Select(capa => CapaMapaInterop.Crear(capa, visible: true))
-            .ToArray();
+        var capa = new CapaVisorDto(
+            "PuntosGeodesicos", "puntos-geodesicos", "Puntos geodésicos",
+            90, 11, "#DC2626", false, false, true, "puntos", 13);
 
-        var json = JsonSerializer.Serialize(capas);
+        var interop = CapaMapaInterop.Crear(capa, true);
+        var json = JsonSerializer.Serialize(interop);
         using var documento = JsonDocument.Parse(json);
 
-        capas.Should().HaveCount(7);
-        capas.Select(x => x.Nombre).Should().OnlyHaveUniqueItems();
-        documento.RootElement.GetArrayLength().Should().Be(7);
-        documento.RootElement[0].TryGetProperty("nombre", out _).Should().BeTrue();
-        documento.RootElement[0].TryGetProperty("minZoom", out _).Should().BeTrue();
-        documento.RootElement[0].TryGetProperty("Nombre", out _).Should().BeFalse();
+        documento.RootElement.GetProperty("nombre").GetString().Should().Be("puntos-geodesicos");
+        documento.RootElement.GetProperty("tieneCirculo").GetBoolean().Should().BeTrue();
+        documento.RootElement.TryGetProperty("Nombre", out _).Should().BeFalse();
     }
 }

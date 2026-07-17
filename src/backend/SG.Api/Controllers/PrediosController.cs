@@ -62,16 +62,17 @@ public sealed class PrediosController(ISender sender) : ControllerBase
         return result.IsSuccess ? Ok(result.Value) : MapError(result.Error);
     }
 
-    [HttpGet("buscar")]
+    [HttpGet("{municipio}/buscar")]
     [Authorize(Roles = "Admin,Tecnico")]
     public async Task<IActionResult> Buscar(
+        string municipio,
         [FromQuery] int distrito,
         [FromQuery] int manzana,
         [FromQuery] int predio,
         CancellationToken ct)
     {
         var result = await sender.Send(
-            new BuscarFichaPredioQuery(distrito, manzana, predio),
+            new BuscarFichaPredioQuery(municipio, distrito, manzana, predio),
             ct);
         return result.IsSuccess ? Ok(result.Value) : MapError(result.Error);
     }

@@ -4,5 +4,9 @@ using SG.Domain.Common;
 
 namespace SG.Application.Catastro.Predios.BuscarPorTriplete;
 
-public sealed record BuscarFichaPredioQuery(int Distrito, int Manzana, int Predio)
+public sealed record BuscarFichaPredioQuery(
+    string MunicipioCodigo,
+    int Distrito,
+    int Manzana,
+    int Predio)
     : IRequest<Result<FichaPredioDto>>;

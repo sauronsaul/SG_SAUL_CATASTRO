@@ -40,6 +40,42 @@ public sealed class VisorE2ETests(ITestOutputHelper output)
             ViewportSize = new() { Width = 1366, Height = 768 }
         });
         var page = await context.NewPageAsync();
+        await page.RouteAsync(
+            "**/api/visor/municipios",
+            async route => await route.FulfillAsync(new()
+            {
+                Status = 200,
+                ContentType = "application/json",
+                Body = """
+                    [
+                      {"codigo":"051201","nombre":"Uyuni","nombreOficial":"GOBIERNO AUTÓNOMO MUNICIPAL DE UYUNI"},
+                      {"codigo":"022001","nombre":"Caranavi","nombreOficial":"GOBIERNO AUTÓNOMO MUNICIPAL DE CARANAVI"}
+                    ]
+                    """
+            }));
+        await page.RouteAsync(
+            "**/api/visor/022001/configuracion",
+            async route => await route.FulfillAsync(new()
+            {
+                Status = 200,
+                ContentType = "application/json",
+                Body = """
+                    {
+                      "municipio":{"codigo":"022001","nombre":"Caranavi","nombreOficial":"GOBIERNO AUTÓNOMO MUNICIPAL DE CARANAVI"},
+                      "numeroVersionActiva":2,
+                      "bbox":{"oeste":-67.5857,"sur":-15.8511,"este":-67.5393,"norte":-15.8213},
+                      "capas":[
+                        {"tipo":"AreasUrbanas","nombre":"areas-urbanas","titulo":"Áreas urbanas","orden":10,"minZoom":9,"color":"#0D9488","tieneRelleno":true,"tieneLinea":true,"tieneCirculo":false,"campoEtiqueta":null,"minZoomEtiqueta":null},
+                        {"tipo":"Manzanas","nombre":"manzanas","titulo":"Manzanas","orden":40,"minZoom":13,"color":"#64748B","tieneRelleno":true,"tieneLinea":true,"tieneCirculo":false,"campoEtiqueta":null,"minZoomEtiqueta":null},
+                        {"tipo":"PuntosGeodesicos","nombre":"puntos-geodesicos","titulo":"Puntos geodésicos","orden":90,"minZoom":11,"color":"#DC2626","tieneRelleno":false,"tieneLinea":false,"tieneCirculo":true,"campoEtiqueta":"puntos","minZoomEtiqueta":13}
+                      ],
+                      "capacidades":{"tienePredios":false}
+                    }
+                    """
+            }));
+        await page.RouteAsync(
+            "**/api/tiles/022001/**",
+            async route => await route.FulfillAsync(new() { Status = 204 }));
         if (simularRegresionTiles)
         {
             await page.RouteAsync(
@@ -64,7 +100,7 @@ public sealed class VisorE2ETests(ITestOutputHelper output)
             if (response.Status == 200
                 && Uri.TryCreate(response.Url, UriKind.Absolute, out var fichaUri)
                 && fichaUri.AbsolutePath.Equals(
-                    "/api/predios/buscar",
+                    "/api/predios/051201/buscar",
                     StringComparison.Ordinal))
             {
                 ficha200.TrySetResult(fichaUri.PathAndQuery);
@@ -134,7 +170,7 @@ public sealed class VisorE2ETests(ITestOutputHelper output)
         await Assertions.Expect(panel).ToContainTextAsync("Gráfica238,3466 m²");
         await Assertions.Expect(panel).ToContainTextAsync("Tipo de inmuebleVIV");
         await Assertions.Expect(panel).ToContainTextAsync("VíaCOLON Y SUCRE");
-        await Assertions.Expect(panel).ToContainTextAsync("Dataset 051201 — versión interna 3");
+        await Assertions.Expect(panel).ToContainTextAsync("Dataset Uyuni (051201) — versión interna 3");
 
         await page.GetByRole(
             AriaRole.Button,
@@ -151,7 +187,7 @@ public sealed class VisorE2ETests(ITestOutputHelper output)
         await Assertions.Expect(vistaCroquis)
             .ToContainTextAsync("(hora de Bolivia, UTC-4)");
         await Assertions.Expect(vistaCroquis)
-            .ToContainTextAsync("Dataset 051201 — versión interna 3");
+            .ToContainTextAsync("Dataset Uyuni (051201) — versión interna 3");
         await Assertions.Expect(vistaCroquis)
             .ToContainTextAsync("no constituye certificado catastral oficial");
         var svgCroquis = vistaCroquis.Locator("svg.geometria-croquis");
@@ -211,7 +247,7 @@ public sealed class VisorE2ETests(ITestOutputHelper output)
             }),
             response => response.Status == 200
                 && Uri.TryCreate(response.Url, UriKind.Absolute, out var uri)
-                && uri.AbsolutePath.Equals("/api/predios/buscar", StringComparison.Ordinal),
+                && uri.AbsolutePath.Equals("/api/predios/051201/buscar", StringComparison.Ordinal),
             new() { Timeout = 30_000 });
         await panel.WaitForAsync(new()
         {
@@ -221,6 +257,16 @@ public sealed class VisorE2ETests(ITestOutputHelper output)
         await Assertions.Expect(panel).ToContainTextAsync("1 / 1 / 1");
         var resaltadoClic = await ObtenerResaltadoAsync(page);
         Assert.Equal(ResaltadoTriplete111, resaltadoClic);
+
+        await page.GetByLabel("Municipio", new() { Exact = true }).SelectOptionAsync("022001");
+        await page.GetByText(
+            "Este municipio aún no tiene catastro predial cargado.",
+            new() { Exact = true }).WaitForAsync(new() { Timeout = 30_000 });
+        await Assertions.Expect(page.GetByLabel("Mapa catastral de Caranavi", new() { Exact = true }))
+            .ToBeVisibleAsync();
+        Assert.Equal(0, await page.GetByLabel("Distrito", new() { Exact = true }).CountAsync());
+        Assert.Equal(3, await page.Locator(".selector-capa").CountAsync());
+        Assert.Equal(0, await page.GetByLabel("Ficha del predio", new() { Exact = true }).CountAsync());
 
         var captura = Path.Combine(
             directorioArtefactos,
@@ -241,6 +287,7 @@ public sealed class VisorE2ETests(ITestOutputHelper output)
         output.WriteLine($"resaltado_zoom_out={resaltadoZoomOut}");
         output.WriteLine($"resaltado_zoom_in={resaltadoZoomIn}");
         output.WriteLine($"resaltado_clic={resaltadoClic}");
+        output.WriteLine("hot_swap=051201->022001 sesion_conservada=true capas=3 tiene_predios=false");
         output.WriteLine("triplete=1/1/1 fila=11883 declarada=238.3470 grafica=238.3466 version=3");
         output.WriteLine(
             $"croquis_srid=32719 escala_grafica_m={escalaMetros} " +

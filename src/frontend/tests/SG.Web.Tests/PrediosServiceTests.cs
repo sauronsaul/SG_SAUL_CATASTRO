@@ -15,7 +15,7 @@ public sealed class PrediosServiceTests
         var handler = new HandlerControlado(_ => throw new InvalidOperationException());
         var servicio = CrearServicio(handler, autenticado: false);
 
-        var resultado = await servicio.BuscarAsync(new CriterioBusquedaPredio(1, 2, 3));
+        var resultado = await servicio.BuscarAsync("051201", new CriterioBusquedaPredio(1, 2, 3));
 
         resultado.Estado.Should().Be(EstadoConsultaPredio.NoAutorizado);
         handler.Solicitudes.Should().Be(0);
@@ -32,11 +32,11 @@ public sealed class PrediosServiceTests
         });
         var servicio = CrearServicio(handler, autenticado: true);
 
-        var resultado = await servicio.BuscarAsync(new CriterioBusquedaPredio(7, 20, 30));
+        var resultado = await servicio.BuscarAsync("051201", new CriterioBusquedaPredio(7, 20, 30));
 
         resultado.Estado.Should().Be(EstadoConsultaPredio.NoEncontrado);
         solicitud!.RequestUri!.PathAndQuery.Should().Be(
-            "/api/predios/buscar?distrito=7&manzana=20&predio=30");
+            "/api/predios/051201/buscar?distrito=7&manzana=20&predio=30");
         solicitud.Headers.Authorization!.Scheme.Should().Be("Bearer");
         solicitud.Headers.Authorization.Parameter.Should().Be("access-token-prueba");
     }
@@ -69,7 +69,7 @@ public sealed class PrediosServiceTests
         });
         var servicio = CrearServicio(handler, autenticado: true);
 
-        var resultado = await servicio.BuscarAsync(new CriterioBusquedaPredio(1, 1, 1));
+        var resultado = await servicio.BuscarAsync("051201", new CriterioBusquedaPredio(1, 1, 1));
 
         resultado.Estado.Should().Be(EstadoConsultaPredio.Encontrado);
         resultado.Ficha.Should().NotBeNull();

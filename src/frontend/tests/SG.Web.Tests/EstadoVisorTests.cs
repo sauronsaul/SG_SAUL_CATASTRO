@@ -10,6 +10,7 @@ public sealed class EstadoVisorTests
     public void CambiarVisibilidad_SoloAfectaLaCapaIndicada()
     {
         var estado = new EstadoVisor();
+        estado.ConfigurarMunicipio(["parcelas", "edificaciones"]);
 
         estado.CambiarVisibilidad("parcelas", false).Should().BeTrue();
 

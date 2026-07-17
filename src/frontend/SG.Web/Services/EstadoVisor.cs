@@ -4,8 +4,7 @@ namespace SG.Web.Services;
 
 public sealed class EstadoVisor
 {
-    private readonly Dictionary<string, bool> _visibilidad = CatalogoCapasMapa.ObtenerTodas()
-        .ToDictionary(x => x.Nombre, _ => true, StringComparer.Ordinal);
+    private readonly Dictionary<string, bool> _visibilidad = new(StringComparer.Ordinal);
 
     public CamaraMapa? Camara { get; private set; }
 
@@ -22,4 +21,12 @@ public sealed class EstadoVisor
     }
 
     public void ActualizarCamara(CamaraMapa camara) => Camara = camara;
+
+    public void ConfigurarMunicipio(IEnumerable<string> capas)
+    {
+        _visibilidad.Clear();
+        foreach (var capa in capas)
+            _visibilidad[capa] = true;
+        Camara = null;
+    }
 }

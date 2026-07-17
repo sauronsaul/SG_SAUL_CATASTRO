@@ -16,8 +16,8 @@
         <div><dt>Código geográfico</dt><dd>@Valor(Ficha.CodigoGeografico)</dd></div>
         <div><dt>Código catastral</dt><dd>@Valor(Ficha.CodigoCatastral)</dd></div>
         <div><dt>Propietario de referencia</dt><dd>@Valor(Ficha.PropietarioReferencia)</dd></div>
-        <div><dt>Tipo de inmueble</dt><dd><CodigoCatalogoMunicipal Valor="Ficha.TipoInmueble" /></dd></div>
-        <div><dt>Uso de terreno</dt><dd><CodigoCatalogoMunicipal Valor="Ficha.UsoTerreno" /></dd></div>
+        <div><dt>Tipo de inmueble</dt><dd><CodigoCatalogoMunicipal Valor="@Ficha.TipoInmueble" /></dd></div>
+        <div><dt>Uso de terreno</dt><dd><CodigoCatalogoMunicipal Valor="@Ficha.UsoTerreno" /></dd></div>
         <div><dt>Vía</dt><dd>@Valor(Ficha.NombreVia)</dd></div>
         <div><dt>Barrio</dt><dd>@Valor(Ficha.Barrio)</dd></div>
         <div><dt>Dirección</dt><dd>@Valor(Ficha.Direccion)</dd></div>
@@ -43,8 +43,7 @@
     </section>
 
     <footer>
-        @* TODO 3.A.2c: mostrar nombre del catálogo de municipios, no el geocódigo. *@
-        <span>Dataset @Ficha.MunicipioCodigo — versión interna @Ficha.NumeroVersion</span>
+        <span>Dataset @MunicipioNombre (@Ficha.MunicipioCodigo) — versión interna @Ficha.NumeroVersion</span>
         <button type="button" @onclick="AlImprimirCroquis">Imprimir croquis</button>
     </footer>
 </aside>
@@ -54,6 +53,9 @@
 
     [Parameter, EditorRequired]
     public FichaPredioDto Ficha { get; set; } = null!;
+
+    [Parameter, EditorRequired]
+    public string MunicipioNombre { get; set; } = string.Empty;
 
     [Parameter]
     public EventCallback AlCerrar { get; set; }

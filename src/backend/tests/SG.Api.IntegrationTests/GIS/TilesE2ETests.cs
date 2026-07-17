@@ -9,6 +9,7 @@ using SG.Api.IntegrationTests.Importacion;
 using SG.Api.IntegrationTests.Infrastructure;
 using SG.Contracts.Autenticacion;
 using SG.Contracts.Importacion;
+using SG.Contracts.GIS;
 using SG.Infrastructure.Persistencia;
 using Xunit.Abstractions;
 
@@ -44,7 +45,25 @@ public sealed class TilesE2ETests : IDisposable
                 ImportacionVersionadaE2ETests.EscenarioGeometria.InvalidasRecuperablesConNulosGenuinos,
                 "tiles-o1.zip");
             var coordenadas = await ObtenerCoordenadasTileAsync(primeraVersion);
-            var ruta = $"/api/tiles/edificaciones/16/{coordenadas.X}/{coordenadas.Y}.mvt";
+            var ruta = $"/api/tiles/051201/edificaciones/16/{coordenadas.X}/{coordenadas.Y}.mvt";
+
+            var municipios = await _clientAdmin.GetFromJsonAsync<MunicipioVisorDto[]>(
+                "/api/visor/municipios", JsonOpts);
+            municipios.Should().Contain(x => x.Codigo == "051201" && x.Nombre == "Uyuni");
+            var configuracion = await _clientAdmin.GetFromJsonAsync<ConfiguracionVisorDto>(
+                "/api/visor/051201/configuracion", JsonOpts);
+            configuracion.Should().NotBeNull();
+            configuracion!.NumeroVersionActiva.Should().BeGreaterThan(0);
+            configuracion.Capacidades.TienePredios.Should().BeTrue();
+            configuracion.Capas.Should().HaveCount(7);
+            configuracion.Bbox.Oeste.Should().BeLessThan(configuracion.Bbox.Este);
+            configuracion.Bbox.Sur.Should().BeLessThan(configuracion.Bbox.Norte);
+            (await _clientAdmin.GetAsync("/api/visor/UYUNI/configuracion"))
+                .StatusCode.Should().Be(HttpStatusCode.BadRequest);
+            (await _clientAdmin.GetAsync("/api/visor/999999/configuracion"))
+                .StatusCode.Should().Be(HttpStatusCode.NotFound);
+            (await _clientAdmin.GetAsync("/api/visor/022001/configuracion"))
+                .StatusCode.Should().Be(HttpStatusCode.Conflict);
 
             // Primera llamada MVT del test: prueba el complex segment {y:int}.mvt.
             var response = await _clientAdmin.GetAsync(ruta);
@@ -77,7 +96,7 @@ public sealed class TilesE2ETests : IDisposable
             foreach (var (nombreCapa, esperado) in capasEsperadas)
             {
                 var respuestaCapa = await _clientAdmin.GetAsync(
-                    $"/api/tiles/{nombreCapa}/16/{coordenadas.X}/{coordenadas.Y}.mvt");
+                    $"/api/tiles/051201/{nombreCapa}/16/{coordenadas.X}/{coordenadas.Y}.mvt");
                 respuestaCapa.StatusCode.Should().Be(HttpStatusCode.OK, nombreCapa);
                 var capaDecodificada = MvtDecoderPruebas.Decodificar(
                     await respuestaCapa.Content.ReadAsByteArrayAsync()).Should().ContainSingle().Subject;
@@ -94,14 +113,20 @@ public sealed class TilesE2ETests : IDisposable
             var noModificado = await _clientAdmin.SendAsync(condicional);
             noModificado.StatusCode.Should().Be(HttpStatusCode.NotModified);
 
-            var vacio = await _clientAdmin.GetAsync("/api/tiles/edificaciones/22/0/0.mvt");
+            var vacio = await _clientAdmin.GetAsync("/api/tiles/051201/edificaciones/22/0/0.mvt");
             vacio.StatusCode.Should().Be(HttpStatusCode.NoContent);
             vacio.Headers.ETag.Should().NotBeNull();
 
-            var coordenadasInvalidas = await _clientAdmin.GetAsync("/api/tiles/edificaciones/23/0/0.mvt");
+            var coordenadasInvalidas = await _clientAdmin.GetAsync("/api/tiles/051201/edificaciones/23/0/0.mvt");
             coordenadasInvalidas.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-            var capaDesconocida = await _clientAdmin.GetAsync("/api/tiles/capa_edificaciones/16/0/0.mvt");
+            var capaDesconocida = await _clientAdmin.GetAsync("/api/tiles/051201/capa_edificaciones/16/0/0.mvt");
             capaDesconocida.StatusCode.Should().Be(HttpStatusCode.NotFound);
+            (await _clientAdmin.GetAsync("/api/tiles/051201/areas-urbanas/16/0/0.mvt"))
+                .StatusCode.Should().Be(HttpStatusCode.NotFound);
+            (await _clientAdmin.GetAsync("/api/tiles/UYUNI/edificaciones/16/0/0.mvt"))
+                .StatusCode.Should().Be(HttpStatusCode.BadRequest);
+            (await _clientAdmin.GetAsync("/api/tiles/999999/edificaciones/16/0/0.mvt"))
+                .StatusCode.Should().Be(HttpStatusCode.NotFound);
 
             await ImportarYActivarAsync(
                 ImportacionVersionadaE2ETests.EscenarioGeometria.Normal,
@@ -118,6 +143,10 @@ public sealed class TilesE2ETests : IDisposable
             using var anonimo = _factory.CreateClient();
             var sinAutenticacion = await anonimo.GetAsync(ruta);
             sinAutenticacion.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+            (await anonimo.GetAsync("/api/visor/municipios"))
+                .StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+            (await anonimo.GetAsync("/api/visor/051201/configuracion"))
+                .StatusCode.Should().Be(HttpStatusCode.Unauthorized);
         }
         finally
         {

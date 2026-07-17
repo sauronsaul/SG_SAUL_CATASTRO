@@ -10,6 +10,7 @@ public sealed class MapaInterop(IJSRuntime jsRuntime) : IAsyncDisposable
 
     public async Task CrearAsync(
         string contenedorId,
+        string municipioCodigo,
         IReadOnlyList<double> limites,
         CamaraMapa? camara,
         string token,
@@ -20,6 +21,7 @@ public sealed class MapaInterop(IJSRuntime jsRuntime) : IAsyncDisposable
         await _modulo.InvokeVoidAsync(
             "crearMapa",
             contenedorId,
+            municipioCodigo,
             limites,
             camara,
             token,

@@ -57,7 +57,7 @@ public static class DependencyInjection
         services.AddScoped<ICoordenadasService, CoordenadasService>();
         services.AddScoped<IGeometriaService, GeometriaService>();
         services.AddScoped<ITileVectorialService, TileVectorialService>();
-        services.Configure<TilesSettings>(configuration.GetSection("Tiles"));
+        services.AddScoped<IExtensionMunicipalService, ExtensionMunicipalService>();
 
         // Repositorios de importación
         services.AddScoped<IPerfilImportacionRepositorio, PerfilImportacionRepositorio>();

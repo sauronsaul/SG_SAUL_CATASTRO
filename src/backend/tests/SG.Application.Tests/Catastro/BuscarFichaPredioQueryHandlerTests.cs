@@ -18,12 +18,13 @@ public sealed class BuscarFichaPredioQueryHandlerTests
     public async Task Handle_CriterioInvalido_RetornaErrorSinConsultarPersistencia()
     {
         var resultado = await CrearHandler().Handle(
-            new BuscarFichaPredioQuery(0, 1, 1),
+            new BuscarFichaPredioQuery("051201", 0, 1, 1),
             CancellationToken.None);
 
         resultado.IsFailure.Should().BeTrue();
         resultado.Error.Should().Be(FichaPredioErrores.CriterioInvalido);
         await _consulta.DidNotReceive().BuscarAsync(
+            Arg.Any<string>(),
             Arg.Any<int>(),
             Arg.Any<int>(),
             Arg.Any<int>(),
@@ -33,11 +34,11 @@ public sealed class BuscarFichaPredioQueryHandlerTests
     [Fact]
     public async Task Handle_TripleteAusente_RetornaNoEncontrado()
     {
-        _consulta.BuscarAsync(7, 1, 1, Arg.Any<CancellationToken>())
+        _consulta.BuscarAsync("051201", 7, 1, 1, Arg.Any<CancellationToken>())
             .Returns((FichaPredioDto?)null);
 
         var resultado = await CrearHandler().Handle(
-            new BuscarFichaPredioQuery(7, 1, 1),
+            new BuscarFichaPredioQuery("051201", 7, 1, 1),
             CancellationToken.None);
 
         resultado.IsFailure.Should().BeTrue();
@@ -48,11 +49,11 @@ public sealed class BuscarFichaPredioQueryHandlerTests
     public async Task Handle_TripleteExistente_RetornaFichaPersistida()
     {
         var ficha = CrearFicha();
-        _consulta.BuscarAsync(1, 2, 3, Arg.Any<CancellationToken>())
+        _consulta.BuscarAsync("051201", 1, 2, 3, Arg.Any<CancellationToken>())
             .Returns(ficha);
 
         var resultado = await CrearHandler().Handle(
-            new BuscarFichaPredioQuery(1, 2, 3),
+            new BuscarFichaPredioQuery("051201", 1, 2, 3),
             CancellationToken.None);
 
         resultado.IsSuccess.Should().BeTrue();

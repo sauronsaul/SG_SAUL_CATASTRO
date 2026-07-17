@@ -9,6 +9,7 @@ namespace SG.Web.Services;
 public sealed class PrediosService(HttpClient httpClient, SesionAutenticacion sesion)
 {
     public async Task<ResultadoConsultaPredio> BuscarAsync(
+        string municipioCodigo,
         CriterioBusquedaPredio criterio,
         CancellationToken cancellationToken = default)
     {
@@ -16,7 +17,7 @@ public sealed class PrediosService(HttpClient httpClient, SesionAutenticacion se
             return ResultadoConsultaPredio.NoAutorizado();
 
         var ruta =
-            $"api/predios/buscar?distrito={criterio.Distrito}" +
+            $"api/predios/{Uri.EscapeDataString(municipioCodigo)}/buscar?distrito={criterio.Distrito}" +
             $"&manzana={criterio.Manzana}&predio={criterio.Predio}";
         using var request = new HttpRequestMessage(HttpMethod.Get, ruta);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", sesion.AccessToken);

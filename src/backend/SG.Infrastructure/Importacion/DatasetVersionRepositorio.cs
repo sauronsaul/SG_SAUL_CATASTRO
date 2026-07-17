@@ -13,6 +13,14 @@ internal sealed class DatasetVersionRepositorio(ApplicationDbContext db) : IData
     public Task<ImportacionDomain.DatasetVersion?> ObtenerPorIdSinTrackingAsync(Guid id, CancellationToken ct = default) =>
         db.DatasetVersiones.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id, ct);
 
+    public Task<ImportacionDomain.DatasetVersion?> ObtenerActivaAsync(
+        string municipioCodigo,
+        CancellationToken ct = default) =>
+        db.DatasetVersiones.AsNoTracking().SingleOrDefaultAsync(
+            x => x.MunicipioCodigo == municipioCodigo &&
+                 x.Estado == ImportacionDomain.EstadoDatasetVersion.Activa,
+            ct);
+
     public async Task<IReadOnlyList<ImportacionDomain.DatasetVersion>> ObtenerEnCargaAsync(CancellationToken ct = default) =>
         await db.DatasetVersiones
             .Where(x => x.Estado == ImportacionDomain.EstadoDatasetVersion.EnCarga)

@@ -20,6 +20,7 @@ public sealed class BuscarFichaPredioQueryHandler(
             return Result.Failure<FichaPredioDto>(FichaPredioErrores.CriterioInvalido);
 
         var ficha = await consulta.BuscarAsync(
+            request.MunicipioCodigo,
             request.Distrito,
             request.Manzana,
             request.Predio,
@@ -35,7 +36,7 @@ public static class FichaPredioErrores
 {
     public static readonly DomainError CriterioInvalido = new(
         "FichaPredio.CriterioInvalido",
-        "Distrito, manzana y predio deben ser mayores o iguales a 1.");
+        "El municipio debe ser un código INE válido y distrito, manzana y predio deben ser mayores o iguales a 1.");
 
     public static readonly DomainError NoEncontrado = new(
         "FichaPredio.NoEncontrado",

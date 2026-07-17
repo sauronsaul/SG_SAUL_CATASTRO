@@ -1,24 +1,16 @@
 using FluentAssertions;
-using SG.Web.Models;
+using SG.Contracts.GIS;
 
 namespace SG.Web.Tests;
 
 public sealed class ConfiguracionVisorTests
 {
     [Fact]
-    public void EntregaElBboxConfiguradoAlInteropSinAlterarlo()
+    public void ContratoConservaBboxMunicipalNombrado()
     {
-        var limitesConfigurados = new[]
-        {
-            -66.8474715001568,
-            -20.48223928393051,
-            -66.80351074623223,
-            -20.440762937955693,
-        };
-        var configuracion = new ConfiguracionVisor("051201", limitesConfigurados);
+        var limites = new LimitesVisorDto(-66.84, -20.48, -66.80, -20.44);
 
-        var limitesInterop = configuracion.ObtenerLimitesMapa();
-
-        limitesInterop.Should().Equal(limitesConfigurados);
+        new[] { limites.Oeste, limites.Sur, limites.Este, limites.Norte }
+            .Should().Equal(-66.84, -20.48, -66.80, -20.44);
     }
 }
