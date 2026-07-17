@@ -110,6 +110,18 @@ public sealed class ImportacionesController(ISender sender) : ControllerBase
         return result.IsSuccess ? Ok(result.Value) : MapError(result.Error);
     }
 
+    /// <summary>
+    /// Descarta una versión en PreviewListo y purga sus filas de capas importadas.
+    /// El paquete fuente permanece conservado en MinIO.
+    /// </summary>
+    [HttpPost("versiones/{id:guid}/descartar")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> DescartarVersion(Guid id, CancellationToken ct)
+    {
+        var result = await sender.Send(new DescartarVersionImportacionCommand(id), ct);
+        return result.IsSuccess ? Ok(result.Value) : MapError(result.Error);
+    }
+
     [HttpPost("preview")]
     [Authorize(Roles = "Admin,Tecnico")]
     [RequestSizeLimit(110 * 1024 * 1024)] // 110 MB — margen sobre el límite de 100 MB del comando
@@ -152,6 +164,8 @@ public sealed class ImportacionesController(ISender sender) : ControllerBase
         "Importacion.EstadoInvalidoParaConfirmar" =>
             Problem(detail: error.Message, statusCode: StatusCodes.Status422UnprocessableEntity),
         "VersionImportacion.EstadoNoActivable" =>
+            Problem(detail: error.Message, statusCode: StatusCodes.Status409Conflict),
+        "VersionImportacion.EstadoNoDescartable" =>
             Problem(detail: error.Message, statusCode: StatusCodes.Status409Conflict),
         "VersionImportacion.ReporteNoDisponible" or
         "VersionImportacion.ReporteConBloqueantes" or

@@ -12,6 +12,7 @@ using NetTopologySuite.Geometries;
 using NetTopologySuite.IO.Esri;
 using ProjNet.CoordinateSystems;
 using SG.Api.IntegrationTests.Infrastructure;
+using SG.Application.Abstractions;
 using SG.Application.Abstractions.Importacion;
 using SG.Contracts.Autenticacion;
 using SG.Contracts.Importacion;
@@ -304,6 +305,137 @@ public sealed class ImportacionVersionadaE2ETests : IDisposable
     }
 
     [Fact]
+    public async Task DescartarVersion_PreviewListo_PurgaSoloVersionObjetivoYConservaPaquete()
+    {
+        (Guid Id, bool Creada)? uyuniActiva = null;
+        (Guid Id, bool Creada)? caranaviActiva = null;
+        try
+        {
+            uyuniActiva = await ObtenerOCrearVersionActivaConCapasAsync("051201");
+            caranaviActiva = await ObtenerOCrearVersionActivaConCapasAsync("022001");
+
+            var post = await PostPaqueteAsync(
+                CrearPaqueteSieteCapas(corromperEdificaciones: false),
+                "uyuni-descartar.zip");
+            var objetivo = (await post.Content.ReadFromJsonAsync<CrearVersionImportacionDto>(JsonOpts))!;
+            await EsperarEstadoAsync(objetivo.DatasetVersionId, "PreviewListo");
+
+            int filasUyuniAntes;
+            int filasCaranaviAntes;
+            string rutaPaquete;
+            await using (var scope = _factory.Services.CreateAsyncScope())
+            {
+                var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                filasUyuniAntes = await ContarFilasCapasAsync(db, uyuniActiva.Value.Id);
+                filasCaranaviAntes = await ContarFilasCapasAsync(db, caranaviActiva.Value.Id);
+                (await ContarFilasCapasAsync(db, objetivo.DatasetVersionId)).Should().BeGreaterThan(0);
+                rutaPaquete = (await db.DatasetVersiones.AsNoTracking()
+                    .SingleAsync(x => x.Id == objetivo.DatasetVersionId))
+                    .RutaMinioPaquete!;
+            }
+
+            var response = await _clientAdmin.PostAsync(
+                $"/api/importaciones/versiones/{objetivo.DatasetVersionId}/descartar",
+                null);
+            var cuerpo = await response.Content.ReadAsStringAsync();
+
+            response.StatusCode.Should().Be(HttpStatusCode.OK, cuerpo);
+            var descartada = JsonSerializer.Deserialize<DescartarVersionImportacionDto>(cuerpo, JsonOpts)!;
+            descartada.Should().Be(new DescartarVersionImportacionDto(
+                objetivo.DatasetVersionId,
+                "Descartada"));
+
+            await using (var scope = _factory.Services.CreateAsyncScope())
+            {
+                var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                var persistida = await db.DatasetVersiones.AsNoTracking()
+                    .SingleAsync(x => x.Id == objetivo.DatasetVersionId);
+                persistida.Estado.Should().Be(EstadoDatasetVersion.Descartada);
+                (await ContarFilasCapasAsync(db, objetivo.DatasetVersionId)).Should().Be(0);
+                (await ContarFilasCapasAsync(db, uyuniActiva.Value.Id)).Should().Be(filasUyuniAntes);
+                (await ContarFilasCapasAsync(db, caranaviActiva.Value.Id)).Should().Be(filasCaranaviAntes);
+
+                var minio = scope.ServiceProvider.GetRequiredService<IMinioService>();
+                await using var paquete = await minio.DescargarAsync(rutaPaquete);
+                paquete.Length.Should().BeGreaterThan(0);
+            }
+
+            _output.WriteLine(
+                $"DESCARTAR 200 id={objetivo.DatasetVersionId} estado={descartada.Estado} " +
+                $"filas_objetivo=0 filas_uyuni={filasUyuniAntes} filas_caranavi={filasCaranaviAntes} " +
+                "paquete_minio=conservado");
+        }
+        finally
+        {
+            if (caranaviActiva is { } caranavi)
+                await ArchivarSiFueCreadaAsync(caranavi);
+            if (uyuniActiva is { } uyuni)
+                await ArchivarSiFueCreadaAsync(uyuni);
+        }
+    }
+
+    [Fact]
+    public async Task DescartarVersion_Activa_Retorna409()
+    {
+        var activa = await ObtenerOCrearVersionActivaAsync();
+        try
+        {
+            var response = await _clientAdmin.PostAsync(
+                $"/api/importaciones/versiones/{activa.Id}/descartar",
+                null);
+
+            response.StatusCode.Should().Be(HttpStatusCode.Conflict);
+            _output.WriteLine($"DESCARTAR Activa status={(int)response.StatusCode}");
+        }
+        finally
+        {
+            await ArchivarSiFueCreadaAsync(activa);
+        }
+    }
+
+    [Fact]
+    public async Task DescartarVersion_Fallida_Retorna409()
+    {
+        var versionId = await CrearVersionEnEstadoAsync(EstadoDatasetVersion.Fallida);
+
+        var response = await _clientAdmin.PostAsync(
+            $"/api/importaciones/versiones/{versionId}/descartar",
+            null);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        _output.WriteLine($"DESCARTAR Fallida status={(int)response.StatusCode}");
+    }
+
+    [Fact]
+    public async Task DescartarVersion_Inexistente_Retorna404()
+    {
+        var response = await _clientAdmin.PostAsync(
+            $"/api/importaciones/versiones/{Guid.NewGuid()}/descartar",
+            null);
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        _output.WriteLine($"DESCARTAR inexistente status={(int)response.StatusCode}");
+    }
+
+    [Fact]
+    public async Task DescartarVersion_DobleDescarte_Retorna409EnSegundoIntento()
+    {
+        var versionId = await CrearVersionEnEstadoAsync(EstadoDatasetVersion.PreviewListo);
+
+        var primera = await _clientAdmin.PostAsync(
+            $"/api/importaciones/versiones/{versionId}/descartar",
+            null);
+        var segunda = await _clientAdmin.PostAsync(
+            $"/api/importaciones/versiones/{versionId}/descartar",
+            null);
+
+        primera.StatusCode.Should().Be(HttpStatusCode.OK);
+        segunda.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        _output.WriteLine(
+            $"DESCARTAR doble primera={(int)primera.StatusCode} segunda={(int)segunda.StatusCode}");
+    }
+
+    [Fact]
     public async Task PostVersion_ShpCorrupto_MarcaFallidaYPurgaLasCapas()
     {
         var paquete = CrearPaqueteSieteCapas(corromperEdificaciones: true);
@@ -379,15 +511,146 @@ SELECT (
         _output.WriteLine($"Huérfana: estado={huerfana.Estado}, error={huerfana.ErrorCarga}");
     }
 
-    private async Task<HttpResponseMessage> PostPaqueteAsync(byte[] paquete, string nombre)
+    private async Task<HttpResponseMessage> PostPaqueteAsync(
+        byte[] paquete,
+        string nombre,
+        string municipioCodigo = "051201")
     {
         using var content = new MultipartFormDataContent();
-        content.Add(new StringContent("051201"), "municipio_codigo");
+        content.Add(new StringContent(municipioCodigo), "municipio_codigo");
         var archivo = new ByteArrayContent(paquete);
         archivo.Headers.ContentType = new MediaTypeHeaderValue("application/zip");
         content.Add(archivo, "paquete", nombre);
         return await _clientAdmin.PostAsync("/api/importaciones/versiones", content);
     }
+
+    private async Task<Guid> ImportarYMarcarActivaSinReconciliarAsync(
+        byte[] paquete,
+        string municipioCodigo,
+        string nombre)
+    {
+        var post = await PostPaqueteAsync(paquete, nombre, municipioCodigo);
+        post.StatusCode.Should().Be(HttpStatusCode.Accepted);
+        var creada = (await post.Content.ReadFromJsonAsync<CrearVersionImportacionDto>(JsonOpts))!;
+        await EsperarEstadoAsync(creada.DatasetVersionId, "PreviewListo");
+
+        await using var scope = _factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var version = await db.DatasetVersiones.SingleAsync(x => x.Id == creada.DatasetVersionId);
+        version.Activar(Guid.NewGuid());
+        await db.SaveChangesAsync();
+        return creada.DatasetVersionId;
+    }
+
+    private async Task<(Guid Id, bool Creada)> ObtenerOCrearVersionActivaConCapasAsync(
+        string municipioCodigo)
+    {
+        await using var scope = _factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var existente = await db.DatasetVersiones.AsNoTracking()
+            .FirstOrDefaultAsync(x =>
+                x.MunicipioCodigo == municipioCodigo &&
+                x.Estado == EstadoDatasetVersion.Activa);
+        if (existente is not null)
+            return (existente.Id, false);
+
+        var id = municipioCodigo switch
+        {
+            "051201" => await ImportarYMarcarActivaSinReconciliarAsync(
+                CrearPaqueteSieteCapas(corromperEdificaciones: false),
+                municipioCodigo,
+                "uyuni-activa-control-descarte.zip"),
+            "022001" => await ImportarYMarcarActivaSinReconciliarAsync(
+                CrearPaqueteTresCapasCaranavi(),
+                municipioCodigo,
+                "caranavi-activa-control-descarte.zip"),
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(municipioCodigo),
+                municipioCodigo,
+                null),
+        };
+        return (id, true);
+    }
+
+    private async Task<(Guid Id, bool Creada)> ObtenerOCrearVersionActivaAsync()
+    {
+        await using var scope = _factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var existente = await db.DatasetVersiones.AsNoTracking()
+            .FirstOrDefaultAsync(x =>
+                x.MunicipioCodigo == "051201" &&
+                x.Estado == EstadoDatasetVersion.Activa);
+        if (existente is not null)
+            return (existente.Id, false);
+
+        return (await CrearVersionEnEstadoAsync(EstadoDatasetVersion.Activa), true);
+    }
+
+    private async Task ArchivarSiFueCreadaAsync((Guid Id, bool Creada) activa)
+    {
+        if (!activa.Creada)
+            return;
+
+        await using var scope = _factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var version = await db.DatasetVersiones.SingleAsync(x => x.Id == activa.Id);
+        if (version.Estado == EstadoDatasetVersion.Activa)
+        {
+            version.Archivar(Guid.NewGuid());
+            await db.SaveChangesAsync();
+        }
+    }
+
+    private async Task<Guid> CrearVersionEnEstadoAsync(EstadoDatasetVersion estado)
+    {
+        await using var scope = _factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var numero = (await db.DatasetVersiones
+            .Where(x => x.MunicipioCodigo == "051201")
+            .MaxAsync(x => (int?)x.NumeroVersion) ?? 0) + 1;
+        var version = DatasetVersion.Crear(
+            numero,
+            "051201",
+            null,
+            $"Prueba descarte {estado}",
+            $"paquetes/prueba-descarte-{Guid.NewGuid():N}.zip");
+        switch (estado)
+        {
+            case EstadoDatasetVersion.PreviewListo:
+                version.MarcarPreviewListo();
+                break;
+            case EstadoDatasetVersion.Fallida:
+                version.MarcarFallida();
+                break;
+            case EstadoDatasetVersion.Activa:
+                version.MarcarPreviewListo();
+                version.Activar(Guid.NewGuid());
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(estado), estado, null);
+        }
+
+        db.DatasetVersiones.Add(version);
+        await db.SaveChangesAsync();
+        return version.Id;
+    }
+
+    private static async Task<int> ContarFilasCapasAsync(
+        ApplicationDbContext db,
+        Guid versionId) =>
+        await db.Database.SqlQuery<int>($"""
+            SELECT (
+                (SELECT COUNT(*) FROM dominio.capa_parcelas WHERE dataset_version_id = {versionId}) +
+                (SELECT COUNT(*) FROM dominio.capa_edificaciones WHERE dataset_version_id = {versionId}) +
+                (SELECT COUNT(*) FROM dominio.capa_predios_no_fotografiados WHERE dataset_version_id = {versionId}) +
+                (SELECT COUNT(*) FROM dominio.capa_manzanas WHERE dataset_version_id = {versionId}) +
+                (SELECT COUNT(*) FROM dominio.capa_distritos WHERE dataset_version_id = {versionId}) +
+                (SELECT COUNT(*) FROM dominio.capa_zonas WHERE dataset_version_id = {versionId}) +
+                (SELECT COUNT(*) FROM dominio.capa_vias WHERE dataset_version_id = {versionId}) +
+                (SELECT COUNT(*) FROM dominio.capa_areas_urbanas WHERE dataset_version_id = {versionId}) +
+                (SELECT COUNT(*) FROM dominio.capa_puntos_geodesicos WHERE dataset_version_id = {versionId})
+            )::int AS "Value"
+            """).SingleAsync();
 
     private async Task<int> ContarVersionesAsync()
     {

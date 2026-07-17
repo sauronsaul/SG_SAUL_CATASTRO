@@ -23,6 +23,9 @@ public static class VersionImportacionErrores
     public static readonly DomainError EstadoNoActivable =
         new("VersionImportacion.EstadoNoActivable", "La versión debe estar en PreviewListo o Archivada para activarse.");
 
+    public static readonly DomainError EstadoNoDescartable =
+        new("VersionImportacion.EstadoNoDescartable", "La versión debe estar en PreviewListo para descartarse.");
+
     public static readonly DomainError ReporteNoDisponible =
         new("VersionImportacion.ReporteNoDisponible", "La versión no tiene un reporte de preview completo.");
 

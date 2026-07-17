@@ -24,6 +24,10 @@ Invoke-RestMethod -Method Get `
 `Invoke-RestMethod` deserializa JSON. La evidencia legible exige serializar
 explícitamente con `ConvertTo-Json`; la tabla PowerShell no es el payload JSON.
 
+Las lecturas del visor admiten los roles `Admin` y `Tecnico`; las transiciones
+del ciclo de vida de una versión (`activar` y `descartar`) son exclusivas de
+`Admin`.
+
 ## Cargar y esperar el preview
 
 ```powershell
@@ -65,6 +69,29 @@ Invoke-RestMethod -Method Post `
 
 La activación archiva la versión activa anterior del mismo municipio. Nunca se
 supone `numero_version`; la línea base se selecciona por `estado = 'Activa'`.
+
+## Descartar un preview
+
+Una versión en `PreviewListo` que no se activará se descarta mediante el dominio:
+
+```powershell
+Invoke-RestMethod -Method Post `
+  -Uri "$baseUrl/api/importaciones/versiones/$($respuesta.datasetVersionId)/descartar" `
+  -Headers $headers |
+  ConvertTo-Json -Depth 20
+```
+
+La operación cambia el estado a `Descartada` y elimina las filas derivadas de
+esa versión en las nueve tablas `capa_*`, sin afectar versiones activas ni otros
+municipios. Una versión inexistente devuelve `404`; cualquier estado distinto
+de `PreviewListo` devuelve `409`, incluida una segunda solicitud de descarte.
+Una versión `Activa` nunca se puede descartar.
+
+El paquete fuente se conserva deliberadamente en MinIO, igual que en una carga
+`Fallida`. La purga de PostgreSQL y la eliminación de un objeto en MinIO no
+pueden formar una transacción atómica; conservarlo mantiene la evidencia para
+diagnóstico y evita una limpieza parcial. No se debe borrar manualmente como si
+fuera un archivo huérfano.
 
 ## Mensajes PostGIS
 

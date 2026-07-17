@@ -89,6 +89,10 @@ public sealed record ActivarVersionImportacionDto(
     string Estado,
     ResumenReconciliacionDto Resumen);
 
+public sealed record DescartarVersionImportacionDto(
+    Guid DatasetVersionId,
+    string Estado);
+
 public sealed record EstadoVersionImportacionDto(
     Guid DatasetVersionId,
     int NumeroVersion,

@@ -5,7 +5,9 @@ using Microsoft.Extensions.Configuration;
 using NetTopologySuite.Geometries;
 using SG.Application.Abstractions;
 using SG.Application.Abstractions.Importacion;
+using SG.Application.Importacion.Versiones;
 using SG.Contracts.Importacion;
+using SG.Domain.Common;
 using SG.Domain.Importacion;
 using SG.Infrastructure.Persistencia;
 
@@ -111,6 +113,54 @@ internal sealed class CargaVersionadaServicio(
         await versiones.GuardarCambiosAsync(ct);
 
         // El trigger permite DELETE únicamente para EnCarga/Fallida/Descartada.
+        await PurgarCapasAsync(datasetVersionId, ct);
+    }
+
+    public async Task<Result<DescartarVersionImportacionDto>> DescartarYPurgarAsync(
+        Guid datasetVersionId,
+        CancellationToken ct = default)
+    {
+        await using var transaccion = await db.Database.BeginTransactionAsync(ct);
+        try
+        {
+            var version = await versiones.ObtenerPorIdAsync(datasetVersionId, ct);
+            if (version is null)
+            {
+                await transaccion.RollbackAsync(ct);
+                return Result.Failure<DescartarVersionImportacionDto>(
+                    VersionImportacionErrores.NoEncontrada);
+            }
+
+            if (version.Estado != EstadoDatasetVersion.PreviewListo)
+            {
+                await transaccion.RollbackAsync(ct);
+                return Result.Failure<DescartarVersionImportacionDto>(
+                    VersionImportacionErrores.EstadoNoDescartable);
+            }
+
+            version.Descartar();
+            await versiones.GuardarCambiosAsync(ct);
+            await PurgarCapasAsync(datasetVersionId, ct);
+            await transaccion.CommitAsync(ct);
+
+            return Result.Success(new DescartarVersionImportacionDto(
+                version.Id,
+                version.Estado.ToString()));
+        }
+        catch (OperationCanceledException)
+        {
+            await transaccion.RollbackAsync(CancellationToken.None);
+            throw;
+        }
+        catch
+        {
+            await transaccion.RollbackAsync(CancellationToken.None);
+            throw;
+        }
+    }
+
+    private async Task PurgarCapasAsync(Guid datasetVersionId, CancellationToken ct)
+    {
         await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM dominio.capa_parcelas WHERE dataset_version_id = {datasetVersionId}", ct);
         await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM dominio.capa_edificaciones WHERE dataset_version_id = {datasetVersionId}", ct);
         await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM dominio.capa_predios_no_fotografiados WHERE dataset_version_id = {datasetVersionId}", ct);
