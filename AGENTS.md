@@ -479,6 +479,11 @@ La normativa debe convertirse en: reglas, validaciones, estructuras de datos, pr
   el historial de la fase si existe un mecanismo canónico para el shell y el
   entorno propios. El caso de referencia es SQL: PowerShell usa `sql.ps1`, no
   el `sql.sh` destinado al orquestador Git Bash.
+- Los hashes de commit se toman de evidencia actual, nunca de memoria. Antes y
+  después de cada operación relevante se registra `git rev-parse --short HEAD`;
+  toda evidencia debe quedar anclada al hash que realmente estaba en `HEAD`.
+  Cuando sea posible, se prefieren `HEAD` y referencias relativas antes que
+  reutilizar hashes citados en un prompt o en una sesión anterior.
 - El acceso SQL canónico del ejecutor es
   `powershell -ExecutionPolicy Bypass -File scripts\sql.ps1 -Sql "<SQL>"`.
   `scripts/sql.sh` pertenece al orquestador que opera con Git Bash; no debe
@@ -489,6 +494,31 @@ La normativa debe convertirse en: reglas, validaciones, estructuras de datos, pr
 - `Invoke-RestMethod` deserializa JSON. Para evidencia del contrato, canalizar
   el resultado a `ConvertTo-Json -Depth <n>`; el formato tabular de PowerShell
   no representa el payload JSON.
+- La API local publicada por Caddy se opera desde PowerShell con
+  `Invoke-RestMethod` o `Invoke-WebRequest`, usando `http://localhost` como URL
+  base. El `Caddyfile.local` declara `auto_https off` y sirve en `:80`; intentar
+  HTTPS con `curl.exe` contra el puerto 443 publicado produce el error
+  `schannel: failed to receive handshake`.
+- Para obtener un token, enviar `POST /api/auth/login` con el JSON
+  `{ email, password }` mediante `Invoke-RestMethod` y usar el `accessToken` de
+  la respuesta. La contraseña se captura con `Read-Host -AsSecureString` y se
+  convierte sólo en memoria para construir la solicitud; nunca se escribe como
+  literal en el comando ni se imprime. Este patrón es exclusivo del entorno
+  local sobre `http://localhost`, donde Caddy sirve en claro. Contra cualquier
+  despliegue remoto es obligatorio HTTPS. La variable con la contraseña en
+  claro no se imprime, no se pasa como argumento y no aparece en evidencia
+  (ADR 0014/0042).
+- El JSON hacia la API nunca se pasa como argumento de `curl.exe`: PowerShell 5
+  altera las comillas y el servidor puede recibir un cuerpo inválido, como
+  `\u0027p\u0027 is an invalid start of a property name`. Para JSON usar
+  `Invoke-RestMethod`; `curl.exe` sí es válido para multipart.
+- Una respuesta `202 Accepted` confirma recepción, no finalización. Se conserva
+  el identificador retornado y se consulta el endpoint de estado con
+  `Invoke-RestMethod` mediante el sondeo `do { ... } while (...)` ya definido,
+  hasta alcanzar un estado terminal; nunca se atribuye éxito al `202` aislado.
+- Las contrapruebas HTTP se ejecutan con `curl.exe -i`, nunca con `-s`: un token
+  vencido combinado con salida silenciosa es indistinguible de una prueba sin
+  respuesta.
 - Los `NOTICE` de PostGIS emitidos por `ST_IsValid` son evidencia informativa
   de geometrías inválidas, no un fallo del wrapper SQL. El fallo se determina
   por código de salida, excepción o resultado contractual.
@@ -530,9 +560,77 @@ La normativa debe convertirse en: reglas, validaciones, estructuras de datos, pr
   anterior. Tras un build correcto se usa `up --force-recreate` con el Compose
   canónico y se verifica la antigüedad del contenedor con `docker ps` antes de
   atribuirle el código nuevo.
+- Después de recrear el despliegue se espera la salud real del contenedor; no se
+  acepta un `Start-Sleep` fijo como gate:
+
+  ```powershell
+  $intentos = 0
+  do {
+    Start-Sleep -Seconds 3
+    $estadoSalud = docker inspect --format "{{.State.Health.Status}}" sg_api 2>$null
+    $intentos++
+  } until ($estadoSalud -eq "healthy" -or $intentos -ge 40)
+  if ($estadoSalud -ne "healthy") {
+    throw "sg_api no alcanzo healthy: estado='$estadoSalud' tras $intentos intentos"
+  }
+  ```
+
+  Toda verificación funcional comienza después de `healthy`. Ejecutarla mientras
+  el contenedor está en `starting` produce falsos negativos; el caso de
+  referencia fueron perfiles seed reportados como ausentes antes de que el
+  seeder terminara. Un bucle sin cota superior cuelga la sesión si el contenedor
+  entra en `crash-loop` o no declara `healthcheck`; el límite de intentos
+  convierte ese caso en un fallo explícito.
 - `numero_version` es el consecutivo interno del dataset y no debe confundirse
   con su etiqueta comercial. Toda línea base operativa se selecciona por
   `estado = 'Activa'`, nunca suponiendo un número de versión.
+
+---
+
+## 17-ter. Frente CAD/DGN
+
+- En Windows, GDAL está disponible mediante QGIS LTR. Los comandos se ejecutan
+  desde **OSGeo4W Shell** del menú Inicio, que incorpora GDAL al `PATH`. El
+  entorno de Codex no dispone de GDAL; este frente se ejecuta en la máquina del
+  orquestador.
+- El driver DGN de GDAL lee directamente archivos DGN v7 y expone una sola capa
+  llamada `elements`. Los niveles de MicroStation no son capas: se consultan en
+  el atributo numérico `Level`; los rótulos se obtienen del atributo `Text`.
+- La inspección canónica de estructura y metadatos es:
+
+  ```text
+  ogrinfo -al -so "<ruta.dgn>"
+  ```
+
+- El censo de elementos por nivel usa el dialecto SQLite:
+
+  ```text
+  ogrinfo -q -dialect SQLITE -sql "SELECT Level, COUNT(*) AS cantidad FROM elements GROUP BY Level" "<ruta.dgn>"
+  ```
+
+- La conversión canónica a GeoPackage excluye los niveles 62 y 63 y aplica
+  también el rectángulo espacial de Caranavi:
+
+  ```text
+  ogr2ogr -f GPKG "<salida.gpkg>" "<ruta.dgn>" -dialect SQLITE -sql "SELECT * FROM elements WHERE Level NOT IN (62,63)" -spat 640000 8230000 665000 8255000 -nln catastral -a_srs EPSG:32719
+  ```
+
+- `-a_srs` asigna el SRS sin reproyectar; sólo es válido porque las coordenadas
+  del DGN ya están en UTM 19S. Si el origen estuviera en otra proyección,
+  corresponde usar `-s_srs` y `-t_srs`.
+- Los mensajes
+  `Warning: organizePolygons() received an unexpected geometry` emitidos por
+  `ogrinfo` u `ogr2ogr` son informativos y no bloqueantes. Se evalúa el código
+  de salida y el producto obtenido, siguiendo el mismo criterio ya documentado
+  en 17-bis para los `NOTICE` de `ST_IsValid`.
+- Excluir `Level IN (62,63)` no es suficiente. Se verificaron elementos sueltos
+  con coordenadas corruptas en niveles catastrales que, al visualizarlos sobre
+  un mapa base, aparecen en Canadá, Patagonia y la Antártida. El filtro completo
+  para Caranavi combina nivel y bbox: `X` entre `640000` y `665000`, `Y` entre
+  `8230000` y `8255000`, en `EPSG:32719`. Estos límites son provisionales:
+  derivan de inspección visual y quedan pendientes de contraprueba cuantitativa
+  —conteo total, excluido por `Level` y excluido adicionalmente por bbox— antes
+  de considerarse canónicos.
 
 ---
 
