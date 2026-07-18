@@ -608,29 +608,69 @@ La normativa debe convertirse en: reglas, validaciones, estructuras de datos, pr
   ogrinfo -q -dialect SQLITE -sql "SELECT Level, COUNT(*) AS cantidad FROM elements GROUP BY Level" "<ruta.dgn>"
   ```
 
-- La conversión canónica a GeoPackage excluye los niveles 62 y 63 y aplica
-  también el rectángulo espacial de Caranavi:
+- La conversión base a GeoPackage excluye los niveles 62 y 63 y materializa el
+  resultado antes de aplicar controles espaciales:
 
   ```text
-  ogr2ogr -f GPKG "<salida.gpkg>" "<ruta.dgn>" -dialect SQLITE -sql "SELECT * FROM elements WHERE Level NOT IN (62,63)" -spat 640000 8230000 665000 8255000 -nln catastral -a_srs EPSG:32719
+  ogr2ogr -f GPKG "<salida.gpkg>" "<ruta.dgn>" -dialect SQLITE -sql "SELECT * FROM elements WHERE Level NOT IN (62,63)" -nln catastral -a_srs EPSG:32719
   ```
 
 - `-a_srs` asigna el SRS sin reproyectar; sólo es válido porque las coordenadas
   del DGN ya están en UTM 19S. Si el origen estuviera en otra proyección,
   corresponde usar `-s_srs` y `-t_srs`.
+- `-spat` se aplica sobre la capa resultado de `-sql`, no sobre la capa origen.
+  Combinarlo con una agregación como `COUNT` o `SUM` falla con
+  `ERROR 1: Cannot set spatial filter: no geometry field present in layer`.
+  Para contar con filtro espacial se materializa primero a GeoPackage y se
+  cuenta sobre el resultado.
+- Los conteos sobre DGN con cláusula `WHERE` no son confiables: se observaron
+  desviaciones cercanas al 1 % respecto de la agregación completa sin filtro,
+  en ambos sentidos y sin causa atribuida. El `GROUP BY` sin `WHERE` sí
+  reconcilia contra el `Feature Count` del archivo. Toda cifra destinada a un
+  informe se obtiene del GeoPackage materializado, nunca del DGN filtrado.
+- Los polígonos DGN aparecen como `Type 6` (`shape`) y `Type 14`
+  (`complex shape`). Un lector que procesa sólo `Type 6` pierde silenciosamente
+  el 38 % de los polígonos; ambos tipos son obligatorios.
+- Los textos del DGN usan codificación heredada; se observó `Urbanizaci¾n` en
+  lugar de `Urbanizacion`. Deben normalizarse a UTF-8 antes de persistirlos en
+  PostgreSQL.
+- `MAX(Text)` en una agregación devuelve el máximo alfabético, no una muestra
+  representativa. Para inspeccionar contenido se usa
+  `SELECT Text ... LIMIT n`, filtrando un solo `Level` por consulta.
 - Los mensajes
   `Warning: organizePolygons() received an unexpected geometry` emitidos por
   `ogrinfo` u `ogr2ogr` son informativos y no bloqueantes. Se evalúa el código
   de salida y el producto obtenido, siguiendo el mismo criterio ya documentado
   en 17-bis para los `NOTICE` de `ST_IsValid`.
+- En archivos grandes, la salida de `ogrinfo` y `ogr2ogr` puede quedar inundada
+  por esos avisos. Se captura una sola vez con `> <ruta.log> 2>&1` y después se
+  filtra con `findstr /v /c:"organizePolygons" <ruta.log>`; no se reejecuta la
+  operación para cada filtro de evidencia.
 - Excluir `Level IN (62,63)` no es suficiente. Se verificaron elementos sueltos
   con coordenadas corruptas en niveles catastrales que, al visualizarlos sobre
-  un mapa base, aparecen en Canadá, Patagonia y la Antártida. El filtro completo
-  para Caranavi combina nivel y bbox: `X` entre `640000` y `665000`, `Y` entre
-  `8230000` y `8255000`, en `EPSG:32719`. Estos límites son provisionales:
-  derivan de inspección visual y quedan pendientes de contraprueba cuantitativa
-  —conteo total, excluido por `Level` y excluido adicionalmente por bbox— antes
-  de considerarse canónicos.
+  un mapa base, aparecen en Canadá, Patagonia y la Antártida. De los 121.432
+  elementos posteriores a excluir los niveles 62 y 63, el bbox municipal
+  descartaba 2.668: 2.645 eran elementos colapsados en origen, con todos sus
+  vértices cerca de `(0,0)`, pero 7 eran cartografía legítima recortada por
+  error. El criterio canónico no usa un bbox municipal: descarta solamente los
+  elementos cuya geometría completa cae fuera del rango válido de UTM 19S para
+  Bolivia.
+- El conteo reproducible de geometrías descartables se ejecuta sobre el
+  GeoPackage ya materializado:
+
+  ```text
+  ogrinfo -q -dialect SQLITE -sql "SELECT COUNT(*) AS descartables FROM catastral WHERE ST_MaxX(GEOMETRY) < 200000 OR ST_MinX(GEOMETRY) > 900000 OR ST_MaxY(GEOMETRY) < 7000000 OR ST_MinY(GEOMETRY) > 9500000" "<salida.gpkg>"
+  ```
+
+  Los límites `200000-900000` en X y `7000000-9500000` en Y corresponden al
+  rango plausible de UTM 19S sobre territorio boliviano, no a un municipio. Su
+  propósito es descartar geometrías imposibles, no recortar por extensión
+  urbana. El filtro se aplica sobre el GeoPackage materializado, nunca sobre el
+  DGN, por las limitaciones ya documentadas de `WHERE` y `-spat`.
+- `ST_Contains` produce resultados falsos sobre geometrías inválidas. Se
+  observaron cuatro polígonos inválidos de `Type 14` que reportaron contener la
+  totalidad de los textos del archivo. Todo join espacial debe filtrar por
+  `ST_IsValid` o aplicar `ST_MakeValid` previamente.
 
 ---
 
