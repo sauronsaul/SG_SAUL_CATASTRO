@@ -264,3 +264,50 @@ La fase 3.B continúa el trabajo multi-municipio cerrado en 3.A y se apoya en
 los ADR 0058 a 0062. Este documento es un dimensionamiento de trabajo, no un
 ADR. Cada sub-etapa que establezca una decisión de diseño firme generará su
 propio ADR durante la ejecución.
+
+## Adenda (22 de julio de 2026): vehículo de importación de la primera entrega
+
+Verificación posterior a la v2, sobre esquema de base de datos, índices,
+validaciones de importación y visor (evidencia de solo lectura, sesión del 22
+de julio):
+
+- La tripleta es obligatoria en cinco capas independientes del camino
+  `capa_parcelas` → `predios`: NOT NULL en ambas tablas, índice único parcial
+  `uix_predios_municipio_triplete_activo` sobre
+  `(municipio_codigo, cod_uv, cod_man, cod_pred) WHERE (NOT is_deleted)`,
+  propiedades `int` no anulables en el dominio con conversión que lanza ante
+  ausencia, rechazo explícito del mapeador (`CamposTripleta`) y bloqueantes de
+  preview B1/B2. Adicionalmente, B4 y la reconciliación exigen superficie
+  declarada positiva, atributo que el Level 4 del DGN no provee.
+- En consecuencia, importar el padrón de Caranavi por `TipoCapa.Predios` con
+  tripleta incompleta es inviable sin una decisión de modelo mayor (identidad
+  provisional del predio), que atravesaría las cinco capas más las reglas de
+  reconciliación.
+- La búsqueda y la ficha predial del visor están indexadas por tripleta
+  completa (distrito, manzana, predio). Un predio sin tripleta no es buscable
+  ni alcanzable en ficha aunque exista en el registro maestro: relajar el
+  modelo hoy no produciría valor funcional visible adicional para Caranavi.
+- `capa_predios_no_fotografiados` admite tripleta nula de punta a punta
+  (columnas anulables, carga con conversión opcional, sin bloqueantes
+  propios), tiene tile MVT propio que incluye `cod_uv`/`cod_man`/`cod_pred`
+  como atributos, y está probada en operación con datos activos de Uyuni
+  (2.352 filas en la versión activa). No se reconcilia al registro maestro.
+
+DECISIÓN: la primera importación del padrón de Caranavi usará
+`TipoCapa.PrediosNoFotografiados` como vehículo. La sub-etapa 3.B.7 se lee
+con ese destino. La semántica es además fiel al estado real de los predios:
+polígonos catastrales en reconstrucción de clave, sin relevamiento asociado.
+La decisión de modelo sobre identidad provisional del predio (ascenso al
+registro maestro con tripleta incompleta) se difiere hasta que `cod_man` o
+`cod_uv` tengan una vía de obtención real; se documentará entonces en su
+propio ADR con el problema completo a la vista.
+
+Precisión al alcance declarado en «No-objetivos»: «sin cambios de backend» se
+entiende como sin cambios de modelo ni de esquema de base de datos. La
+ejecución de 3.B.7 por esta vía requiere: (a) seed del perfil de importación
+`caranavi-versionado-predios-no-fotografiados` y su entrada en el esquema
+municipal de Caranavi; (b) ajustes menores de presentación a decidir en su
+momento — el mensaje del visor «este municipio aún no tiene catastro predial
+cargado» (derivado de `TienePredios`, que esta capa no activa), y el título,
+color y zoom mínimo de la capa en el catálogo de presentación. Ninguno de
+estos ajustes altera dominio, esquema ni reglas de importación.
