@@ -671,6 +671,24 @@ La normativa debe convertirse en: reglas, validaciones, estructuras de datos, pr
   observaron cuatro polígonos inválidos de `Type 14` que reportaron contener la
   totalidad de los textos del archivo. Todo join espacial debe filtrar por
   `ST_IsValid` o aplicar `ST_MakeValid` previamente.
+- Los joins catastrales entre polígonos usan el centroide, no la contención del
+  polígono completo. En un padrón predial, los lotes tapizan la manzana y tocan
+  su borde, por lo que `ST_Contains(manzana, predio)` falla en los predios
+  perimetrales. El criterio robusto es
+  `ST_Contains(contenedor, ST_Centroid(contenido))`; para polígonos cóncavos se
+  usa `ST_PointOnSurface`.
+- Con `-dialect SQLITE` sobre fuentes DGN se usa siempre `SELECT *`. Cualquier
+  lista explícita de columnas hace que la geometría se pierda silenciosamente:
+  la consulta devuelve filas sin error, pero sin geometría. Si se necesita
+  filtrar columnas, se hace aguas abajo sobre un GeoPackage intermedio, nunca
+  en la consulta contra el DGN.
+- En agregaciones sobre relaciones espaciales solapadas se define
+  explícitamente qué contenedor se busca antes de agregar. Si un centroide cae
+  dentro de varios polígonos anidados o solapados, `MAX(area)` selecciona el
+  contenedor más grande e infla el resultado. Cuando se busca el contenedor más
+  específico, o mínimo envolvente, el criterio correcto es `MIN(area)`. La regla
+  no es usar siempre `MIN`, sino que la agregación corresponda a una definición
+  explícita del contenedor buscado.
 
 ---
 
