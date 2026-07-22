@@ -144,7 +144,7 @@ ORDER BY indexname")
         municipios.Should().HaveCount(2);
         municipios.Should().OnlyContain(x => x.FuenteCodigo == fuente);
         uyuni.Should().Be(7);
-        caranavi.Should().Be(3);
+        caranavi.Should().Be(4);
     }
 
     [Theory]

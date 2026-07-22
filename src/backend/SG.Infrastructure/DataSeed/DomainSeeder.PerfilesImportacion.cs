@@ -27,12 +27,15 @@ public static partial class DomainSeeder
     private static readonly IReadOnlyList<DefinicionCapaSeed> CapasVersionadasCaranavi =
     [
         new("caranavi-versionado-manzanas", TipoCapa.Manzanas, "MANZANOS_PROY.shp", "capa_manzanas"),
+        new("caranavi-versionado-predios-no-fotografiados", TipoCapa.PrediosNoFotografiados, "PRE_NOF_CAR.shp", "capa_predios_no_fotografiados"),
         new("caranavi-versionado-areas-urbanas", TipoCapa.AreasUrbanas, "AREA_URBANA.shp", "capa_areas_urbanas"),
         new("caranavi-versionado-puntos-geodesicos", TipoCapa.PuntosGeodesicos, "puntos_geodesicos.shp", "capa_puntos_geodesicos"),
     ];
 
     public static async Task SeedPerfilesImportacionAsync(ApplicationDbContext db, ILogger logger)
     {
+        await SeedEsquemaPrediosNoFotografiadosCaranaviAsync(db);
+
         var existentes = await db.PerfilesImportacion
             .Select(x => x.Nombre)
             .ToListAsync();
@@ -56,6 +59,30 @@ public static partial class DomainSeeder
 
         await db.SaveChangesAsync();
         LogSeedPerfilesFin(logger);
+    }
+
+    private static async Task SeedEsquemaPrediosNoFotografiadosCaranaviAsync(ApplicationDbContext db)
+    {
+        const string municipioCodigo = "022001";
+        const string nombrePerfil = "caranavi-versionado-predios-no-fotografiados";
+
+        var existe = await db.EsquemasCapas
+            .IgnoreQueryFilters()
+            .AnyAsync(x => x.MunicipioCodigo == municipioCodigo && x.NombrePerfil == nombrePerfil);
+        if (existe)
+            return;
+
+        var definicion = CapasVersionadasCaranavi.Single(x => x.NombrePerfil == nombrePerfil);
+        var esquema = EsquemaCapaMunicipio.Crear(
+            municipioCodigo,
+            definicion.TipoCapa,
+            definicion.NombrePerfil,
+            definicion.NombreArchivoShp,
+            definicion.TablaDestino,
+            obligatoria: false);
+
+        db.EsquemasCapas.Add(esquema.Value);
+        await db.SaveChangesAsync();
     }
 
     private static PerfilImportacion SeedPerfilPrediosUyuni()
@@ -179,6 +206,13 @@ public static partial class DomainSeeder
             CrearPerfilVersionado(definiciones["caranavi-versionado-manzanas"],
             [
                 ("No_MANZANO", "CapaManzana.CodMan", false),
+            ]),
+            CrearPerfilVersionado(definiciones["caranavi-versionado-predios-no-fotografiados"],
+            [
+                ("cod_pred", "CapaPredioNoFotografiado.CodPred", false),
+                ("cod_uv", "CapaPredioNoFotografiado.CodUv", false),
+                ("cod_man", "CapaPredioNoFotografiado.CodMan", false),
+                ("cod_geo", "CapaPredioNoFotografiado.CodigoGeografico", false),
             ]),
             CrearPerfilVersionado(definiciones["caranavi-versionado-areas-urbanas"], []),
             CrearPerfilVersionado(definiciones["caranavi-versionado-puntos-geodesicos"], []),

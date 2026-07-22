@@ -112,6 +112,7 @@ public sealed class ImportacionVersionadaCaranaviE2ETests : IDisposable
         preview.ReportePreliminar.CapasCompletadas.Should().BeEquivalentTo(new Dictionary<string, int>
         {
             ["capa_manzanas"] = 2,
+            ["capa_predios_no_fotografiados"] = 0,
             ["capa_areas_urbanas"] = 2,
             ["capa_puntos_geodesicos"] = 2,
         });
@@ -125,7 +126,7 @@ public sealed class ImportacionVersionadaCaranaviE2ETests : IDisposable
         preview.ReportePreliminar.Validacion.ProyeccionReconciliacion.MotivoOmision
             .Should().Be("Esquema municipal sin capa de predios.");
         preview.ReportePreliminar.Validacion.EsquemaEvaluado!.MunicipioCodigo.Should().Be("022001");
-        preview.ReportePreliminar.Validacion.EsquemaEvaluado.Capas.Should().HaveCount(3);
+        preview.ReportePreliminar.Validacion.EsquemaEvaluado.Capas.Should().HaveCount(4);
 
         await VerificarFilasCaranaviAsync(caranavi.DatasetVersionId);
 
