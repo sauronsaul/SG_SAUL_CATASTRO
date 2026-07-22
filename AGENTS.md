@@ -689,6 +689,29 @@ La normativa debe convertirse en: reglas, validaciones, estructuras de datos, pr
   específico, o mínimo envolvente, el criterio correcto es `MIN(area)`. La regla
   no es usar siempre `MIN`, sino que la agregación corresponda a una definición
   explícita del contenedor buscado.
+- En los GeoPackage materializados desde DGN, la columna de geometría hereda el
+  nombre `GEOMETRY` en mayúsculas, no el nombre predeterminado `geom` de GPKG.
+  Antes de escribir SQL contra el artefacto se verifica siempre el nombre con
+  `ogrinfo -so`.
+- El conteo de vértices y la sinuosidad por elemento no discriminan contenido
+  sobre un DGN con geometría explotada. Primero se verifica la distribución de
+  vértices; si domina el segmento de dos puntos, se reconstruye con
+  `ST_LineMerge` antes de intentar clasificar.
+- Un `ST_LineMerge` que apenas reduce el conteo es en sí mismo un resultado
+  diagnóstico: significa que los segmentos no comparten extremos, descarta que
+  sean polilíneas explotadas y apunta a simbología dibujada, como tramas de
+  relleno o hachuras.
+- Toda cifra de conteo declara su estadio de procedencia: fuente bruta, fuente
+  filtrada de corruptos o fuente explotada mediante `-explodecollections` o
+  multiparte. El mismo `Level` produce conteos distintos según el estadio;
+  citar un número sin estadio invalida la comparación. En el caso verificado de
+  `Level 10`: `71.898` en la fuente bruta (`catastral.gpkg`), `73.771` en un
+  artefacto derivado sin comando reproducible, y `71.831` citado sin procedencia
+  rastreable. Solo la primera cifra es canónica.
+- Todo artefacto derivado, como un GeoPackage intermedio, registra el comando
+  exacto que lo generó. Un artefacto sin comando reproducible no puede sostener
+  cifras canónicas: se regenera desde la fuente con un comando documentado, no
+  se investiga su contenido.
 
 ---
 
