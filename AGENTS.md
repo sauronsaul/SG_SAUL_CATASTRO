@@ -712,6 +712,50 @@ La normativa debe convertirse en: reglas, validaciones, estructuras de datos, pr
   exacto que lo generó. Un artefacto sin comando reproducible no puede sostener
   cifras canónicas: se regenera desde la fuente con un comando documentado, no
   se investiga su contenido.
+- El nombre de la columna de geometría en GeoPackage derivados de DGN depende
+  de la versión y la ruta de GDAL: puede ser `geom` en unas y `GEOMETRY` en
+  otras. Ninguno es asumible. El `ogrinfo -so` posterior a cada materialización
+  es obligatorio y todo SQL se escribe contra el nombre verificado.
+- El driver DGN de GDAL descompone elementos compuestos durante la lectura. Por
+  ello, el conteo de features del GeoPackage difiere de forma determinista del
+  conteo de elementos declarado por el DGN. Este es un estadio adicional que
+  debe declararse y explica excedentes entre artefactos materializados por
+  rutas distintas.
+- `ST_MakeValid` mediante GEOS legacy, como el dialecto SQLite de QGIS 3.4x,
+  destruye geometrías en modo linework: vacía polígonos y produce colecciones
+  mixtas. El saneo canónico usa PostGIS con
+  `ST_MakeValid(geom, 'method=structure')`, más
+  `ST_CollectionExtract(_, 3)` y `ST_Multi` como red de seguridad y
+  homogeneización.
+- Sobre una geometría inválida, `ST_Area` no es confiable: un anillo plegado
+  sobre sí mismo duplica el área medida. Los deltas de área de un saneo se
+  interpretan después de entender la invalidez de origen, no antes.
+- La validez se verifica con `ST_IsValid` después del saneo y el saneo se
+  repite quirúrgicamente sobre los residuales. Una pasada de `ST_MakeValid` no
+  garantiza validez en el 100 % de los casos.
+- En máquinas con múltiples instalaciones de GDAL, el driver PostgreSQL puede
+  existir solo en una. Ante errores de conexión o de driver, primero se
+  verifica qué instalación está resolviendo el comando; la lista de drivers
+  del propio mensaje de error permite identificarla.
+- Gitleaks dispara sobre el patrón `password=` en cadenas de conexión aunque el
+  valor sea un placeholder. Los comandos versionados usan la variable de
+  entorno `PGPASSWORD`, nunca `password=` inline.
+- Los textos DGN llegan al GeoPackage con bytes de codepage Windows sin
+  declarar, por lo que la carga a PostgreSQL con UTF-8 estricto aborta con
+  `Non UTF-8 content`. Se declara `PGCLIENTENCODING=LATIN1` durante la
+  conversión, se limpia la variable después y se verifican los textos
+  convertidos antes de usarlos en joins.
+- En padrones DGN ensamblados por urbanizaciones se verifica la duplicación
+  interna antes de cualquier join o conteo: geometría idéntica mediante dedup
+  por WKB y redibujos casi idénticos mediante solape mutuo de al menos el 90 %
+  del área de ambas geometrías, con clustering por componentes conexas. Un
+  join sobre un padrón con duplicados infla asignaciones y ambigüedades. El
+  umbral sobre el área del menor no discrimina, porque también captura
+  contención legítima de un lote dentro de un polígono paraguas.
+- Al deduplicar un padrón ya unido espacialmente, se valida contra los
+  huérfanos del join. Si el conteo de huérfanos aumenta tras la deduplicación,
+  se eliminó un representante que contenía textos; con conteo estable, la
+  deduplicación no destruyó cobertura.
 
 ---
 
