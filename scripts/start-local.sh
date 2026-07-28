@@ -29,11 +29,16 @@ echo ""
 echo "Iniciando servicios SG_CATASTRO (modo local)..."
 echo ""
 
+# BuildKit genera atestaciones de procedencia con marca de tiempo. Sin esta
+# variable cada build produce un digest distinto aunque las capas salgan
+# CACHED, y compose recrea los contenedores en cada arranque (ADR 0065).
+export BUILDX_NO_DEFAULT_ATTESTATIONS=1
+
 docker compose \
   --env-file "${ENV_FILE}" \
   -f "${COMPOSE_BASE}" \
   -f "${COMPOSE_LOCAL}" \
-  up -d --remove-orphans
+  up -d --build --remove-orphans
 
 echo ""
 echo "Servicios levantados. URLs disponibles:"
