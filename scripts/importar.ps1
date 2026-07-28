@@ -1,44 +1,78 @@
 param(
-  [Parameter(Mandatory=$true)][ValidateSet('importar','estado','activar')][string]$Accion,
+  [Parameter(Mandatory=$true)][ValidateSet('importar','estado','activar','descartar')][string]$Accion,
   [string]$Zip,
-  [string]$Id
+  [string]$Id,
+  [string]$MunicipioCodigo,
+  [string]$Base = 'http://localhost/api'
 )
 # Flujo de importacion autenticado - SOLO ORQUESTADOR (ver AGENTS.md).
 # Credenciales interactivas; token solo en memoria de esta ejecucion.
 # ADVERTENCIA: mantener este archivo en ASCII puro (sin tildes ni
 # guiones largos) - PowerShell 5.1 lee sin BOM como ANSI y los
 # caracteres multibyte rompen el parseo.
-$base = 'http://localhost:5000/api'
+#
+# ADR 0060: el endpoint exige el campo multipart municipio_codigo.
+# ADR 0063: cada paquete es un snapshot municipal completo del esquema
+# declarado para ese municipio.
+
+$ErrorActionPreference = 'Stop'
+
+if ($Accion -eq 'importar') {
+  if (-not $Zip) { throw 'Falta -Zip' }
+  if (-not $MunicipioCodigo) { throw 'Falta -MunicipioCodigo (codigo INE de seis digitos)' }
+  if (-not (Test-Path -LiteralPath $Zip)) { throw "No existe el ZIP: $Zip" }
+  if ($MunicipioCodigo -notmatch '^\d{6}$') { throw 'El municipio debe ser INE de seis digitos.' }
+  $Zip = (Resolve-Path -LiteralPath $Zip).Path
+}
+if ($Accion -in @('estado','activar','descartar') -and -not $Id) { throw 'Falta -Id' }
 
 $email = Read-Host 'Email'
 $sec   = Read-Host 'Password' -AsSecureString
 $plain = [Runtime.InteropServices.Marshal]::PtrToStringAuto(
          [Runtime.InteropServices.Marshal]::SecureStringToBSTR($sec))
-$login = Invoke-RestMethod -Method Post -Uri "$base/auth/login" `
+$login = Invoke-RestMethod -Method Post -Uri "$Base/auth/login" `
          -ContentType 'application/json' `
          -Body (@{ email = $email; password = $plain } | ConvertTo-Json)
 $plain = $null
 $token = $login.accessToken
-Write-Host "Login OK. Token expira: $($login.expiresAt)"
+if (-not $token) { throw 'Login sin accessToken en la respuesta.' }
+Write-Host "Login OK contra $Base. Token expira: $($login.expiresAt)"
+
+$auth = @{ Authorization = "Bearer $token" }
 
 switch ($Accion) {
+
   'importar' {
-    if (-not $Zip) { throw 'Falta -Zip' }
-    $r = curl.exe -s -X POST "$base/importaciones/versiones" `
+    Write-Host "Subiendo $Zip para municipio $MunicipioCodigo ..."
+    $r = curl.exe -s -X POST "$Base/importaciones/versiones" `
          -H "Authorization: Bearer $token" `
-         -F "paquete=@$Zip" -w "`nHTTP %{http_code}`n"
+         -F "municipio_codigo=$MunicipioCodigo" `
+         -F "paquete=@$Zip" `
+         -w "`nHTTP %{http_code}`n"
     Write-Host $r
+    Write-Host 'Si el codigo es 202, use -Accion estado -Id <datasetVersionId> hasta PreviewListo.'
   }
+
   'estado' {
-    if (-not $Id) { throw 'Falta -Id' }
-    Invoke-RestMethod -Uri "$base/importaciones/versiones/$Id" `
-      -Headers @{ Authorization = "Bearer $token" } | ConvertTo-Json -Depth 6
+    Invoke-RestMethod -Uri "$Base/importaciones/versiones/$Id" -Headers $auth |
+      ConvertTo-Json -Depth 6
   }
+
   'activar' {
-    if (-not $Id) { throw 'Falta -Id' }
-    Write-Host "VAS A ACTIVAR $Id - acto irreversible de estado productivo."
+    Write-Host "VAS A ACTIVAR $Id."
+    Write-Host 'La version activa actual de ese municipio pasara a Archivada (ADR 0063).'
+    Write-Host 'Es reversible: una version Archivada puede reactivarse con esta misma accion.'
     if ((Read-Host 'Escribe ACTIVAR para confirmar') -ne 'ACTIVAR') { throw 'Cancelado.' }
-    Invoke-RestMethod -Method Post -Uri "$base/importaciones/versiones/$Id/activar" `
-      -Headers @{ Authorization = "Bearer $token" } | ConvertTo-Json -Depth 6
+    Invoke-RestMethod -Method Post -Uri "$Base/importaciones/versiones/$Id/activar" -Headers $auth |
+      ConvertTo-Json -Depth 6
+  }
+
+  'descartar' {
+    Write-Host "VAS A DESCARTAR $Id."
+    Write-Host 'Purga sus filas capa_* de forma irreversible. Solo aplica a PreviewListo.'
+    Write-Host 'El objeto del paquete permanece en MinIO (deuda registrada, ADR 0035).'
+    if ((Read-Host 'Escribe DESCARTAR para confirmar') -ne 'DESCARTAR') { throw 'Cancelado.' }
+    Invoke-RestMethod -Method Post -Uri "$Base/importaciones/versiones/$Id/descartar" -Headers $auth |
+      ConvertTo-Json -Depth 6
   }
 }
