@@ -116,6 +116,7 @@ Thumbs.db:encdata
 Desktop.ini
 $RECYCLE.BIN/
 *.lnk
+~$*
 # macOS
 .DS_Store
 .AppleDouble
