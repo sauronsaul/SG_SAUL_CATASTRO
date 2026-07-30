@@ -157,6 +157,8 @@ secrets/
 *.bak
 *.swp
 *.orig
+__pycache__/
+*.pyc
 
 # Shapefiles de prueba — datos locales, nunca al repo
 *.shp
