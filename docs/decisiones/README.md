@@ -77,3 +77,5 @@
 | [0063](0063-semantica-importacion-snapshot-completo-confirmado.md) | Confirmación del snapshot municipal completo como única semántica de importación versionada | Fase 3.B |
 | [0064](0064-estatus-capa-predial-caranavi-carril-no-fotografiados.md) | Estatus de la capa predial de Caranavi: carril `PrediosNoFotografiados` como estado transitorio | Fase 3.B |
 | [0065](0065-arranque-local-reconstruye-y-digest-estable.md) | El arranque local reconstruye imágenes y estabiliza su digest | Infraestructura |
+| [0066](0066-motor-valuacion-terreno-rm024-2024.md) | Motor de valuación de terreno conforme a RM 024/2024 | Fase 4.A |
+| [0067](0067-no-fijacion-vz-uyuni.md) | No se fija valor zonal imponible para Uyuni con la evidencia disponible | Fase 4.A |
