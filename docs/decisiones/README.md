@@ -80,3 +80,4 @@
 | [0066](0066-motor-valuacion-terreno-rm024-2024.md) | Motor de valuación de terreno conforme a RM 024/2024 | Fase 4.A |
 | [0067](0067-no-fijacion-vz-uyuni.md) | No se fija valor zonal imponible para Uyuni con la evidencia disponible | Fase 4.A |
 | [0068](0068-calibracion-factor-forma-uyuni.md) | Calibración del factor forma Ff para Uyuni | Fase 4.A |
+| [0069](0069-modelo-datos-valuacion.md) | Modelo de datos de valuación | Fase 4.B |
