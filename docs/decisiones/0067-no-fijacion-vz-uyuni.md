@@ -1,6 +1,6 @@
 # ADR-0067 — No se fija valor zonal imponible para Uyuni con la evidencia disponible
 
-- **Estado:** Propuesta (borrador para revisión y aprobación de Saul).
+- **Estado:** Aceptada.
 - **Fecha:** 2026-07-29 · Fase 4.A.
 - **Naturaleza:** determinación **time-bound**. Quedará superseded cuando exista
   una campaña de encuestas conforme al Cap. IV de RM 024/2024.

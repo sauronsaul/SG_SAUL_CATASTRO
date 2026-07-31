@@ -1,6 +1,7 @@
 # ADR-0066 — Motor de valuación de terreno conforme a RM 024/2024
 
-- **Estado:** Propuesta (borrador para revisión y aprobación de Saul).
+- **Estado:** Aceptada.
+- **Refinada por:** ADR-0068 (calibración de los umbrales de `Ff`, D5).
 - **Fecha:** 2026-07-29 · Fase 4.A.
 - **Relación con ADR-0045:** lo **corrige y complementa**; no lo supersede. D1, D5,
   D7 y D8 de ADR-0045 permanecen ratificadas. D4 y D6 se corrigen aquí.
@@ -228,7 +229,8 @@ identificador secundario, no como llave de negocio. Ratifica D2 y D3 de ADR-0045
 
 ## Pendiente de cierre
 
-1. Medir la distribución de solidez de Uyuni y fijar los umbrales de `Ff` (D5).
+1. ~~Medir la distribución de solidez y fijar los umbrales de `Ff` (D5).~~
+   **Cerrado por ADR-0068.**
 2. Diseñar M016 sobre esta especificación: catálogo de coeficientes por municipio
    y por versión de fórmula, con la llave de D6.
 3. Evaluar si D5 y D6 justifican un ADR separado para el modelo de datos, como
