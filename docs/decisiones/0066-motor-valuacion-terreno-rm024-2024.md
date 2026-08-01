@@ -2,6 +2,7 @@
 
 - **Estado:** Aceptada.
 - **Refinada por:** ADR-0068 (calibración de los umbrales de `Ff`, D5).
+- **Desarrollada por:** ADR-0069 (modelo de datos de valuación).
 - **Fecha:** 2026-07-29 · Fase 4.A.
 - **Relación con ADR-0045:** lo **corrige y complementa**; no lo supersede. D1, D5,
   D7 y D8 de ADR-0045 permanecen ratificadas. D4 y D6 se corrigen aquí.
@@ -233,5 +234,5 @@ identificador secundario, no como llave de negocio. Ratifica D2 y D3 de ADR-0045
    **Cerrado por ADR-0068.**
 2. Diseñar M016 sobre esta especificación: catálogo de coeficientes por municipio
    y por versión de fórmula, con la llave de D6.
-3. Evaluar si D5 y D6 justifican un ADR separado para el modelo de datos, como
-   ADR-0045 se planteó a sí mismo en su punto 3 de cierre.
+3. ~~Evaluar si D5 y D6 justifican un ADR separado para el modelo de datos.~~
+   **Cerrado por ADR-0069.**

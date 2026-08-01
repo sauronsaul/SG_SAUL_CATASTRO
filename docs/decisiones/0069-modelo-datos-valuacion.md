@@ -1,6 +1,6 @@
 # ADR-0069 — Modelo de datos de valuación
 
-- **Estado:** Propuesta (borrador para revisión y aprobación de Saul).
+- **Estado:** Aceptada.
 - **Fecha:** 2026-07-31 · Fase 4.B.
 - **Responde al** punto 3 de "Pendiente de cierre" de ADR-0066, que preguntaba si
   D5 y D6 justifican un ADR separado de modelo de datos. **Sí lo justifican.**
