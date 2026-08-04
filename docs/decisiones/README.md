@@ -81,3 +81,5 @@
 | [0067](0067-no-fijacion-vz-uyuni.md) | No se fija valor zonal imponible para Uyuni con la evidencia disponible | Fase 4.A |
 | [0068](0068-calibracion-factor-forma-uyuni.md) | Calibración del factor forma Ff para Uyuni | Fase 4.A |
 | [0069](0069-modelo-datos-valuacion.md) | Modelo de datos de valuación | Fase 4.B |
+| [0070](0070-origen-servicios-y-agregacion-zonal.md) | Origen del dato de servicios y agregación zonal de los índices | Fase 4.B |
+| [0071](0071-separacion-norma-gam-aprobacion-vigencia.md) | Separación entre norma nacional y decisión municipal: aprobación, vigencia y divergencia | Fase 4.B |
