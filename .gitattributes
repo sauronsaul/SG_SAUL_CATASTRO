@@ -40,8 +40,9 @@
 *.sql           text eol=lf
 *.sh            text eol=lf
 
-# Script Python reproducible — preservar hash citado en ADR-0066 y ADR-0067
-scripts/auditoria_vz.py text eol=lf
+# Scripts Python reproducibles — preservar el hash citado en los ADR.
+# Regla generica: alcanza a auditoria_vz.py y a modelo_vigencia_adr0071.py.
+*.py            text eol=lf
 
 # ------------------------------------------------------------
 # Windows — requieren CRLF para ejecutarse correctamente
